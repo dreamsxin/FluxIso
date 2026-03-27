@@ -18,7 +18,7 @@ export interface LightSource {
 }
 
 export class BallRenderer {
-  constructor(private ball: BallOptions) {}
+  constructor(public ball: BallOptions) {}
 
   draw(
     ctx: CanvasRenderingContext2D,

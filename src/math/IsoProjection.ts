@@ -36,3 +36,23 @@ export function project(
 export function tileOrigin(col: number, row: number): IsoVec3 {
   return { x: col, y: row, z: 0 };
 }
+
+/**
+ * Unprojects screen coordinates back to isometric world XY (at z=0).
+ * Inverse of project() with z=0.
+ */
+export function unproject(
+  sx: number,
+  sy: number,
+  tileW: number,
+  tileH: number
+): { x: number; y: number } {
+  // sx = (x - y) * tileW/2  =>  x - y = sx / (tileW/2)
+  // sy = (x + y) * tileH/2  =>  x + y = sy / (tileH/2)
+  const a = sx / (tileW / 2);
+  const b = sy / (tileH / 2);
+  return {
+    x: (a + b) / 2,
+    y: (b - a) / 2,
+  };
+}

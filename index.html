@@ -6,6 +6,7 @@
     <title>LuxIso Demo</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
+
       body {
         background: #0a0a0f;
         display: flex;
@@ -15,32 +16,135 @@
         min-height: 100vh;
         font-family: 'Segoe UI', system-ui, sans-serif;
         color: #aaa;
+        gap: 18px;
+        padding: 24px 0;
       }
+
       h1 {
         font-size: 1.1rem;
         font-weight: 400;
         letter-spacing: 0.2em;
         text-transform: uppercase;
-        margin-bottom: 24px;
-        color: #666;
+        color: #555;
       }
+
       canvas {
         display: block;
         border-radius: 4px;
         box-shadow: 0 0 60px rgba(100, 160, 255, 0.08);
+        max-width: 100vw;
       }
-      p {
-        margin-top: 16px;
+
+      /* ── controls panel ── */
+      .panel {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        background: #111118;
+        border: 1px solid #222;
+        border-radius: 10px;
+        padding: 14px 20px;
+        min-width: 320px;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .row label {
         font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        color: #555;
+        width: 110px;
+        flex-shrink: 0;
+      }
+
+      .row input[type="range"] {
+        flex: 1;
+        accent-color: #5590cc;
+        cursor: pointer;
+        height: 4px;
+      }
+
+      .row input[type="range"].light-slider {
+        accent-color: #f0c040;
+      }
+
+      .row .val {
+        font-size: 0.72rem;
         color: #444;
-        letter-spacing: 0.05em;
+        width: 32px;
+        text-align: right;
+        flex-shrink: 0;
+      }
+
+      .divider {
+        border: none;
+        border-top: 1px solid #1e1e28;
+        margin: 2px 0;
+      }
+
+      button#mode-btn {
+        background: #1a1a24;
+        border: 1px solid #333;
+        color: #888;
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        padding: 6px 16px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s, color 0.2s;
+        user-select: none;
+        white-space: nowrap;
+      }
+
+      button#mode-btn:hover { border-color: #555; color: #bbb; }
+
+      button#mode-btn.active {
+        background: #1e1a08;
+        border-color: #a07820;
+        color: #f0c040;
+      }
+
+      .hint {
+        font-size: 0.7rem;
+        color: #2e2e2e;
+        letter-spacing: 0.04em;
+        text-align: center;
       }
     </style>
   </head>
   <body>
     <h1>LuxIso &mdash; Isometric Demo</h1>
     <canvas id="canvas"></canvas>
-    <p>10 &times; 10 isometric stage &nbsp;|&nbsp; dynamic point light &nbsp;|&nbsp; shadow projection</p>
+
+    <div class="panel">
+      <!-- Ball controls -->
+      <div class="row">
+        <label>Ball elevation</label>
+        <input id="ball-elev" type="range" min="0" max="160" value="48" step="1" />
+        <span class="val" id="ball-elev-val">48</span>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- Light controls -->
+      <div class="row">
+        <label>Light elevation</label>
+        <input id="light-elev" type="range" min="20" max="300" value="120" step="1" class="light-slider" />
+        <span class="val" id="light-elev-val">120</span>
+      </div>
+      <div class="row">
+        <label>Light mode</label>
+        <button id="mode-btn">Light: Orbit</button>
+        <span class="hint" style="flex:1; text-align:left; padding-left:6px;">drag in manual</span>
+      </div>
+    </div>
+
+    <span class="hint">drag ball on canvas &nbsp;|&nbsp; switch to manual to drag light</span>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
