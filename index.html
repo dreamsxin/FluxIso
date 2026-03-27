@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LuxIso Demo</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        background: #0a0a0f;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        color: #aaa;
+      }
+      h1 {
+        font-size: 1.1rem;
+        font-weight: 400;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        margin-bottom: 24px;
+        color: #666;
+      }
+      canvas {
+        display: block;
+        border-radius: 4px;
+        box-shadow: 0 0 60px rgba(100, 160, 255, 0.08);
+      }
+      p {
+        margin-top: 16px;
+        font-size: 0.75rem;
+        color: #444;
+        letter-spacing: 0.05em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>LuxIso &mdash; Isometric Demo</h1>
+    <canvas id="canvas"></canvas>
+    <p>10 &times; 10 isometric stage &nbsp;|&nbsp; dynamic point light &nbsp;|&nbsp; shadow projection</p>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
