@@ -13,24 +13,59 @@ export type Direction = 'S' | 'SW' | 'W' | 'NW' | 'N' | 'NE' | 'E' | 'SE';
 export class AnimationController {
   private sheet: SpriteSheet;
   private clip: AnimationClip;
-  private elapsed = 0; // seconds since clip start
+  private elapsed = 0;
   private _frame = 0;
   private _done = false;
+  private _onComplete: (() => void) | null = null;
 
   direction: Direction = 'S';
 
   constructor(sheet: SpriteSheet, initialClip = 'idle') {
     this.sheet = sheet;
-    this.clip = sheet.getClip(initialClip);
+    // Validate clip exists; fall back to first clip if not found
+    this.clip = sheet.hasClip(initialClip)
+      ? sheet.getClip(initialClip)
+      : sheet.clips.values().next().value ?? { name: initialClip, frames: [], fps: 1 };
   }
 
-  /** Switch to a named animation clip. No-op if already playing the same clip. */
-  play(name: string): void {
-    if (this.clip.name === name) return;
+  /**
+   * Switch to a named animation clip.
+   * No-op if already playing the same clip.
+   * Warns if clip doesn't exist and returns false.
+   */
+  play(name: string): boolean {
+    if (!this.sheet.hasClip(name)) {
+      console.warn(`AnimationController: clip "${name}" not found on sheet "${this.sheet.url}"`);
+      return false;
+    }
+    if (this.clip.name === name) return true;
     this.clip = this.sheet.getClip(name);
     this.elapsed = 0;
     this._frame = 0;
     this._done = false;
+    this._onComplete = null;
+    return true;
+  }
+
+  /**
+   * Play a non-looping clip once, then call `onComplete`.
+   * Automatically switches back to `returnTo` clip when done (default 'idle').
+   */
+  playOnce(name: string, onComplete?: () => void, returnTo = 'idle'): boolean {
+    if (!this.sheet.hasClip(name)) {
+      console.warn(`AnimationController: clip "${name}" not found`);
+      return false;
+    }
+    this.clip = this.sheet.getClip(name);
+    // Force non-looping for this playback
+    this.elapsed = 0;
+    this._frame = 0;
+    this._done = false;
+    this._onComplete = () => {
+      onComplete?.();
+      if (returnTo && this.sheet.hasClip(returnTo)) this.play(returnTo);
+    };
+    return true;
   }
 
   /** Advance animation by `dt` seconds (call once per frame). */
@@ -39,37 +74,39 @@ export class AnimationController {
     this.elapsed += dt;
     const frameDuration = 1 / this.clip.fps;
     const totalFrames = this.clip.frames.length;
+    if (totalFrames === 0) return;
     const totalDuration = frameDuration * totalFrames;
 
-    if (this.clip.loop ?? true) {
+    const shouldLoop = this.clip.loop ?? true;
+    if (shouldLoop) {
       this._frame = Math.floor((this.elapsed % totalDuration) / frameDuration);
     } else {
       if (this.elapsed >= totalDuration) {
         this._frame = totalFrames - 1;
-        this._done = true;
+        if (!this._done) {
+          this._done = true;
+          const cb = this._onComplete;
+          this._onComplete = null;
+          cb?.();
+        }
       } else {
         this._frame = Math.floor(this.elapsed / frameDuration);
       }
     }
   }
 
-  /** Current frame index within the active clip. */
-  get frameIndex(): number {
-    return this._frame;
+  /** Reset playback to the beginning of the current clip. */
+  reset(): void {
+    this.elapsed = 0;
+    this._frame = 0;
+    this._done = false;
+    this._onComplete = null;
   }
 
-  /** True when a non-looping animation has finished. */
-  get done(): boolean {
-    return this._done;
-  }
-
-  get currentClip(): AnimationClip {
-    return this.clip;
-  }
-
-  get spriteSheet(): SpriteSheet {
-    return this.sheet;
-  }
+  get frameIndex(): number { return this._frame; }
+  get done(): boolean { return this._done; }
+  get currentClip(): AnimationClip { return this.clip; }
+  get spriteSheet(): SpriteSheet { return this.sheet; }
 
   /**
    * Infer movement direction from world-space delta vector.
@@ -77,8 +114,8 @@ export class AnimationController {
    */
   static directionFrom(dx: number, dy: number): Direction {
     if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return 'S';
-    const angle = Math.atan2(dy, dx) * (180 / Math.PI); // -180..180
-    const a = ((angle + 360) % 360); // 0..360
+    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    const a = ((angle + 360) % 360);
     if (a < 22.5 || a >= 337.5) return 'E';
     if (a < 67.5)  return 'SE';
     if (a < 112.5) return 'S';

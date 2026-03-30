@@ -9,7 +9,8 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 - **Dynamic lighting** — OmniLight (RGB point light, distance falloff) + DirectionalLight (face-normal dot product, per-channel color mix)
 - **Tile materials** — Procedural color or image texture per tile; lighting multiply + screen blend overlay
 - **Wall openings** — Doors and windows cut into wall faces with isometric parallelogram clipping
-- **Sprite animation** — `SpriteSheet` + `AnimationController`; idle/walk state machine; 8-direction support
+- **Sprite animation** — `SpriteSheet` + `AnimationController`; idle/walk state machine; 8-direction support; `playOnce` with completion callback; clip validation with warnings
+- **Particle system** — `ParticleSystem` as `IsoObject`; procedural + sprite-sheet particles; 5 built-in presets (sparkBurst, emberTrail, dustPuff, crystalShatter, coinSpill); continuous emission + burst mode; per-particle color/size/alpha/rotation interpolation; `screen`/`lighter`/`multiply` blend modes
 - **Tile collision** — `TileCollider` walkable grid; AABB slide-and-clamp resolution; `moveTo()` path collision
 - **ECS components** — `Entity.addComponent()` / `getComponent()`; built-in `HealthComponent` + `MovementComponent`; `EventBus` for inter-component communication
 - **Low Poly props** — `Crystal`, `Boulder`, `Chest`, `Cloud` — canvas-drawn, light-shaded, ECS-powered

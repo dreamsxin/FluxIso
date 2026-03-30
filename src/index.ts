@@ -36,6 +36,8 @@ export { SpriteSheet } from './animation/SpriteSheet';
 export type { SpriteSheetOptions, AnimationClip, FrameRect } from './animation/SpriteSheet';
 export { AnimationController } from './animation/AnimationController';
 export type { Direction } from './animation/AnimationController';
+export { ParticleSystem } from './animation/ParticleSystem';
+export type { EmitterConfig, EmitterShape, ParticleBlend } from './animation/ParticleSystem';
 
 // Physics
 export { TileCollider } from './physics/TileCollider';

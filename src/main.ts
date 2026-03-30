@@ -9,6 +9,7 @@ import { HealthComponent } from './ecs/components/HealthComponent';
 import { Entity } from './ecs/Entity';
 import { hexToRgba } from './math/color';
 import { AudioManager } from './audio/AudioManager';
+import { ParticleSystem } from './animation/ParticleSystem';
 
 // ─── Canvas & Engine ──────────────────────────────────────────────────────────
 
@@ -44,25 +45,58 @@ engine.setScene(scene);
 const character = scene.getById('player') as Character;
 const omniLight = scene.omniLights[0] as OmniLight;
 
+// ─── Particle helper ──────────────────────────────────────────────────────────
+
+let _fxCounter = 0;
+type FxPreset = 'spark' | 'crystal' | 'dust' | 'coin';
+
+function spawnFx(x: number, y: number, preset: FxPreset, color?: string, count?: number): void {
+  const id = `fx-${++_fxCounter}`;
+  const ps = new ParticleSystem(id, x, y, 0);
+  switch (preset) {
+    case 'crystal': ps.addEmitter(ParticleSystem.presets.crystalShatter({ color })); break;
+    case 'dust':    ps.addEmitter(ParticleSystem.presets.dustPuff({ color })); break;
+    case 'coin':    ps.addEmitter(ParticleSystem.presets.coinSpill({ count })); break;
+    default:        ps.addEmitter(ParticleSystem.presets.sparkBurst({ color, count })); break;
+  }
+  ps.onExhausted = () => scene.removeById(id);
+  ps.burst();
+  scene.addObject(ps);
+}
+
 // ─── Low Poly props with HealthComponent ─────────────────────────────────────
 
 const crystal = new Crystal('crystal-1', 2, 3, '#8060e0');
 crystal.addComponent(new HealthComponent({
   max: 60,
-  onDeath: () => { scene.removeById('crystal-1'); },
+  onChange: () => spawnFx(crystal.position.x, crystal.position.y, 'spark', '#8060e0', 8),
+  onDeath: () => {
+    spawnFx(crystal.position.x, crystal.position.y, 'crystal', '#8060e0', 20);
+    scene.removeById('crystal-1');
+  },
 }));
 
 const boulder = new Boulder('boulder-1', 7, 2, '#7a7a8a');
 boulder.addComponent(new HealthComponent({
   max: 100,
-  onDeath: () => { scene.removeById('boulder-1'); },
+  onChange: () => spawnFx(boulder.position.x, boulder.position.y, 'dust', undefined, 6),
+  onDeath: () => {
+    spawnFx(boulder.position.x, boulder.position.y, 'dust', undefined, 16);
+    scene.removeById('boulder-1');
+  },
 }));
 
 const chest = new Chest('chest-1', 7, 7);
 chest.addComponent(new HealthComponent({
   max: 40,
-  onChange: (hp, max) => { if (hp < max) chest.open(); },
-  onDeath: () => { chest.open(); },
+  onChange: (hp, max) => {
+    if (hp < max) chest.open();
+    spawnFx(chest.position.x, chest.position.y, 'spark', '#ffd040', 6);
+  },
+  onDeath: () => {
+    chest.open();
+    spawnFx(chest.position.x, chest.position.y, 'coin', undefined, 18);
+  },
 }));
 
 scene.addObject(crystal);
