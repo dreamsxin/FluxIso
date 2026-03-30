@@ -1,15 +1,40 @@
 {
   "name": "luxiso",
   "version": "0.1.0",
+  "description": "2D isometric rendering engine — TypeScript, Canvas 2D, dynamic lighting, ECS, scene editor",
+  "keywords": [
+    "isometric",
+    "game-engine",
+    "canvas2d",
+    "typescript",
+    "ecs",
+    "lighting"
+  ],
+  "license": "MIT",
   "type": "module",
+  "main": "./dist/luxiso.cjs",
+  "module": "./dist/luxiso.mjs",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/luxiso.mjs",
+      "require": "./dist/luxiso.cjs",
+      "types": "./dist/types/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:lib": "tsc -p tsconfig.lib.json && cross-env BUILD_MODE=lib vite build",
     "preview": "vite preview",
     "test": "vitest --run",
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "typescript": "^5.3.3",
     "vite": "^5.4.19",
     "vitest": "^4.1.2"

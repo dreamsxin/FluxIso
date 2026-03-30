@@ -11,13 +11,15 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 - **Wall openings** — Doors and windows cut into wall faces with isometric parallelogram clipping
 - **Sprite animation** — `SpriteSheet` + `AnimationController`; idle/walk state machine; 8-direction support
 - **Tile collision** — `TileCollider` walkable grid; AABB slide-and-clamp resolution; `moveTo()` path collision
-- **ECS components** — `Entity.addComponent()` / `getComponent()`; built-in `HealthComponent` (hp/damage/heal/callbacks)
-- **Low Poly props** — `Crystal`, `Boulder`, `Chest` — canvas-drawn, light-shaded, ECS-powered with health bars
+- **ECS components** — `Entity.addComponent()` / `getComponent()`; built-in `HealthComponent` + `MovementComponent`; `EventBus` for inter-component communication
+- **Low Poly props** — `Crystal`, `Boulder`, `Chest`, `Cloud` — canvas-drawn, light-shaded, ECS-powered
 - **Declarative scenes** — JSON scene file; `engine.loadScene(url)` instantiates floor, walls, lights, characters, collision layer
 - **Camera system** — Follow (lerp), pan, zoom, world-bounds clamping; `worldToScreen` / `screenToWorld` zoom-aware helpers
-- **Lightmap baking** — `LightmapCache` on `OffscreenCanvas`; floor re-baked only when lights change
-- **Shadow casting** — `ShadowCaster` projects object AABBs from OmniLight onto ground plane; distance-attenuated alpha
+- **Lightmap baking** — `LightmapCache` on `OffscreenCanvas`; floor re-baked only when lights or camera change
+- **Shadow casting** — `ShadowCaster` ray-projects object AABBs from OmniLight onto ground plane; convex hull; distance falloff
 - **Audio** — `AudioManager` (Web Audio API); one-shot SFX, looping BGM, spatial distance attenuation; master/sfx/bgm volume
+- **Scene editor** — Visual placement of walls/lights/props; property panel; JSON export/import; keyboard shortcuts
+- **Library packaging** — Vite lib mode; ESM + CJS dual output; `luxiso.d.ts`; npm-ready
 - **TypeScript-first** — Strict mode, fully typed public API, ES module tree-shakeable exports
 
 ## Tech Stack
@@ -33,8 +35,15 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # production build → dist/
+npm run dev        # demo + editor dev server → http://localhost:5173
+npm run build      # production build of demo + editor → dist/
+npm run build:lib  # library bundle → dist/luxiso.mjs + dist/luxiso.cjs + dist/types/
+npm run test       # run 72 unit tests (Vitest)
+```
+
+**Use as a library (after `npm run build:lib`):**
+```ts
+import { Engine, Scene, OmniLight, Character, HealthComponent } from 'luxiso';
 ```
 
 ## Demo Controls
@@ -388,6 +397,7 @@ audio.playSfx('/sfx/hit.ogg', { volume: vol });
 | TileCollider: walkable grid + AABB slide-and-clamp | ✅ |
 | ECS: Entity + Component + HealthComponent | ✅ |
 | Low Poly props: Crystal, Boulder, Chest (correct iso geometry) | ✅ |
+| Low Poly Cloud — drifting, seed-based shape, ground shadow | ✅ |
 | JSON scene loading with walkable map | ✅ |
 | Interactive demo: drag, click-to-move, damage, HUD | ✅ |
 | Camera pipeline — lerp follow; zoom-aware unproject; `worldToScreen` / `screenToWorld` | ✅ |
@@ -395,15 +405,20 @@ audio.playSfx('/sfx/hit.ogg', { volume: vol });
 | Shadow casting — ray-projection from OmniLight; convex hull; distance falloff | ✅ |
 | Audio — `AudioManager` (Web Audio API); SFX/BGM; spatial attenuation; hit sounds | ✅ |
 | Color utilities — centralized `src/math/color.ts`; removed 8× duplicate helpers | ✅ |
-
-### Pending
-
-| Priority | Item |
-|---|---|
 | Unit tests — Vitest; 72 tests: IsoProjection, color, depthSort, TileCollider, Camera, HealthComponent, Engine | ✅ |
-| P4 | **Library packaging** — Vite lib mode; ESM + CJS dual output; `luxiso.d.ts`; npm publish |
-| P4 | **Scene editor UI** — visual placement of walls/lights/objects; JSON export | ✅ |
-| P4 | **Performance** — frustum culling; dirty-flag sort skip; object pooling |
+| Scene editor — visual placement, property panel, JSON export/import, keyboard shortcuts | ✅ |
+| Library packaging — Vite lib mode; ESM + CJS dual output; `luxiso.d.ts`; npm-ready | ✅ |
+
+### Next Up
+
+| Priority | Item | Notes |
+|---|---|---|
+| P5 | **ECS: MovementComponent + EventBus** | Reusable movement logic; inter-component events; decouples game logic from rendering |
+| P5 | **Physics hardening** | Diagonal corner-slide fix; continuous collision detection for fast objects |
+| P5 | **Performance: dirty-flag sort + frustum culling** | Skip topoSort when nothing moved; cull off-screen objects before sort |
+| P5 | **Editor: undo/redo + collision layer editor** | Command stack (Ctrl+Z/Y); visual walkable grid toggle per tile |
+| P5 | **Validation layer** | JSON schema validation on load; component type-safe lookup; bounds checks with warnings |
+| P5 | **Extended ECS components** | `TimerComponent`, `TweenComponent`, `TriggerZoneComponent` for game logic patterns |
 
 ## License
 
