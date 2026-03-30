@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LuxIso — Sprite Editor</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d0d14; color: #aaa;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 6px 16px;
+      background: #0a0a10; border-bottom: 1px solid #1a1a28; flex-shrink: 0;
+    }
+    .topbar h1 { font-size: 0.78rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: #3a3a58; }
+    .topbar a  { font-size: 0.72rem; color: #2a2a48; text-decoration: none; }
+    .topbar a:hover { color: #6688cc; }
+    .spacer { flex: 1; }
+    .topbar button {
+      background: #14141e; border: 1px solid #222234; color: #666;
+      padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;
+    }
+    .topbar button:hover { border-color: #444466; color: #aaa; }
+    .topbar button.primary { border-color: #334488; color: #6688cc; }
+    .topbar button.primary:hover { border-color: #5566aa; color: #99aaee; }
+
+    /* ── Layout ── */
+    .workspace { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Left panel ── */
+    .left-panel {
+      width: 280px; background: #0a0a10; border-right: 1px solid #1a1a28;
+      display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0;
+    }
+    .section { padding: 12px 14px; border-bottom: 1px solid #141420; }
+    .section-title {
+      font-size: 0.65rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: #333; margin-bottom: 10px;
+    }
+
+    /* Image source */
+    .img-source { display: flex; flex-direction: column; gap: 6px; }
+    .img-source input[type="file"] { display: none; }
+    .upload-btn {
+      background: #12121c; border: 1px dashed #2a2a3a; color: #555;
+      padding: 8px; border-radius: 4px; cursor: pointer; text-align: center;
+      font-size: 0.75rem; transition: border-color 0.12s, color 0.12s;
+    }
+    .upload-btn:hover { border-color: #445; color: #999; }
+    .url-row { display: flex; gap: 6px; }
+    .url-row input {
+      flex: 1; background: #12121c; border: 1px solid #1e1e2e; color: #888;
+      padding: 4px 8px; border-radius: 3px; font-size: 0.72rem; min-width: 0;
+    }
+    .url-row input:focus { outline: none; border-color: #3a3a60; color: #bbb; }
+    .url-row button {
+      background: #14141e; border: 1px solid #222234; color: #555;
+      padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 0.72rem; white-space: nowrap;
+    }
+    .url-row button:hover { border-color: #444; color: #999; }
+
+    /* Frame config */
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .field { display: flex; flex-direction: column; gap: 3px; }
+    .field label { font-size: 0.65rem; color: #444; }
+    .field input {
+      background: #12121c; border: 1px solid #1e1e2e; color: #888;
+      padding: 4px 6px; border-radius: 3px; font-size: 0.72rem;
+    }
+    .field input:focus { outline: none; border-color: #3a3a60; color: #bbb; }
+
+    /* Actions */
+    .action-row {
+      display: grid;
+      grid-template-columns: 80px 40px 50px 40px auto 24px;
+      gap: 4px; align-items: center; margin-bottom: 5px;
+    }
+    .action-row input[type="text"],
+    .action-row input[type="number"] {
+      background: #12121c; border: 1px solid #1e1e2e; color: #888;
+      padding: 3px 5px; border-radius: 3px; font-size: 0.70rem; width: 100%;
+    }
+    .action-row input:focus { outline: none; border-color: #3a3a60; color: #bbb; }
+    .action-row label { font-size: 0.65rem; color: #444; display: flex; align-items: center; gap: 3px; }
+    .btn-del-action {
+      background: none; border: 1px solid #2a1a1a; color: #553333;
+      border-radius: 3px; cursor: pointer; font-size: 0.65rem; padding: 2px 4px;
+    }
+    .btn-del-action:hover { border-color: #663333; color: #cc6666; }
+    .action-header {
+      display: grid; grid-template-columns: 80px 40px 50px 40px auto 24px;
+      gap: 4px; margin-bottom: 4px;
+    }
+    .action-header span { font-size: 0.60rem; color: #2a2a3a; }
+    .add-action-btn {
+      background: #12121c; border: 1px dashed #2a2a3a; color: #555;
+      padding: 5px; border-radius: 3px; cursor: pointer; font-size: 0.72rem;
+      width: 100%; margin-top: 4px; text-align: center;
+    }
+    .add-action-btn:hover { border-color: #445; color: #999; }
+
+    /* Playback */
+    .playback-row { display: flex; align-items: center; gap: 10px; }
+    .playback-row select {
+      flex: 1; background: #12121c; border: 1px solid #1e1e2e; color: #888;
+      padding: 4px 6px; border-radius: 3px; font-size: 0.72rem;
+    }
+    .playback-row select:focus { outline: none; border-color: #3a3a60; }
+    .playback-row button {
+      background: #14141e; border: 1px solid #334488; color: #6688cc;
+      padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 0.72rem;
+    }
+    .playback-row button:hover { border-color: #5566aa; color: #99aaee; }
+
+    /* JSON output */
+    .json-area { display: flex; flex-direction: column; gap: 6px; }
+    .json-area textarea {
+      background: #0d0d14; border: 1px solid #1a1a28; color: #3a5a3a;
+      font-family: 'Consolas', monospace; font-size: 0.60rem;
+      padding: 6px; border-radius: 4px; resize: none; height: 100px;
+    }
+
+    /* ── Centre: sheet preview ── */
+    .centre-panel {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: flex-start;
+      overflow: auto; padding: 16px; gap: 12px; background: #0a0a0f;
+    }
+    .centre-panel h2 { font-size: 0.65rem; letter-spacing: 0.14em; text-transform: uppercase; color: #2a2a3a; }
+    #sheet-preview { border: 1px solid #1a1a28; border-radius: 3px; image-rendering: pixelated; }
+
+    /* ── Right: 8-direction preview grid ── */
+    .right-panel {
+      width: 340px; background: #0a0a10; border-left: 1px solid #1a1a28;
+      display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+    }
+    .right-panel-title {
+      padding: 10px 14px 6px;
+      font-size: 0.65rem; letter-spacing: 0.14em; text-transform: uppercase; color: #333;
+      border-bottom: 1px solid #141420; flex-shrink: 0;
+    }
+    #preview-grid {
+      flex: 1; overflow-y: auto;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 8px; padding: 10px;
+      align-content: start;
+    }
+    .preview-cell {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      background: #0d0d18; border: 1px solid #1a1a28; border-radius: 4px; padding: 6px;
+    }
+    .dir-label { font-size: 0.65rem; color: #3a3a5a; letter-spacing: 0.06em; }
+    .preview-cell canvas { image-rendering: pixelated; border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>LuxIso — Sprite Editor</h1>
+    <a href="/editor.html">← Scene Editor</a>
+    <a href="/">Demo</a>
+    <div class="spacer"></div>
+    <button id="btn-play" class="primary">▶ Play</button>
+    <button id="btn-export-sprite">Export JSON</button>
+  </div>
+
+  <div class="workspace">
+
+    <!-- Left config panel -->
+    <div class="left-panel">
+
+      <div class="section">
+        <div class="section-title">Sprite Sheet</div>
+        <div class="img-source">
+          <label class="upload-btn" for="upload-img">📁 Upload image…</label>
+          <input type="file" id="upload-img" accept="image/*" />
+          <div class="url-row">
+            <input type="text" id="img-url" placeholder="or paste image URL…" />
+            <button id="btn-load-url">Load</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Frame Config</div>
+        <div class="config-grid">
+          <div class="field"><label>Frame W (px)</label><input type="number" id="frame-w" value="64" min="1" /></div>
+          <div class="field"><label>Frame H (px)</label><input type="number" id="frame-h" value="64" min="1" /></div>
+          <div class="field"><label>Draw Scale</label><input type="number" id="sprite-scale" value="1" min="0.1" step="0.1" /></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Actions</div>
+        <div class="action-header">
+          <span>name</span><span>row</span><span>frames</span><span>fps</span><span>loop</span><span></span>
+        </div>
+        <div id="actions-list"></div>
+        <button class="add-action-btn" id="btn-add-action">+ Add action</button>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Preview Action</div>
+        <div class="playback-row">
+          <select id="active-action"></select>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Export</div>
+        <div class="json-area">
+          <textarea id="sprite-json" placeholder="Click Export to generate config JSON…" spellcheck="false" readonly></textarea>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Centre: sheet preview -->
+    <div class="centre-panel">
+      <h2>Sheet Preview</h2>
+      <canvas id="sheet-preview" width="400" height="300"></canvas>
+    </div>
+
+    <!-- Right: 8-direction preview -->
+    <div class="right-panel">
+      <div class="right-panel-title">8-Direction Preview</div>
+      <div id="preview-grid"></div>
+    </div>
+
+  </div>
+
+  <script type="module" src="/src/editor/sprite-editor.ts"></script>
+</body>
+</html>

@@ -30,8 +30,9 @@ export default defineConfig({
         target: 'es2022',
         rollupOptions: {
           input: {
-            main:   resolve(__dirname, 'index.html'),
-            editor: resolve(__dirname, 'editor.html'),
+            main:         resolve(__dirname, 'index.html'),
+            editor:       resolve(__dirname, 'editor.html'),
+            spriteEditor: resolve(__dirname, 'sprite-editor.html'),
           },
         },
       },

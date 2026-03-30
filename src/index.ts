@@ -36,6 +36,8 @@ export { SpriteSheet } from './animation/SpriteSheet';
 export type { SpriteSheetOptions, AnimationClip, FrameRect } from './animation/SpriteSheet';
 export { AnimationController } from './animation/AnimationController';
 export type { Direction } from './animation/AnimationController';
+export { DirectionalAnimator } from './animation/DirectionalAnimator';
+export type { ActionName, DirectionalAnimatorOptions } from './animation/DirectionalAnimator';
 export { ParticleSystem } from './animation/ParticleSystem';
 export type { EmitterConfig, EmitterShape, ParticleBlend } from './animation/ParticleSystem';
 

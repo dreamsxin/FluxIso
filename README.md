@@ -9,7 +9,7 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 - **Dynamic lighting** — OmniLight (RGB point light, distance falloff) + DirectionalLight (face-normal dot product, per-channel color mix)
 - **Tile materials** — Procedural color or image texture per tile; lighting multiply + screen blend overlay
 - **Wall openings** — Doors and windows cut into wall faces with isometric parallelogram clipping
-- **Sprite animation** — `SpriteSheet` + `AnimationController`; idle/walk state machine; 8-direction support; `playOnce` with completion callback; clip validation with warnings
+- **Sprite animation** — `SpriteSheet` + `AnimationController` + `DirectionalAnimator`; 8-direction × multi-action clip selection with fallback chain; `playOnce` with completion callback; `buildSheet()` grid layout helper
 - **Particle system** — `ParticleSystem` as `IsoObject`; procedural + sprite-sheet particles; 5 built-in presets (sparkBurst, emberTrail, dustPuff, crystalShatter, coinSpill); continuous emission + burst mode; per-particle color/size/alpha/rotation interpolation; `screen`/`lighter`/`multiply` blend modes
 - **Tile collision** — `TileCollider` walkable grid; AABB slide-and-clamp resolution; `moveTo()` path collision
 - **ECS components** — `Entity.addComponent()` / `getComponent()`; built-in `HealthComponent` + `MovementComponent`; `EventBus` for inter-component communication
@@ -20,6 +20,7 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 - **Shadow casting** — `ShadowCaster` ray-projects object AABBs from OmniLight onto ground plane; convex hull; distance falloff
 - **Audio** — `AudioManager` (Web Audio API); one-shot SFX, looping BGM, spatial distance attenuation; master/sfx/bgm volume
 - **Scene editor** — Visual placement of walls/lights/props; property panel; JSON export/import; keyboard shortcuts
+- **Sprite editor** — 8-direction animation preview grid; upload/URL image loading; action config (row/frames/fps); JSON export for `SpriteSheet` config
 - **Library packaging** — Vite lib mode; ESM + CJS dual output; `luxiso.d.ts`; npm-ready
 - **TypeScript-first** — Strict mode, fully typed public API, ES module tree-shakeable exports
 
