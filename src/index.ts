@@ -13,6 +13,8 @@ export { IsoObject } from './elements/IsoObject';
 export { Crystal } from './elements/props/Crystal';
 export { Boulder } from './elements/props/Boulder';
 export { Chest } from './elements/props/Chest';
+export { Cloud } from './elements/props/Cloud';
+export type { CloudOptions } from './elements/props/Cloud';
 export type { DrawContext } from './elements/IsoObject';
 export { Floor } from './elements/Floor';
 export type { FloorOptions } from './elements/Floor';

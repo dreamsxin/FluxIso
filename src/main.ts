@@ -4,6 +4,7 @@ import { Character } from './elements/Character';
 import { Crystal } from './elements/props/Crystal';
 import { Boulder } from './elements/props/Boulder';
 import { Chest } from './elements/props/Chest';
+import { Cloud } from './elements/props/Cloud';
 import { HealthComponent } from './ecs/components/HealthComponent';
 import { Entity } from './ecs/Entity';
 import { hexToRgba } from './math/color';
@@ -67,6 +68,21 @@ chest.addComponent(new HealthComponent({
 scene.addObject(crystal);
 scene.addObject(boulder);
 scene.addObject(chest);
+
+// ─── Clouds ───────────────────────────────────────────────────────────────────
+
+const clouds: Cloud[] = [
+  new Cloud({ id: 'cloud-1', x: 2,   y: 1,   altitude: 7,   speed: 0.35, angle: 0.25,  scale: 1.1, seed: 0.18 }),
+  new Cloud({ id: 'cloud-2', x: 7,   y: 3,   altitude: 8.5, speed: 0.22, angle: -0.15, scale: 0.8, seed: 0.62 }),
+  new Cloud({ id: 'cloud-3', x: 4.5, y: 8,   altitude: 6,   speed: 0.48, angle: 0.40,  scale: 1.3, seed: 0.85 }),
+  new Cloud({ id: 'cloud-4', x: 9,   y: 6.5, altitude: 9,   speed: 0.18, angle: -0.30, scale: 0.7, seed: 0.41 }),
+];
+
+for (const cloud of clouds) {
+  cloud.boundsX = COLS;
+  cloud.boundsY = ROWS;
+  scene.addObject(cloud);
+}
 
 // ─── Light orbit state ────────────────────────────────────────────────────────
 
