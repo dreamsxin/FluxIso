@@ -7,10 +7,4 @@ export abstract class BaseLight {
     this.color = color;
     this.intensity = intensity;
   }
-
-  /**
-   * Compute illumination factor (0–1) for a given screen-space point.
-   * Implemented by each subclass.
-   */
-  abstract illuminate(sx: number, sy: number): number;
 }

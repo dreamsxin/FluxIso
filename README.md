@@ -14,7 +14,10 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 - **ECS components** — `Entity.addComponent()` / `getComponent()`; built-in `HealthComponent` (hp/damage/heal/callbacks)
 - **Low Poly props** — `Crystal`, `Boulder`, `Chest` — canvas-drawn, light-shaded, ECS-powered with health bars
 - **Declarative scenes** — JSON scene file; `engine.loadScene(url)` instantiates floor, walls, lights, characters, collision layer
-- **Camera system** — Follow, pan, zoom, world-bounds clamping (transform implemented, pipeline integration pending)
+- **Camera system** — Follow (lerp), pan, zoom, world-bounds clamping; `worldToScreen` / `screenToWorld` zoom-aware helpers
+- **Lightmap baking** — `LightmapCache` on `OffscreenCanvas`; floor re-baked only when lights change
+- **Shadow casting** — `ShadowCaster` projects object AABBs from OmniLight onto ground plane; distance-attenuated alpha
+- **Audio** — `AudioManager` (Web Audio API); one-shot SFX, looping BGM, spatial distance attenuation; master/sfx/bgm volume
 - **TypeScript-first** — Strict mode, fully typed public API, ES module tree-shakeable exports
 
 ## Tech Stack
@@ -124,14 +127,17 @@ engine.start(
 ```
 Engine                    — canvas setup, RAF loop, JSON scene loading, TileCollider build
 └── Scene                 — world container; topoSort depth sort; collider dispatch
-    ├── Camera            — follow / pan / zoom / applyTransform
+    ├── Camera            — follow (lerp) / pan / zoom / worldToScreen / screenToWorld
+    ├── LightmapCache     — OffscreenCanvas floor bake; dirty-check snapshot; blit()
     ├── Floor             — tile grid; OmniLight + DirectionalLight RGB illumination; tileImage
     ├── Wall              — parallelogram faces; door/window openings; face-normal dir lighting
     ├── Character         — sphere/sprite entity; moveTo collision; AnimationController
     ├── Entity (ECS)      — addComponent / getComponent; per-frame component.update()
     │   ├── Crystal       — low-poly hexagonal crystal; HealthComponent; light-shaded
     │   ├── Boulder       — low-poly 7-sided rock; HealthComponent; crack lines
-    │   └── Chest         — isometric box; animated lid; HealthComponent; glow on open
+    │   └── Chest         — correct iso geometry; animated lid; HealthComponent; inner glow
+    ├── ShadowCaster      — AABB projection from OmniLight; distance-attenuated ground shadows
+    ├── AudioManager      — Web Audio API; SFX / BGM; spatial attenuation; volume control
     └── LightManager
         ├── OmniLight     — point light; RGB channel accumulation; illuminateAt()
         └── DirectionalLight — face-normal dot product; angle/elevation; incidentDirection
@@ -157,8 +163,9 @@ src/
 ├── main.ts                     # Interactive demo
 ├── core/
 │   ├── AssetLoader.ts          # Promise image cache; loadImage / loadAll / get
-│   ├── Camera.ts               # follow / pan / zoom / applyTransform / clamp
-│   ├── Scene.ts                # Object + light management; topoSort; collider dispatch
+│   ├── Camera.ts               # follow (lerp) / pan / zoom / worldToScreen / screenToWorld
+│   ├── LightmapCache.ts        # OffscreenCanvas floor bake; snapshot dirty-check; blit()
+│   ├── Scene.ts                # Object + light management; topoSort; lightmap; shadow dispatch
 │   └── Engine.ts               # RAF loop; JSON loader; TileCollider build; pre/postFrame
 ├── elements/
 │   ├── IsoObject.ts            # Abstract base: id, position, aabb, draw
@@ -168,10 +175,12 @@ src/
 │   └── props/
 │       ├── Crystal.ts          # Low-poly crystal; Entity + HealthComponent
 │       ├── Boulder.ts          # Low-poly rock; Entity + HealthComponent
-│       └── Chest.ts            # Isometric chest; animated lid; Entity + HealthComponent
+│       └── Chest.ts            # Correct iso geometry; animated lid; inner glow; HealthComponent
 ├── animation/
 │   ├── SpriteSheet.ts          # AnimationClip (frames, fps, loop); AssetLoader preload
 │   └── AnimationController.ts  # State machine; 8-direction; idle↔walk auto-switch; dt-based
+├── audio/
+│   └── AudioManager.ts         # Web Audio API; SFX / BGM; spatial attenuation; volume buses
 ├── physics/
 │   └── TileCollider.ts         # Walkable grid; canOccupy(); resolveMove() slide-and-clamp
 ├── ecs/
@@ -182,10 +191,12 @@ src/
 ├── lighting/
 │   ├── BaseLight.ts            # Abstract: color, intensity, illuminate()
 │   ├── OmniLight.ts            # Point light; illuminateAt(sx, sy, lsx, lsy)
-│   └── DirectionalLight.ts     # angle/elevation; direction / incidentDirection vectors
+│   ├── DirectionalLight.ts     # angle/elevation; direction / incidentDirection vectors
+│   └── ShadowCaster.ts         # AABB → ground shadow polygons; distance falloff; multiply blend
 └── math/
     ├── IsoProjection.ts        # project() / unproject() / depthKey()
-    └── depthSort.ts            # AABB interface; topoSort<T extends Sortable>() — Kahn's algorithm
+    ├── depthSort.ts            # AABB interface; topoSort<T extends Sortable>() — Kahn's algorithm
+    └── color.ts                # Shared color utils: hexToRgb / hexToRgba / shiftColor / blendColor / lerpColor
 
 public/
 └── scenes/
@@ -314,6 +325,47 @@ depthKey(x, y, z): number
 topoSort<T extends Sortable>(objects: T[]): T[]
 ```
 
+### `AudioManager`
+
+```ts
+const audio = new AudioManager();
+
+// Must call from a user gesture (click / keydown)
+audio.resume(): void
+audio.suspend(): void
+
+// Volume buses (0–1)
+audio.masterVolume: number
+audio.sfxVolume:    number
+audio.bgmVolume:    number
+
+// Preload
+await audio.preload(url: string): Promise<void>
+await audio.preloadAll(urls: string[]): Promise<void>
+
+// One-shot SFX
+audio.playSfx(url, opts?): AudioBufferSourceNode | null
+// opts: { volume?, rate?, loop?, spatial? }
+
+// Looping BGM with crossfade
+await audio.playBgm(url, fadeDuration?): Promise<void>
+audio.stopBgm(fadeDuration?): void
+
+// Spatial volume helper (world-space distance attenuation)
+AudioManager.spatialVolume({ x, y, listenerX, listenerY, refDistance?, maxDistance? }): number
+```
+
+**Spatial SFX example:**
+```ts
+// Play a hit sound attenuated by distance from the player
+const vol = AudioManager.spatialVolume({
+  x: crystal.position.x, y: crystal.position.y,
+  listenerX: player.position.x, listenerY: player.position.y,
+  refDistance: 1.5, maxDistance: 10,
+});
+audio.playSfx('/sfx/hit.ogg', { volume: vol });
+```
+
 ## Roadmap
 
 ### Completed ✅
@@ -331,22 +383,23 @@ topoSort<T extends Sortable>(objects: T[]): T[]
 | SpriteSheet + AnimationController (8-direction, idle/walk) | ✅ |
 | TileCollider: walkable grid + AABB slide-and-clamp | ✅ |
 | ECS: Entity + Component + HealthComponent | ✅ |
-| Low Poly props: Crystal, Boulder, Chest | ✅ |
+| Low Poly props: Crystal, Boulder, Chest (correct iso geometry) | ✅ |
 | JSON scene loading with walkable map | ✅ |
 | Interactive demo: drag, click-to-move, damage, HUD | ✅ |
+| Camera pipeline — lerp follow; zoom-aware unproject; `worldToScreen` / `screenToWorld` | ✅ |
+| Lightmap baking — `OffscreenCanvas` floor cache; camera + light dirty-check | ✅ |
+| Shadow casting — ray-projection from OmniLight; convex hull; distance falloff | ✅ |
+| Audio — `AudioManager` (Web Audio API); SFX/BGM; spatial attenuation; hit sounds | ✅ |
+| Color utilities — centralized `src/math/color.ts`; removed 8× duplicate helpers | ✅ |
 
 ### Pending
 
 | Priority | Item |
 |---|---|
-| P2 | **Camera pipeline** — connect `applyTransform()` into `Scene.draw()`; Lerp follow; zoom-aware unproject |
-| P2 | **Lightmap baking** — `OffscreenCanvas` static floor cache; invalidate on light move |
-| P2 | **Real shadow casting** — geometry projection from OmniLight onto floor/walls |
-| P3 | **Audio** — `AudioManager` (Web Audio API); spatial distance attenuation |
 | P4 | **Unit tests** — Vitest for math, sort, collider, engine lifecycle |
 | P4 | **Library packaging** — Vite lib mode; ESM + CJS dual output; `luxiso.d.ts`; npm publish |
 | P4 | **Scene editor UI** — visual placement of walls/lights/objects; JSON export |
-| P4 | **Performance** — OffscreenCanvas floor cache; frustum culling; dirty-flag sort skip |
+| P4 | **Performance** — frustum culling; dirty-flag sort skip; object pooling |
 
 ## License
 

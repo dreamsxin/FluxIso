@@ -6,6 +6,7 @@ export { Scene } from './core/Scene';
 export type { SceneOptions } from './core/Scene';
 export { Camera } from './core/Camera';
 export type { CameraBounds, CameraOptions } from './core/Camera';
+export { LightmapCache } from './core/LightmapCache';
 
 // Elements
 export { IsoObject } from './elements/IsoObject';
@@ -26,6 +27,7 @@ export { OmniLight } from './lighting/OmniLight';
 export type { OmniLightOptions } from './lighting/OmniLight';
 export { DirectionalLight } from './lighting/DirectionalLight';
 export type { DirectionalLightOptions } from './lighting/DirectionalLight';
+export { ShadowCaster } from './lighting/ShadowCaster';
 
 // Animation
 export { SpriteSheet } from './animation/SpriteSheet';
@@ -36,6 +38,9 @@ export type { Direction } from './animation/AnimationController';
 // Physics
 export { TileCollider } from './physics/TileCollider';
 
+// Audio
+export { AudioManager } from './audio/AudioManager';
+export type { PlayOptions, SpatialOptions } from './audio/AudioManager';
 // ECS
 export { Entity } from './ecs/Entity';
 export type { Component } from './ecs/Component';
@@ -47,3 +52,4 @@ export { project, unproject, depthKey } from './math/IsoProjection';
 export type { IsoVec3, ScreenVec2 } from './math/IsoProjection';
 export { topoSort } from './math/depthSort';
 export type { AABB, Sortable } from './math/depthSort';
+export { hexToRgb, hexToRgba, shiftColor, blendColor, blendColorRaw, lerpColor } from './math/color';

@@ -3,6 +3,7 @@ import { AABB } from '../../math/depthSort';
 import { DrawContext } from '../IsoObject';
 import { Entity } from '../../ecs/Entity';
 import { HealthComponent } from '../../ecs/components/HealthComponent';
+import { shiftColor, lerpColor } from '../../math/color';
 
 /** Low-poly hexagonal crystal cluster with HealthComponent. */
 export class Crystal extends Entity {
@@ -126,21 +127,4 @@ export class Crystal extends Entity {
     ctx.fillStyle = barColor;
     ctx.fillRect(x - w / 2, y, w * frac, h);
   }
-}
-
-function shiftColor(hex: string, amount: number): string {
-  const n = parseInt(hex.replace('#', ''), 16);
-  const r = Math.min(255, Math.max(0, (n >> 16) + amount));
-  const g = Math.min(255, Math.max(0, ((n >> 8) & 0xff) + amount));
-  const b = Math.min(255, Math.max(0, (n & 0xff) + amount));
-  return `rgb(${r},${g},${b})`;
-}
-
-function lerpColor(hex: string, to: string, t: number): string {
-  const a = parseInt(hex.replace('#', ''), 16);
-  const b = parseInt(to.replace('#', ''), 16);
-  const r = Math.round(((a >> 16) & 0xff) * (1 - t) + ((b >> 16) & 0xff) * t);
-  const g = Math.round(((a >> 8) & 0xff) * (1 - t) + ((b >> 8) & 0xff) * t);
-  const bl = Math.round((a & 0xff) * (1 - t) + (b & 0xff) * t);
-  return `rgb(${r},${g},${bl})`;
 }

@@ -5,8 +5,9 @@ import { Crystal } from './elements/props/Crystal';
 import { Boulder } from './elements/props/Boulder';
 import { Chest } from './elements/props/Chest';
 import { HealthComponent } from './ecs/components/HealthComponent';
-import { project, unproject } from './math/IsoProjection';
 import { Entity } from './ecs/Entity';
+import { hexToRgba } from './math/color';
+import { AudioManager } from './audio/AudioManager';
 
 // ─── Canvas & Engine ──────────────────────────────────────────────────────────
 
@@ -28,6 +29,11 @@ engine.originY = ROWS * (TILE_H / 2) + 20;
 
 const ORIGIN_X = engine.originX;
 const ORIGIN_Y = engine.originY;
+
+// ─── Audio ────────────────────────────────────────────────────────────────────
+
+const audio = new AudioManager();
+const HIT_SFX = '/sfx/hit.mp3';
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 
@@ -51,7 +57,7 @@ boulder.addComponent(new HealthComponent({
   onDeath: () => { scene.removeById('boulder-1'); },
 }));
 
-const chest = new Chest('chest-1', 7, 7, '#c08020');
+const chest = new Chest('chest-1', 7, 7);
 chest.addComponent(new HealthComponent({
   max: 40,
   onChange: (hp, max) => { if (hp < max) chest.open(); },
@@ -138,19 +144,28 @@ let dragOffsetX = 0;
 let dragOffsetY = 0;
 
 function getBallScreenPos(): { bx: number; by: number } {
-  const { sx, sy } = project(character.position.x, character.position.y, character.position.z, TILE_W, TILE_H);
-  return { bx: ORIGIN_X + sx, by: ORIGIN_Y + sy };
+  const { sx, sy } = scene.camera.worldToScreen(
+    character.position.x, character.position.y, character.position.z,
+    TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+  );
+  return { bx: sx, by: sy };
 }
 
 function getLightScreenPos(): { lx: number; ly: number } {
-  const { sx, sy } = project(omniLight.position.x, omniLight.position.y, 0, TILE_W, TILE_H);
-  return { lx: ORIGIN_X + sx, ly: ORIGIN_Y + sy - omniLight.position.z };
+  const { sx, sy } = scene.camera.worldToScreen(
+    omniLight.position.x, omniLight.position.y, omniLight.position.z,
+    TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+  );
+  return { lx: sx, ly: sy };
 }
 
 /** Screen position of any scene entity (at its ground level). */
 function getEntityScreenPos(e: Entity): { ex: number; ey: number } {
-  const { sx, sy } = project(e.position.x, e.position.y, 0, TILE_W, TILE_H);
-  return { ex: ORIGIN_X + sx, ey: ORIGIN_Y + sy };
+  const { sx, sy } = scene.camera.worldToScreen(
+    e.position.x, e.position.y, 0,
+    TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+  );
+  return { ex: sx, ey: sy };
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -209,15 +224,22 @@ function onPointerDown(e: MouseEvent | TouchEvent): void {
   // Prop click → deal damage (15 per click)
   const prop = hitTestProps(cx, cy);
   if (prop) {
+    audio.resume();
     const hp = prop.getComponent<HealthComponent>('health');
-    hp?.takeDamage(15);
+    if (hp && !hp.isDead) {
+      const vol = AudioManager.spatialVolume({
+        x: prop.position.x, y: prop.position.y,
+        listenerX: character.position.x, listenerY: character.position.y,
+        refDistance: 1, maxDistance: 14,
+      });
+      audio.playSfx(HIT_SFX, { volume: vol });
+      hp.takeDamage(15);
+    }
     return;
   }
 
-  // Floor click → moveTo
-  const wx = cx - ORIGIN_X;
-  const wy = cy - ORIGIN_Y;
-  const world = unproject(wx, wy, TILE_W, TILE_H);
+  // Floor click → moveTo (zoom + pan aware)
+  const world = scene.camera.screenToWorld(cx, cy, canvasW, canvasH, TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y);
   const clamped = clampWorld(world.x, world.y);
   character.moveTo(clamped.x, clamped.y, character.position.z);
 }
@@ -226,20 +248,22 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
   const { cx, cy } = getCanvasPos(e);
 
   if (dragging === 'ball') {
-    const sx = cx - dragOffsetX - ORIGIN_X;
-    const sy = cy - dragOffsetY - ORIGIN_Y + character.position.z;
-    const { x: wx, y: wy } = unproject(sx, sy, TILE_W, TILE_H);
-    const w = clampWorld(wx, wy);
+    const world = scene.camera.screenToWorld(
+      cx - dragOffsetX, cy - dragOffsetY + character.position.z,
+      canvasW, canvasH, TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+    );
+    const w = clampWorld(world.x, world.y);
     character.position.x = w.x;
     character.position.y = w.y;
     return;
   }
 
   if (dragging === 'light') {
-    const sx = cx - dragOffsetX - ORIGIN_X;
-    const sy = cy - dragOffsetY - ORIGIN_Y + omniLight.position.z;
-    const { x: wx, y: wy } = unproject(sx, sy, TILE_W, TILE_H);
-    const w = clampWorld(wx, wy);
+    const world = scene.camera.screenToWorld(
+      cx - dragOffsetX, cy - dragOffsetY + omniLight.position.z,
+      canvasW, canvasH, TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+    );
+    const w = clampWorld(world.x, world.y);
     omniLight.position.x = w.x;
     omniLight.position.y = w.y;
     return;
@@ -344,11 +368,12 @@ engine.start(
       omniLight.position.x = LIGHT_CENTER_X + Math.cos(orbitTime) * LIGHT_ORBIT_R;
       omniLight.position.y = LIGHT_CENTER_Y + Math.sin(orbitTime) * LIGHT_ORBIT_R;
     }
-    const lp = project(omniLight.position.x, omniLight.position.y, 0, TILE_W, TILE_H);
-    const lsx = ORIGIN_X + lp.sx;
-    const lsy = ORIGIN_Y + lp.sy - omniLight.position.z;
+    const { sx: lsx, sy: lsy } = scene.camera.worldToScreen(
+      omniLight.position.x, omniLight.position.y, omniLight.position.z,
+      TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+    );
     const ctx = engine.ctx;
-    const r = (omniLight.radius ?? 320) * 1.2;
+    const r = (omniLight.radius ?? 320) * scene.camera.zoom * 1.2;
     const bgGlow = ctx.createRadialGradient(lsx, lsy, 0, lsx, lsy, r);
     bgGlow.addColorStop(0, hexToRgba(omniLight.color, 0.08));
     bgGlow.addColorStop(1, 'rgba(0,0,0,0)');
@@ -356,8 +381,3 @@ engine.start(
     ctx.fillRect(0, 0, canvasW, canvasH);
   },
 );
-
-function hexToRgba(hex: string, alpha: number): string {
-  const n = parseInt(hex.replace('#', ''), 16);
-  return `rgba(${(n >> 16) & 0xff},${(n >> 8) & 0xff},${n & 0xff},${alpha})`;
-}

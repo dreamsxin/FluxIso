@@ -4,6 +4,7 @@ import { IsoObject, DrawContext } from './IsoObject';
 import { SpriteSheet } from '../animation/SpriteSheet';
 import { AnimationController } from '../animation/AnimationController';
 import { TileCollider } from '../physics/TileCollider';
+import { shiftColor } from '../math/color';
 
 export interface CharacterOptions {
   id: string;
@@ -276,12 +277,4 @@ export class Character extends IsoObject {
   }
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-function shiftColor(hex: string, amount: number): string {
-  const n = parseInt(hex.replace('#', ''), 16);
-  const r = Math.min(255, Math.max(0, (n >> 16) + amount));
-  const g = Math.min(255, Math.max(0, ((n >> 8) & 0xff) + amount));
-  const b = Math.min(255, Math.max(0, (n & 0xff) + amount));
-  return `rgb(${r},${g},${b})`;
-}
+// ── helpers removed — imported from src/math/color.ts ────────────────────────

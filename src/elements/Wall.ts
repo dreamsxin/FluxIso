@@ -1,6 +1,7 @@
 import { project } from '../math/IsoProjection';
 import { AABB } from '../math/depthSort';
 import { IsoObject, DrawContext } from './IsoObject';
+import { hexToRgb } from '../math/color';
 
 export interface WallOpening {
   type: 'door' | 'window';
@@ -213,9 +214,4 @@ export class Wall extends IsoObject {
       ctx.fill();
     }
   }
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.replace('#', ''), 16);
-  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }

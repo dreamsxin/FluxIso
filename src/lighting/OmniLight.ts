@@ -30,9 +30,4 @@ export class OmniLight extends BaseLight {
     const dist = Math.hypot(sx - lsx, sy - lsy);
     return Math.max(0, 1 - dist / this.radius) * this.intensity;
   }
-
-  /** BaseLight interface — requires screen-space light position injected externally */
-  illuminate(_sx: number, _sy: number): number {
-    return 0; // screen pos unknown without projection context; use illuminateAt instead
-  }
 }

@@ -3,6 +3,7 @@ import { AABB } from '../../math/depthSort';
 import { DrawContext } from '../IsoObject';
 import { Entity } from '../../ecs/Entity';
 import { HealthComponent } from '../../ecs/components/HealthComponent';
+import { blendColorRaw } from '../../math/color';
 
 /** Low-poly isometric boulder. */
 export class Boulder extends Entity {
@@ -53,10 +54,9 @@ export class Boulder extends Entity {
       pts.push([cx + Math.cos(a) * r * radii[i], cy + Math.sin(a) * r * radii[i] * 0.55]);
     }
 
-    // Split into light/dark halves
-    const litColor  = `rgb(${blend(this.color, illum * 1.1)})`;
-    const darkColor = `rgb(${blend(this.color, illum * 0.4)})`;
-    const midColor  = `rgb(${blend(this.color, illum * 0.75)})`;
+    const litColor  = `rgb(${blendColorRaw(this.color, illum * 1.1)})`;
+    const darkColor = `rgb(${blendColorRaw(this.color, illum * 0.4)})`;
+    const midColor  = `rgb(${blendColorRaw(this.color, illum * 0.75)})`;
 
     // Bottom half (darker)
     ctx.beginPath();
@@ -111,12 +111,4 @@ export class Boulder extends Entity {
     ctx.fillStyle = barColor;
     ctx.fillRect(x - w / 2, y, w * frac, h);
   }
-}
-
-function blend(hex: string, factor: number): string {
-  const n = parseInt(hex.replace('#', ''), 16);
-  const r = Math.min(255, Math.round(((n >> 16) & 0xff) * factor));
-  const g = Math.min(255, Math.round(((n >> 8) & 0xff) * factor));
-  const b = Math.min(255, Math.round((n & 0xff) * factor));
-  return `${r},${g},${b}`;
 }

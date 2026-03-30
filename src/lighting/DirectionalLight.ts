@@ -18,18 +18,8 @@ export class DirectionalLight extends BaseLight {
 
   constructor(opts: DirectionalLightOptions = {}) {
     super(opts.color ?? '#ffffff', opts.intensity ?? 0.4);
-    // Default 45°: light comes from upper-right in screen space,
-    // illuminating X-walls (face-left) and Y-walls (face-front).
     this.angle = ((opts.angle ?? 45) * Math.PI) / 180;
     this.elevation = ((opts.elevation ?? 45) * Math.PI) / 180;
-  }
-
-  /**
-   * For directional lights, illumination is uniform (no falloff by position).
-   * Surface-angle contribution is handled at draw time per-face.
-   */
-  illuminate(_sx: number, _sy: number): number {
-    return this.intensity;
   }
 
   /**
