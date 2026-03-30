@@ -396,7 +396,7 @@ audio.playSfx('/sfx/hit.ogg', { volume: vol });
 
 | Priority | Item |
 |---|---|
-| P4 | **Unit tests** — Vitest for math, sort, collider, engine lifecycle |
+| Unit tests — Vitest; 72 tests: IsoProjection, color, depthSort, TileCollider, Camera, HealthComponent, Engine | ✅ |
 | P4 | **Library packaging** — Vite lib mode; ESM + CJS dual output; `luxiso.d.ts`; npm publish |
 | P4 | **Scene editor UI** — visual placement of walls/lights/objects; JSON export |
 | P4 | **Performance** — frustum culling; dirty-flag sort skip; object pooling |
