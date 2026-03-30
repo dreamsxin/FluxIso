@@ -161,6 +161,10 @@ Engine                    — canvas setup, RAF loop, JSON scene loading, TileCo
 src/
 ├── index.ts                    # Public API barrel export
 ├── main.ts                     # Interactive demo
+├── editor/
+│   ├── editor.ts               # Editor entry point; tool handling, keyboard shortcuts
+│   ├── EditorState.ts          # Central store: scene data, tool state, serialization
+│   └── EditorRenderer.ts       # Engine-backed preview; grid overlay; selection highlight
 ├── core/
 │   ├── AssetLoader.ts          # Promise image cache; loadImage / loadAll / get
 │   ├── Camera.ts               # follow (lerp) / pan / zoom / worldToScreen / screenToWorld
@@ -398,7 +402,7 @@ audio.playSfx('/sfx/hit.ogg', { volume: vol });
 |---|---|
 | Unit tests — Vitest; 72 tests: IsoProjection, color, depthSort, TileCollider, Camera, HealthComponent, Engine | ✅ |
 | P4 | **Library packaging** — Vite lib mode; ESM + CJS dual output; `luxiso.d.ts`; npm publish |
-| P4 | **Scene editor UI** — visual placement of walls/lights/objects; JSON export |
+| P4 | **Scene editor UI** — visual placement of walls/lights/objects; JSON export | ✅ |
 | P4 | **Performance** — frustum culling; dirty-flag sort skip; object pooling |
 
 ## License

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LuxIso — Scene Editor</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0d0d14;
+      color: #aaa;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 14px;
+      background: #0a0a10;
+      border-bottom: 1px solid #1a1a28;
+      flex-shrink: 0;
+    }
+    .topbar h1 {
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #3a3a58;
+    }
+    .topbar input[type="text"] {
+      background: #12121c;
+      border: 1px solid #222234;
+      color: #888;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      width: 160px;
+    }
+    .topbar input[type="text"]:focus { outline: none; border-color: #3a3a60; color: #bbb; }
+
+    .spacer { flex: 1; }
+
+    .topbar button {
+      background: #14141e;
+      border: 1px solid #222234;
+      color: #666;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      transition: border-color 0.12s, color 0.12s;
+    }
+    .topbar button:hover { border-color: #444466; color: #aaa; }
+    .topbar button.danger { border-color: #3a1a1a; color: #884444; }
+    .topbar button.danger:hover { border-color: #662222; color: #cc6666; }
+
+    /* ── Main layout ── */
+    .workspace {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Toolbar (left) ── */
+    .toolbar {
+      width: 56px;
+      background: #0a0a10;
+      border-right: 1px solid #1a1a28;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 0;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .tool-btn {
+      width: 40px;
+      height: 40px;
+      background: #12121c;
+      border: 1px solid #1e1e2e;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #444;
+      transition: border-color 0.12s, color 0.12s, background 0.12s;
+      position: relative;
+    }
+    .tool-btn:hover { border-color: #333355; color: #888; background: #16161f; }
+    .tool-btn.active { border-color: #4455aa; color: #8899dd; background: #14142a; }
+
+    .tool-btn[title]:hover::after {
+      content: attr(title);
+      position: absolute;
+      left: 48px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #1a1a2e;
+      border: 1px solid #2a2a44;
+      color: #aaa;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .tool-sep {
+      width: 28px;
+      height: 1px;
+      background: #1a1a28;
+      margin: 4px 0;
+    }
+
+    /* ── Canvas area ── */
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #0a0a0f;
+    }
+
+    #editor-canvas {
+      display: block;
+      cursor: crosshair;
+      border-radius: 4px;
+      box-shadow: 0 0 40px rgba(60,80,160,0.08);
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    /* ── Right panel ── */
+    .right-panel {
+      width: 220px;
+      background: #0a0a10;
+      border-left: 1px solid #1a1a28;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .panel-section {
+      border-bottom: 1px solid #1a1a28;
+      padding: 10px 12px;
+    }
+    .panel-title {
+      font-size: 0.65rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    /* Properties */
+    #prop-panel { flex: 1; overflow-y: auto; }
+    #prop-panel.hidden { display: none; }
+
+    .obj-id {
+      font-size: 0.68rem;
+      font-family: monospace;
+      color: #3a3a5a;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #1a1a28;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 5px;
+    }
+    .field-row label {
+      font-size: 0.68rem;
+      color: #444;
+      width: 68px;
+      flex-shrink: 0;
+    }
+    .field-row input {
+      flex: 1;
+      background: #12121c;
+      border: 1px solid #1e1e2e;
+      color: #888;
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-size: 0.72rem;
+      min-width: 0;
+    }
+    .field-row input[type="color"] {
+      padding: 1px 2px;
+      height: 24px;
+      cursor: pointer;
+    }
+    .field-row input:focus { outline: none; border-color: #3a3a60; color: #bbb; }
+
+    /* JSON area */
+    .json-section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 12px;
+      border-top: 1px solid #1a1a28;
+    }
+    .json-section textarea {
+      background: #0d0d14;
+      border: 1px solid #1a1a28;
+      color: #3a5a3a;
+      font-family: 'Consolas', monospace;
+      font-size: 0.62rem;
+      padding: 6px;
+      border-radius: 4px;
+      resize: none;
+      height: 120px;
+    }
+    .json-section textarea:focus { outline: none; border-color: #2a3a2a; }
+    .json-btns { display: flex; gap: 6px; }
+    .json-btns button {
+      flex: 1;
+      background: #12121c;
+      border: 1px solid #1e1e2e;
+      color: #555;
+      padding: 4px 0;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 0.70rem;
+    }
+    .json-btns button:hover { border-color: #333355; color: #999; }
+
+    /* Status bar */
+    .statusbar {
+      padding: 3px 14px;
+      background: #0a0a10;
+      border-top: 1px solid #1a1a28;
+      font-size: 0.65rem;
+      color: #2a2a3a;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <h1>LuxIso Editor</h1>
+    <input type="text" id="scene-name" placeholder="Scene name" />
+    <div class="spacer"></div>
+    <button id="btn-delete" class="danger">Delete</button>
+    <button id="btn-clear" class="danger">Clear</button>
+  </div>
+
+  <div class="workspace">
+
+    <!-- Left toolbar -->
+    <div class="toolbar">
+      <button class="tool-btn" data-tool="select"    title="Select (V)">↖</button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" data-tool="wall"      title="Wall (W)">▬</button>
+      <button class="tool-btn" data-tool="omnilight" title="Omni Light (L)">✦</button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" data-tool="character" title="Character (C)">◉</button>
+      <button class="tool-btn" data-tool="crystal"   title="Crystal (1)">◆</button>
+      <button class="tool-btn" data-tool="boulder"   title="Boulder (2)">⬟</button>
+      <button class="tool-btn" data-tool="chest"     title="Chest (3)">▣</button>
+    </div>
+
+    <!-- Canvas -->
+    <div class="canvas-area">
+      <canvas id="editor-canvas"></canvas>
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel">
+      <div class="panel-section" id="prop-panel">
+        <div class="panel-title">Properties</div>
+        <div id="prop-content"></div>
+      </div>
+
+      <div class="json-section">
+        <div class="panel-title">Scene JSON</div>
+        <textarea id="json-output" placeholder="Click Export to generate JSON…" spellcheck="false"></textarea>
+        <div class="json-btns">
+          <button id="btn-export">Export</button>
+          <button id="btn-import">Import</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="statusbar" id="statusbar">
+    Click a tool, then click the canvas to place objects. Wall tool: click start → click end.
+  </div>
+
+  <script type="module" src="/src/editor/editor.ts"></script>
+</body>
+</html>
