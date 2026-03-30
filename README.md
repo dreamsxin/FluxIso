@@ -1,84 +1,120 @@
 # LuxIso
 
-A modern 2D isometric rendering engine built with TypeScript and WebGL, featuring real-time dynamic lighting, occlusion sorting, and a declarative scene API.
+A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, featuring real-time dynamic lighting, occlusion sorting, a declarative JSON scene API, and a lightweight ECS component system.
 
 ## Features
 
-- **Isometric coordinate system** — Internal (X, Y, Z) space with automatic screen projection
-- **Real-time depth sorting** — Per-frame Z/Y-axis sorting for correct occlusion
-- **Dynamic lighting** — Point lights (OmniLight) and directional lights with shadow casting onto floors and walls
-- **Declarative scenes** — Define maps in JSON; load and hot-reload at runtime
-- **Camera system** — Follow targets, pan, zoom, and clamp to world bounds
-- **TypeScript-first** — Fully typed API with tree-shakeable ES modules
+- **Isometric coordinate system** — Internal (X, Y, Z) space projected to screen via `sx = (x−y)·tileW/2`, `sy = (x+y)·tileH/2 − z`
+- **Topological depth sorting** — Per-frame AABB-based Kahn sort for correct occlusion, no Z-fighting
+- **Dynamic lighting** — OmniLight (RGB point light, distance falloff) + DirectionalLight (face-normal dot product, per-channel color mix)
+- **Tile materials** — Procedural color or image texture per tile; lighting multiply + screen blend overlay
+- **Wall openings** — Doors and windows cut into wall faces with isometric parallelogram clipping
+- **Sprite animation** — `SpriteSheet` + `AnimationController`; idle/walk state machine; 8-direction support
+- **Tile collision** — `TileCollider` walkable grid; AABB slide-and-clamp resolution; `moveTo()` path collision
+- **ECS components** — `Entity.addComponent()` / `getComponent()`; built-in `HealthComponent` (hp/damage/heal/callbacks)
+- **Low Poly props** — `Crystal`, `Boulder`, `Chest` — canvas-drawn, light-shaded, ECS-powered with health bars
+- **Declarative scenes** — JSON scene file; `engine.loadScene(url)` instantiates floor, walls, lights, characters, collision layer
+- **Camera system** — Follow, pan, zoom, world-bounds clamping (transform implemented, pipeline integration pending)
+- **TypeScript-first** — Strict mode, fully typed public API, ES module tree-shakeable exports
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Language | TypeScript 5 |
-| Renderer | WebGL 2 (with Canvas 2D fallback) |
-| Build | Vite |
-| Package | ESM + CJS dual output |
-| Testing | Vitest |
+| Language | TypeScript 5 (strict) |
+| Renderer | Canvas 2D |
+| Build | Vite 5 |
+| Runtime | ES2022 (top-level await) |
 
 ## Installation
 
 ```bash
-npm install luxiso
+npm install
+npm run dev      # http://localhost:5173
+npm run build    # production build → dist/
 ```
+
+## Demo Controls
+
+The interactive demo (`src/main.ts`) loads `public/scenes/level1.json`:
+
+| Interaction | Action |
+|---|---|
+| **Drag ball** | Reposition character on the isometric grid |
+| **Click floor** | Move character to clicked tile (smooth `moveTo` with collision) |
+| **Click Crystal / Boulder / Chest** | Deal 15 HP damage; health bar updates live |
+| **Arrow keys** | Nudge character ±0.5 world units |
+| **M key** | Toggle light Orbit ↔ Manual mode |
+| **Drag light** | Reposition light (Manual mode only) |
+| **Ball elevation** slider | Adjust character hover height (0–160 px) |
+| **Light elevation** slider | Adjust light height (20–300 px) |
+| **Light intensity** slider | Adjust brightness (0.1–3×) |
+| **Light color** picker | Change light color in real-time |
+| **Orbit speed** slider | Control auto-orbit speed (disabled in Manual) |
+
+HUD (top-right of canvas): live world coordinates for player and light, plus HP bars for all props.
 
 ## Quick Start
 
 ```ts
-import { Engine, Scene, OmniLight, Character } from 'luxiso';
+import { Engine, Scene, OmniLight, Character, Crystal, HealthComponent } from './src/index';
 
-// 1. Mount the engine to a canvas element
-const engine = new Engine({ canvas: document.getElementById('canvas') as HTMLCanvasElement });
+const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+const engine = new Engine({ canvas });
+engine.originX = canvas.width / 2;
+engine.originY = canvas.height / 2;
 
-// 2. Load a scene from JSON config
+// Load scene from JSON (floor, walls, lights, collision layer)
 const scene = await engine.loadScene('/scenes/level1.json');
+engine.setScene(scene);
 
-// 3. Add a character at isometric coordinates (x, y, z)
-const hero = scene.createCharacter({ id: 'player', asset: 'Hero', x: 100, y: 100, z: 0 });
+// Add a Low Poly prop with HealthComponent
+const crystal = new Crystal('gem', 3, 4, '#8060e0');
+crystal.addComponent(new HealthComponent({
+  max: 60,
+  onDeath: () => scene.removeById('gem'),
+}));
+scene.addObject(crystal);
 
-// 4. Add a point light
-scene.addLight(new OmniLight({ x: 250, y: 250, z: 150, color: 0xffffff, intensity: 500 }));
+// Retrieve and damage it
+const hp = crystal.getComponent<HealthComponent>('health');
+hp?.takeDamage(20); // hp.fraction → 0.67, health bar turns yellow
 
-// 5. Camera follows the hero
-scene.camera.follow(hero);
-
-// 6. Start the render loop
-engine.start();
+engine.start(
+  (ts) => { /* postFrame: overlays, HUD */ },
+  (ts) => { /* preFrame: orbit update, background glow */ },
+);
 ```
 
-## Scene Configuration
-
-Scenes are defined in JSON. The engine parses the file, instantiates all elements, and binds lighting automatically.
+## Scene JSON Schema
 
 ```json
 {
-  "name": "MyFirstScene",
-  "width": 800,
-  "height": 600,
+  "name": "Level 1",
+  "cols": 10, "rows": 10, "tileW": 64, "tileH": 32,
   "floor": {
-    "id": "mainFloor",
-    "x": 0, "y": 0,
-    "width": 500, "depth": 500,
-    "material": "ConcreteFloorMaterial"
+    "id": "mainFloor", "cols": 10, "rows": 10,
+    "tileImage": "/tiles/stone.png",
+    "walkable": [
+      [true, true, false, true, true, true, true, true, true, true],
+      "..."
+    ]
   },
   "walls": [
     {
-      "id": "northWall",
-      "x": 0, "y": 0, "endX": 500, "endY": 0,
-      "height": 200,
-      "material": "BrickWallMaterial",
+      "id": "wall-north", "x": 0, "y": 0, "endX": 10, "endY": 0, "height": 80,
       "openings": [
-        { "type": "window", "offsetX": 120, "width": 80, "height": 60 }
+        { "type": "window", "offsetX": 0.3, "width": 0.4, "height": 0.45, "offsetY": 0.3 },
+        { "type": "door",   "offsetX": 0.7, "width": 0.25, "height": 0.85 }
       ]
     }
   ],
   "lights": [
-    { "id": "mainLight", "type": "omni", "x": 250, "y": 250, "z": 150, "color": "#ffffff", "intensity": 500 }
+    { "type": "omni", "x": 5, "y": 5, "z": 120, "color": "#ffd080", "intensity": 1, "radius": 320 },
+    { "type": "directional", "angle": 45, "elevation": 45, "color": "#c0d8ff", "intensity": 0.25 }
+  ],
+  "characters": [
+    { "id": "player", "x": 5, "y": 5, "z": 48, "radius": 26, "color": "#5590cc" }
   ]
 }
 ```
@@ -86,122 +122,231 @@ Scenes are defined in JSON. The engine parses the file, instantiates all element
 ## Architecture
 
 ```
-Engine                         — singleton; manages the render loop and scene lifecycle
-└── Scene                      — isometric world container; owns all child elements
-    ├── Floor                  — ground plane renderer
-    ├── Wall                   — occlusion geometry; supports openings and dynamic shadow receipt
-    ├── Object / Character     — scene entities occupying isometric space
+Engine                    — canvas setup, RAF loop, JSON scene loading, TileCollider build
+└── Scene                 — world container; topoSort depth sort; collider dispatch
+    ├── Camera            — follow / pan / zoom / applyTransform
+    ├── Floor             — tile grid; OmniLight + DirectionalLight RGB illumination; tileImage
+    ├── Wall              — parallelogram faces; door/window openings; face-normal dir lighting
+    ├── Character         — sphere/sprite entity; moveTo collision; AnimationController
+    ├── Entity (ECS)      — addComponent / getComponent; per-frame component.update()
+    │   ├── Crystal       — low-poly hexagonal crystal; HealthComponent; light-shaded
+    │   ├── Boulder       — low-poly 7-sided rock; HealthComponent; crack lines
+    │   └── Chest         — isometric box; animated lid; HealthComponent; glow on open
     └── LightManager
-        ├── OmniLight          — point light; projects shadows onto floors and walls
-        └── DirectionalLight   — global directional shadow caster
+        ├── OmniLight     — point light; RGB channel accumulation; illuminateAt()
+        └── DirectionalLight — face-normal dot product; angle/elevation; incidentDirection
 ```
 
 ### Rendering Pipeline
 
 ```
-1. Parse     JSON scene definition → internal element graph
-2. Project   Isometric (X, Y, Z) → screen (x, y)  via:  sx = (X - Y) * tileW/2,  sy = (X + Y) * tileH/2 - Z
-3. Lighting  Compute light→object angles; generate shadow masks per surface
-4. Sort      Topological depth sort by (Z, Y) each frame; update draw order
-5. Draw      Submit batched draw calls to WebGL renderer
-```
-
-### Key Classes
-
-| Class | Responsibility |
-|---|---|
-| `Engine` | Canvas setup, RAF loop, scene switching |
-| `Scene` | World container, per-frame sort + light update |
-| `Floor` | Ground tile rendering |
-| `Wall` | Boundary geometry with opening (door/window) support |
-| `IsoObject` | Base class for all space-occupying entities |
-| `Character` | Extends `IsoObject`; adds animation states and pathfinding |
-| `OmniLight` | Point light with real-time shadow projection |
-| `Camera` | Viewport control: follow, pan, zoom, bounds clamping |
-
-## API Reference
-
-### `Engine`
-
-```ts
-new Engine(options: EngineOptions)
-
-engine.loadScene(url: string): Promise<Scene>
-engine.start(): void
-engine.stop(): void
-engine.setScene(scene: Scene): void
-```
-
-### `Scene`
-
-```ts
-scene.createCharacter(options: CharacterOptions): Character
-scene.addObject(obj: IsoObject): void
-scene.addLight(light: BaseLight): void
-scene.removeById(id: string): void
-scene.camera: Camera
-```
-
-### `Character`
-
-```ts
-character.moveTo(x: number, y: number, z?: number): void   // pathfinding move
-character.playAnimation(name: string): void                 // e.g. 'walk', 'idle'
-character.position: IsoVector3                              // { x, y, z }
-```
-
-### `OmniLight`
-
-```ts
-new OmniLight({ x, y, z, color, intensity, radius })
-
-light.position: IsoVector3
-light.intensity: number
-light.radius: number
-```
-
-## Development
-
-```bash
-# Install dependencies
-npm install
-
-# Start dev server with hot reload
-npm run dev
-
-# Run tests
-npm test
-
-# Build for production (ESM + CJS)
-npm run build
-
-# Type check
-npm run typecheck
+1. preFrame callback   — caller updates orbit, state
+2. clearRect           — clear canvas
+3. preFrame draw       — background radial glow from OmniLight
+4. Scene.update(ts)    — camera + IsoObject.update(ts, collider) → Character moveTo + AnimationController dt
+5. topoSort            — AABB overlap → Kahn topological sort each frame
+6. Scene.draw()        — Floor → Walls → Characters/Props (sorted); light halos on top
+7. postFrame callback  — hint rings, HUD update
 ```
 
 ## Project Structure
 
 ```
 src/
+├── index.ts                    # Public API barrel export
+├── main.ts                     # Interactive demo
 ├── core/
-│   ├── Engine.ts
-│   ├── Scene.ts
-│   └── Camera.ts
+│   ├── AssetLoader.ts          # Promise image cache; loadImage / loadAll / get
+│   ├── Camera.ts               # follow / pan / zoom / applyTransform / clamp
+│   ├── Scene.ts                # Object + light management; topoSort; collider dispatch
+│   └── Engine.ts               # RAF loop; JSON loader; TileCollider build; pre/postFrame
 ├── elements/
-│   ├── Floor.ts
-│   ├── Wall.ts
-│   ├── IsoObject.ts
-│   └── Character.ts
+│   ├── IsoObject.ts            # Abstract base: id, position, aabb, draw
+│   ├── Floor.ts                # Tile grid + tileImage + OmniLight/DirLight RGB mix
+│   ├── Wall.ts                 # Parallelogram faces; openings; face-normal lighting
+│   ├── Character.ts            # Sphere/sprite entity; moveTo; AnimationController
+│   └── props/
+│       ├── Crystal.ts          # Low-poly crystal; Entity + HealthComponent
+│       ├── Boulder.ts          # Low-poly rock; Entity + HealthComponent
+│       └── Chest.ts            # Isometric chest; animated lid; Entity + HealthComponent
+├── animation/
+│   ├── SpriteSheet.ts          # AnimationClip (frames, fps, loop); AssetLoader preload
+│   └── AnimationController.ts  # State machine; 8-direction; idle↔walk auto-switch; dt-based
+├── physics/
+│   └── TileCollider.ts         # Walkable grid; canOccupy(); resolveMove() slide-and-clamp
+├── ecs/
+│   ├── Component.ts            # Interface: componentType, onAttach, onDetach, update
+│   ├── Entity.ts               # IsoObject + component Map; addComponent / getComponent
+│   └── components/
+│       └── HealthComponent.ts  # hp / maxHp / fraction / isDead; takeDamage / heal; callbacks
 ├── lighting/
-│   ├── OmniLight.ts
-│   └── DirectionalLight.ts
-├── renderer/
-│   ├── WebGLRenderer.ts
-│   └── CanvasRenderer.ts
-├── math/
-│   └── IsoProjection.ts
-└── index.ts
+│   ├── BaseLight.ts            # Abstract: color, intensity, illuminate()
+│   ├── OmniLight.ts            # Point light; illuminateAt(sx, sy, lsx, lsy)
+│   └── DirectionalLight.ts     # angle/elevation; direction / incidentDirection vectors
+└── math/
+    ├── IsoProjection.ts        # project() / unproject() / depthKey()
+    └── depthSort.ts            # AABB interface; topoSort<T extends Sortable>() — Kahn's algorithm
+
+public/
+└── scenes/
+    └── level1.json             # 10×10 floor with walkable map, 4 walls, OmniLight + DirectionalLight, player
 ```
+
+## API Reference
+
+### `Engine`
+
+```ts
+new Engine({ canvas: HTMLCanvasElement })
+
+engine.originX: number                         // iso origin X in canvas pixels (set after resize)
+engine.originY: number                         // iso origin Y in canvas pixels
+engine.loadScene(url: string): Promise<Scene>  // fetch + parse JSON; builds floor/walls/lights/collider
+engine.buildScene(json: object): Scene         // synchronous, no fetch
+engine.setScene(scene: Scene): void
+engine.start(postFrame?, preFrame?): void      // postFrame: after draw; preFrame: before draw
+engine.stop(): void
+engine.ctx: CanvasRenderingContext2D
+```
+
+### `Scene`
+
+```ts
+scene.addObject(obj: IsoObject): void
+scene.addLight(light: BaseLight): void
+scene.removeById(id: string): void
+scene.getById(id: string): IsoObject | undefined
+scene.omniLights: OmniLight[]
+scene.dirLights: DirectionalLight[]
+scene.camera: Camera
+scene.collider: TileCollider | null
+```
+
+### `Character`
+
+```ts
+new Character({ id, x, y, z?, radius?, color?, spriteSheet?, speed? })
+
+character.position: IsoVec3
+character.moveTo(x, y, z?): void       // smooth interpolation with collision resolution
+character.stopMoving(): void
+character.isMoving: boolean
+character.setSpriteSheet(sheet, initialClip?): void
+character.playAnimation(name: string): void
+```
+
+### `Entity` (ECS base)
+
+```ts
+// Extend Entity instead of IsoObject for component-based objects
+class MyProp extends Entity {
+  get aabb(): AABB { ... }
+  draw(dc: DrawContext): void { ... }
+}
+
+entity.addComponent<T extends Component>(c: T): T
+entity.getComponent<T>(type: string): T | undefined
+entity.hasComponent(type: string): boolean
+entity.removeComponent(type: string): void
+```
+
+### `HealthComponent`
+
+```ts
+new HealthComponent({ max, current?, onDeath?, onChange? })
+
+hp.hp: number           // current HP
+hp.maxHp: number
+hp.fraction: number     // 0–1
+hp.isDead: boolean
+hp.takeDamage(amount): void
+hp.heal(amount): void
+hp.setMax(max, scaleCurrentHp?): void
+```
+
+### `TileCollider`
+
+```ts
+new TileCollider(cols, rows, walkable??)
+TileCollider.fromArray(cols, rows, data: boolean[][] | boolean[])
+
+collider.isWalkable(col, row): boolean
+collider.canOccupy(minX, minY, maxX, maxY): boolean
+collider.resolveMove(x, y, dx, dy, r?): { dx, dy }  // slide-and-clamp
+collider.setWalkable(col, row, walkable): void
+```
+
+### `OmniLight`
+
+```ts
+new OmniLight({ x, y, z, color?, intensity?, radius? })
+
+light.position: IsoVec3   // mutable
+light.color: string        // CSS hex
+light.intensity: number
+light.radius: number       // screen-px falloff
+light.illuminateAt(sx, sy, lsx, lsy): number
+```
+
+### `SpriteSheet` + `AnimationController`
+
+```ts
+const sheet = new SpriteSheet({
+  url: '/sprites/hero.png',
+  scale: 2,
+  anchorY: 1,           // bottom-anchored (default)
+  clips: [
+    { name: 'idle', frames: [{ x:0, y:0, w:32, h:48 }], fps: 4, loop: true },
+    { name: 'walk', frames: [...8 frames...],             fps: 12, loop: true },
+  ],
+});
+await sheet.preload();
+character.setSpriteSheet(sheet, 'idle');
+character.playAnimation('walk');
+```
+
+### `IsoProjection`
+
+```ts
+project(x, y, z, tileW, tileH): { sx, sy }    // world → screen
+unproject(sx, sy, tileW, tileH): { x, y }     // screen → world (z=0 plane)
+depthKey(x, y, z): number
+topoSort<T extends Sortable>(objects: T[]): T[]
+```
+
+## Roadmap
+
+### Completed ✅
+
+| Module | Status |
+|---|---|
+| Isometric math (project / unproject / depthKey) | ✅ |
+| Topological depth sort (AABB + Kahn) | ✅ |
+| Floor: OmniLight + DirectionalLight RGB illumination | ✅ |
+| Floor: tileImage texture + AssetLoader | ✅ |
+| Wall: parallelogram faces + openings + directional lighting | ✅ |
+| Character: sphere rendering + moveTo + collision | ✅ |
+| OmniLight: RGB point light with illuminateAt() | ✅ |
+| DirectionalLight: face-normal dot product rendering | ✅ |
+| SpriteSheet + AnimationController (8-direction, idle/walk) | ✅ |
+| TileCollider: walkable grid + AABB slide-and-clamp | ✅ |
+| ECS: Entity + Component + HealthComponent | ✅ |
+| Low Poly props: Crystal, Boulder, Chest | ✅ |
+| JSON scene loading with walkable map | ✅ |
+| Interactive demo: drag, click-to-move, damage, HUD | ✅ |
+
+### Pending
+
+| Priority | Item |
+|---|---|
+| P2 | **Camera pipeline** — connect `applyTransform()` into `Scene.draw()`; Lerp follow; zoom-aware unproject |
+| P2 | **Lightmap baking** — `OffscreenCanvas` static floor cache; invalidate on light move |
+| P2 | **Real shadow casting** — geometry projection from OmniLight onto floor/walls |
+| P3 | **Audio** — `AudioManager` (Web Audio API); spatial distance attenuation |
+| P4 | **Unit tests** — Vitest for math, sort, collider, engine lifecycle |
+| P4 | **Library packaging** — Vite lib mode; ESM + CJS dual output; `luxiso.d.ts`; npm publish |
+| P4 | **Scene editor UI** — visual placement of walls/lights/objects; JSON export |
+| P4 | **Performance** — OffscreenCanvas floor cache; frustum culling; dirty-flag sort skip |
 
 ## License
 

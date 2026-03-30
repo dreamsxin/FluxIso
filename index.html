@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LuxIso Demo</title>
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
+      *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
       body {
         background: #0a0a0f;
@@ -16,48 +16,112 @@
         min-height: 100vh;
         font-family: 'Segoe UI', system-ui, sans-serif;
         color: #aaa;
-        gap: 18px;
-        padding: 24px 0;
+        gap: 16px;
+        padding: 24px 12px;
       }
 
       h1 {
-        font-size: 1.1rem;
+        font-size: 1rem;
         font-weight: 400;
-        letter-spacing: 0.2em;
+        letter-spacing: 0.25em;
         text-transform: uppercase;
-        color: #555;
+        color: #444;
+      }
+
+      /* ── Canvas wrapper + HUD ─────────────────────────────────────── */
+      .canvas-wrap {
+        position: relative;
+        line-height: 0;
       }
 
       canvas {
         display: block;
         border-radius: 4px;
-        box-shadow: 0 0 60px rgba(100, 160, 255, 0.08);
+        box-shadow: 0 0 60px rgba(100,160,255,0.07);
         max-width: 100vw;
+        cursor: crosshair;
       }
 
-      /* ── controls panel ── */
-      .panel {
+      .hud {
+        position: absolute;
+        top: 10px;
+        right: 12px;
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        background: #111118;
-        border: 1px solid #222;
+        gap: 5px;
+        pointer-events: none;
+        text-align: right;
+      }
+
+      .hud-section {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .hud-divider {
+        border: none;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        margin: 2px 0;
+      }
+
+      .hud span {
+        display: block;
+        font-size: 0.67rem;
+        font-family: 'Consolas', 'Menlo', monospace;
+        color: rgba(255,255,255,0.25);
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+
+      .hud span.hud-prop {
+        color: rgba(255,255,255,0.18);
+        font-size: 0.63rem;
+      }
+
+      /* ── Controls panel ───────────────────────────────────────────── */
+      .panel {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 24px;
+        background: #0f0f18;
+        border: 1px solid #1e1e2a;
         border-radius: 10px;
-        padding: 14px 20px;
-        min-width: 320px;
+        padding: 16px 20px;
+        width: 100%;
+        max-width: 600px;
+      }
+
+      .panel-section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .section-title {
+        font-size: 0.65rem;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: #333;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #1a1a24;
       }
 
       .row {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
+      }
+
+      .row.disabled {
+        opacity: 0.3;
+        pointer-events: none;
       }
 
       .row label {
-        font-size: 0.75rem;
-        letter-spacing: 0.06em;
-        color: #555;
-        width: 110px;
+        font-size: 0.72rem;
+        color: #4a4a5e;
+        width: 76px;
         flex-shrink: 0;
       }
 
@@ -65,85 +129,157 @@
         flex: 1;
         accent-color: #5590cc;
         cursor: pointer;
-        height: 4px;
       }
 
-      .row input[type="range"].light-slider {
-        accent-color: #f0c040;
-      }
+      .row input[type="range"].gold { accent-color: #f0c040; }
 
       .row .val {
-        font-size: 0.72rem;
-        color: #444;
-        width: 32px;
+        font-size: 0.68rem;
+        font-family: monospace;
+        color: #3a3a4e;
+        width: 28px;
         text-align: right;
         flex-shrink: 0;
       }
 
-      .divider {
-        border: none;
-        border-top: 1px solid #1e1e28;
-        margin: 2px 0;
+      /* Color picker */
+      input[type="color"] {
+        width: 28px;
+        height: 22px;
+        border: 1px solid #333;
+        border-radius: 4px;
+        background: none;
+        cursor: pointer;
+        padding: 1px;
+        flex-shrink: 0;
+      }
+
+      /* Mode button */
+      .mode-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 2px;
       }
 
       button#mode-btn {
-        background: #1a1a24;
-        border: 1px solid #333;
-        color: #888;
-        font-size: 0.78rem;
+        background: #16161f;
+        border: 1px solid #2a2a3a;
+        color: #666;
+        font-size: 0.72rem;
         letter-spacing: 0.08em;
-        padding: 6px 16px;
+        padding: 5px 14px;
         border-radius: 20px;
         cursor: pointer;
-        transition: background 0.2s, border-color 0.2s, color 0.2s;
+        transition: background 0.15s, border-color 0.15s, color 0.15s;
         user-select: none;
         white-space: nowrap;
       }
 
-      button#mode-btn:hover { border-color: #555; color: #bbb; }
+      button#mode-btn:hover { border-color: #444; color: #999; }
 
       button#mode-btn.active {
-        background: #1e1a08;
-        border-color: #a07820;
+        background: #1c1808;
+        border-color: #8a6010;
         color: #f0c040;
       }
 
-      .hint {
-        font-size: 0.7rem;
-        color: #2e2e2e;
-        letter-spacing: 0.04em;
-        text-align: center;
+      /* Keyboard shortcuts legend */
+      .keys {
+        font-size: 0.65rem;
+        color: #282838;
+        letter-spacing: 0.03em;
+        line-height: 1.7;
+        padding-top: 4px;
+        border-top: 1px solid #1a1a24;
+      }
+
+      .keys kbd {
+        display: inline-block;
+        background: #16161f;
+        border: 1px solid #2a2a38;
+        border-radius: 3px;
+        padding: 0 4px;
+        font-size: 0.62rem;
+        color: #3a3a50;
+        font-family: monospace;
       }
     </style>
   </head>
   <body>
-    <h1>LuxIso &mdash; Isometric Demo</h1>
-    <canvas id="canvas"></canvas>
+    <h1>LuxIso &mdash; Isometric Engine Demo</h1>
 
-    <div class="panel">
-      <!-- Ball controls -->
-      <div class="row">
-        <label>Ball elevation</label>
-        <input id="ball-elev" type="range" min="0" max="160" value="48" step="1" />
-        <span class="val" id="ball-elev-val">48</span>
-      </div>
-
-      <hr class="divider" />
-
-      <!-- Light controls -->
-      <div class="row">
-        <label>Light elevation</label>
-        <input id="light-elev" type="range" min="20" max="300" value="120" step="1" class="light-slider" />
-        <span class="val" id="light-elev-val">120</span>
-      </div>
-      <div class="row">
-        <label>Light mode</label>
-        <button id="mode-btn">Light: Orbit</button>
-        <span class="hint" style="flex:1; text-align:left; padding-left:6px;">drag in manual</span>
+    <div class="canvas-wrap">
+      <canvas id="canvas"></canvas>
+      <div class="hud">
+        <div class="hud-section">
+          <span id="hud-ball">player  x:5.0 y:5.0 z:48</span>
+          <span id="hud-light">light   x:8.2 y:5.0 z:120</span>
+        </div>
+        <hr class="hud-divider" />
+        <div class="hud-section">
+          <span id="hud-crystal"  class="hud-prop">crystal ████████ 60/60</span>
+          <span id="hud-boulder"  class="hud-prop">boulder ████████ 100/100</span>
+          <span id="hud-chest"    class="hud-prop">chest   ████████ 40/40</span>
+        </div>
       </div>
     </div>
 
-    <span class="hint">drag ball on canvas &nbsp;|&nbsp; switch to manual to drag light</span>
+    <div class="panel">
+
+      <!-- Ball section -->
+      <div class="panel-section">
+        <div class="section-title">Ball</div>
+
+        <div class="row">
+          <label>Elevation</label>
+          <input id="ball-elev" type="range" min="0" max="160" value="48" step="1" />
+          <span class="val" id="ball-elev-val">48</span>
+        </div>
+
+        <div class="keys">
+          <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> move &nbsp;|&nbsp;
+          click floor to move
+        </div>
+      </div>
+
+      <!-- Light section -->
+      <div class="panel-section">
+        <div class="section-title">Light</div>
+
+        <div class="row">
+          <label>Elevation</label>
+          <input id="light-elev" type="range" min="20" max="300" value="120" step="1" class="gold" />
+          <span class="val" id="light-elev-val">120</span>
+        </div>
+
+        <div class="row">
+          <label>Intensity</label>
+          <input id="light-intensity" type="range" min="0.1" max="3" value="1" step="0.05" class="gold" />
+          <span class="val" id="light-intensity-val">1.0</span>
+        </div>
+
+        <div class="row">
+          <label>Color</label>
+          <input id="light-color" type="color" value="#ffd080" />
+        </div>
+
+        <div class="row" id="row-speed">
+          <label>Orbit speed</label>
+          <input id="light-speed" type="range" min="0.1" max="3" value="0.6" step="0.05" class="gold" />
+          <span class="val" id="light-speed-val">0.6</span>
+        </div>
+
+        <div class="mode-row">
+          <button id="mode-btn">Orbit</button>
+          <span style="font-size:0.68rem; color:#2a2a3a;">
+            <kbd style="background:#16161f;border:1px solid #2a2a38;border-radius:3px;padding:0 4px;font-size:0.62rem;color:#3a3a50;font-family:monospace;">M</kbd>
+            toggle &nbsp;|&nbsp; drag in manual
+          </span>
+        </div>
+      </div>
+
+    </div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

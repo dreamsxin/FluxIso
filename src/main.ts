@@ -1,11 +1,16 @@
-import { FloorRenderer } from './renderer/FloorRenderer';
-import { BallRenderer } from './renderer/BallRenderer';
+import { Engine } from './core/Engine';
+import { OmniLight } from './lighting/OmniLight';
+import { Character } from './elements/Character';
+import { Crystal } from './elements/props/Crystal';
+import { Boulder } from './elements/props/Boulder';
+import { Chest } from './elements/props/Chest';
+import { HealthComponent } from './ecs/components/HealthComponent';
 import { project, unproject } from './math/IsoProjection';
+import { Entity } from './ecs/Entity';
 
-// ─── Canvas setup ────────────────────────────────────────────────────────────
+// ─── Canvas & Engine ──────────────────────────────────────────────────────────
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-const ctx = canvas.getContext('2d')!;
 
 const COLS = 10;
 const ROWS = 10;
@@ -17,104 +22,172 @@ const canvasH = (COLS + ROWS) * (TILE_H / 2) + 120;
 canvas.width = canvasW;
 canvas.height = canvasH;
 
-const ORIGIN_X = canvasW / 2;
-const ORIGIN_Y = ROWS * (TILE_H / 2) + 20;
+const engine = new Engine({ canvas });
+engine.originX = canvasW / 2;
+engine.originY = ROWS * (TILE_H / 2) + 20;
 
-// ─── Scene objects ───────────────────────────────────────────────────────────
+const ORIGIN_X = engine.originX;
+const ORIGIN_Y = engine.originY;
 
-const floor = new FloorRenderer({
-  cols: COLS, rows: ROWS,
-  tileW: TILE_W, tileH: TILE_H,
-  originX: ORIGIN_X, originY: ORIGIN_Y,
-});
+// ─── Scene ────────────────────────────────────────────────────────────────────
 
-const ball = new BallRenderer({ x: 5, y: 5, elevation: 48, radius: 26 });
+const scene = await engine.loadScene('/scenes/level1.json');
+engine.setScene(scene);
 
-// ─── Slider bindings ─────────────────────────────────────────────────────────
+const character = scene.getById('player') as Character;
+const omniLight = scene.omniLights[0] as OmniLight;
 
-const ballElevSlider  = document.getElementById('ball-elev')   as HTMLInputElement;
-const ballElevVal     = document.getElementById('ball-elev-val')  as HTMLSpanElement;
-const lightElevSlider = document.getElementById('light-elev')  as HTMLInputElement;
-const lightElevVal    = document.getElementById('light-elev-val') as HTMLSpanElement;
+// ─── Low Poly props with HealthComponent ─────────────────────────────────────
 
-ballElevSlider.addEventListener('input', () => {
-  ball.ball.elevation = Number(ballElevSlider.value);
-  ballElevVal.textContent = ballElevSlider.value;
-});
+const crystal = new Crystal('crystal-1', 2, 3, '#8060e0');
+crystal.addComponent(new HealthComponent({
+  max: 60,
+  onDeath: () => { scene.removeById('crystal-1'); },
+}));
 
-lightElevSlider.addEventListener('input', () => {
-  lightElevation = Number(lightElevSlider.value);
-  lightElevVal.textContent = lightElevSlider.value;
-});
+const boulder = new Boulder('boulder-1', 7, 2, '#7a7a8a');
+boulder.addComponent(new HealthComponent({
+  max: 100,
+  onDeath: () => { scene.removeById('boulder-1'); },
+}));
 
-// ─── Light state ─────────────────────────────────────────────────────────────
+const chest = new Chest('chest-1', 7, 7, '#c08020');
+chest.addComponent(new HealthComponent({
+  max: 40,
+  onChange: (hp, max) => { if (hp < max) chest.open(); },
+  onDeath: () => { chest.open(); },
+}));
 
-let lightElevation = 120;
-const LIGHT_RADIUS_SCREEN = 320;
+scene.addObject(crystal);
+scene.addObject(boulder);
+scene.addObject(chest);
+
+// ─── Light orbit state ────────────────────────────────────────────────────────
+
+const LIGHT_CENTER_X = 5;
+const LIGHT_CENTER_Y = 5;
 const LIGHT_ORBIT_R = 3.2;
 
 type LightMode = 'orbit' | 'manual';
 let lightMode: LightMode = 'orbit';
 let orbitTime = 0;
+let orbitSpeed = 0.6;
 
-// Manual mode world position
-let manualLightX = 5 + LIGHT_ORBIT_R;
-let manualLightY = 5;
+// ─── UI helpers ───────────────────────────────────────────────────────────────
 
-// Current light world position (resolved each frame)
-let lightX = manualLightX;
-let lightY = manualLightY;
+function $<T extends HTMLElement>(id: string): T {
+  return document.getElementById(id) as T;
+}
 
-// ─── Drag state ───────────────────────────────────────────────────────────────
+// ─── Panel: Ball controls ─────────────────────────────────────────────────────
 
+const ballElevSlider = $<HTMLInputElement>('ball-elev');
+const ballElevVal    = $<HTMLSpanElement>('ball-elev-val');
+
+ballElevSlider.addEventListener('input', () => {
+  character.position.z = Number(ballElevSlider.value);
+  ballElevVal.textContent = ballElevSlider.value;
+});
+
+// ─── Panel: Light controls ────────────────────────────────────────────────────
+
+const lightElevSlider      = $<HTMLInputElement>('light-elev');
+const lightElevVal         = $<HTMLSpanElement>('light-elev-val');
+const lightIntensitySlider = $<HTMLInputElement>('light-intensity');
+const lightIntensityVal    = $<HTMLSpanElement>('light-intensity-val');
+const lightSpeedSlider     = $<HTMLInputElement>('light-speed');
+const lightSpeedVal        = $<HTMLSpanElement>('light-speed-val');
+const lightColorPicker     = $<HTMLInputElement>('light-color');
+const modeBtn              = $<HTMLButtonElement>('mode-btn');
+
+lightElevSlider.addEventListener('input', () => {
+  omniLight.position.z = Number(lightElevSlider.value);
+  lightElevVal.textContent = lightElevSlider.value;
+});
+lightIntensitySlider.addEventListener('input', () => {
+  omniLight.intensity = Number(lightIntensitySlider.value);
+  lightIntensityVal.textContent = lightIntensitySlider.value;
+});
+lightSpeedSlider.addEventListener('input', () => {
+  orbitSpeed = Number(lightSpeedSlider.value);
+  lightSpeedVal.textContent = lightSpeedSlider.value;
+});
+lightColorPicker.addEventListener('input', () => {
+  omniLight.color = lightColorPicker.value;
+});
+
+// ─── Mode toggle ──────────────────────────────────────────────────────────────
+
+function updateModeBtn(): void {
+  modeBtn.textContent = lightMode === 'orbit' ? 'Orbit' : 'Manual';
+  modeBtn.classList.toggle('active', lightMode === 'manual');
+  lightSpeedSlider.closest('.row')!.classList.toggle('disabled', lightMode === 'manual');
+}
+modeBtn.addEventListener('click', () => {
+  lightMode = lightMode === 'orbit' ? 'manual' : 'orbit';
+  updateModeBtn();
+});
+updateModeBtn();
+
+// ─── Drag & click ─────────────────────────────────────────────────────────────
+
+const HIT_RADIUS = 30;
 type DragTarget = 'ball' | 'light' | null;
 let dragging: DragTarget = null;
-let dragOffsetX = 0; // screen-space offset from object center to mouse
+let dragOffsetX = 0;
 let dragOffsetY = 0;
 
-/** Hit-test radius in screen pixels for drag targets */
-const HIT_RADIUS = 30;
-
 function getBallScreenPos(): { bx: number; by: number } {
-  const { sx, sy } = project(ball.ball.x, ball.ball.y, ball.ball.elevation, TILE_W, TILE_H);
+  const { sx, sy } = project(character.position.x, character.position.y, character.position.z, TILE_W, TILE_H);
   return { bx: ORIGIN_X + sx, by: ORIGIN_Y + sy };
 }
 
 function getLightScreenPos(): { lx: number; ly: number } {
-  const { sx, sy } = project(lightX, lightY, 0, TILE_W, TILE_H);
-  return { lx: ORIGIN_X + sx, ly: ORIGIN_Y + sy - lightElevation };
+  const { sx, sy } = project(omniLight.position.x, omniLight.position.y, 0, TILE_W, TILE_H);
+  return { lx: ORIGIN_X + sx, ly: ORIGIN_Y + sy - omniLight.position.z };
 }
 
-/** Clamp world coordinates so the object stays within the 10x10 grid */
+/** Screen position of any scene entity (at its ground level). */
+function getEntityScreenPos(e: Entity): { ex: number; ey: number } {
+  const { sx, sy } = project(e.position.x, e.position.y, 0, TILE_W, TILE_H);
+  return { ex: ORIGIN_X + sx, ey: ORIGIN_Y + sy };
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
 function clampWorld(x: number, y: number): { x: number; y: number } {
-  return {
-    x: Math.max(0.5, Math.min(COLS - 0.5, x)),
-    y: Math.max(0.5, Math.min(ROWS - 0.5, y)),
-  };
+  return { x: clamp(x, 0.5, COLS - 0.5), y: clamp(y, 0.5, ROWS - 0.5) };
 }
-
-// ─── Mouse events ────────────────────────────────────────────────────────────
-
 function getCanvasPos(e: MouseEvent | TouchEvent): { cx: number; cy: number } {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
-  const clientX = e instanceof MouseEvent ? e.clientX : e.touches[0].clientX;
-  const clientY = e instanceof MouseEvent ? e.clientY : e.touches[0].clientY;
+  const src = e instanceof MouseEvent ? e : e.touches[0];
   return {
-    cx: (clientX - rect.left) * scaleX,
-    cy: (clientY - rect.top) * scaleY,
+    cx: (src.clientX - rect.left) * scaleX,
+    cy: (src.clientY - rect.top) * scaleY,
   };
+}
+
+const PROP_HIT_R = 28;
+const props: Entity[] = [crystal, boulder, chest];
+
+function hitTestProps(cx: number, cy: number): Entity | null {
+  for (const prop of props) {
+    const { ex, ey } = getEntityScreenPos(prop);
+    if (Math.hypot(cx - ex, cy - ey) < PROP_HIT_R) return prop;
+  }
+  return null;
 }
 
 function onPointerDown(e: MouseEvent | TouchEvent): void {
   const { cx, cy } = getCanvasPos(e);
 
-  // Check light first (only in manual mode)
+  // Light hit (manual mode only)
   if (lightMode === 'manual') {
     const { lx, ly } = getLightScreenPos();
-    const dl = Math.hypot(cx - lx, cy - ly);
-    if (dl < HIT_RADIUS) {
+    if (Math.hypot(cx - lx, cy - ly) < HIT_RADIUS) {
       dragging = 'light';
       dragOffsetX = cx - lx;
       dragOffsetY = cy - ly;
@@ -123,59 +196,70 @@ function onPointerDown(e: MouseEvent | TouchEvent): void {
     }
   }
 
-  // Check ball
+  // Ball drag
   const { bx, by } = getBallScreenPos();
-  const db = Math.hypot(cx - bx, cy - by);
-  if (db < HIT_RADIUS) {
+  if (Math.hypot(cx - bx, cy - by) < HIT_RADIUS) {
     dragging = 'ball';
     dragOffsetX = cx - bx;
     dragOffsetY = cy - by;
     canvas.style.cursor = 'grabbing';
+    return;
   }
+
+  // Prop click → deal damage (15 per click)
+  const prop = hitTestProps(cx, cy);
+  if (prop) {
+    const hp = prop.getComponent<HealthComponent>('health');
+    hp?.takeDamage(15);
+    return;
+  }
+
+  // Floor click → moveTo
+  const wx = cx - ORIGIN_X;
+  const wy = cy - ORIGIN_Y;
+  const world = unproject(wx, wy, TILE_W, TILE_H);
+  const clamped = clampWorld(world.x, world.y);
+  character.moveTo(clamped.x, clamped.y, character.position.z);
 }
 
 function onPointerMove(e: MouseEvent | TouchEvent): void {
   const { cx, cy } = getCanvasPos(e);
 
   if (dragging === 'ball') {
-    // Convert screen position back to world XY (z=elevation factored out)
-    const targetScreenX = cx - dragOffsetX - ORIGIN_X;
-    // Ball is rendered at elevation above ground; account for that vertical shift
-    const targetScreenY = cy - dragOffsetY - ORIGIN_Y + ball.ball.elevation;
-    const world = unproject(targetScreenX, targetScreenY, TILE_W, TILE_H);
-    const clamped = clampWorld(world.x, world.y);
-    ball.ball.x = clamped.x;
-    ball.ball.y = clamped.y;
+    const sx = cx - dragOffsetX - ORIGIN_X;
+    const sy = cy - dragOffsetY - ORIGIN_Y + character.position.z;
+    const { x: wx, y: wy } = unproject(sx, sy, TILE_W, TILE_H);
+    const w = clampWorld(wx, wy);
+    character.position.x = w.x;
+    character.position.y = w.y;
     return;
   }
 
   if (dragging === 'light') {
-    // Light halo is drawn at elevation above ground; invert that offset
-    const targetScreenX = cx - dragOffsetX - ORIGIN_X;
-    const targetScreenY = cy - dragOffsetY - ORIGIN_Y + lightElevation;
-    const world = unproject(targetScreenX, targetScreenY, TILE_W, TILE_H);
-    const clamped = clampWorld(world.x, world.y);
-    manualLightX = clamped.x;
-    manualLightY = clamped.y;
+    const sx = cx - dragOffsetX - ORIGIN_X;
+    const sy = cy - dragOffsetY - ORIGIN_Y + omniLight.position.z;
+    const { x: wx, y: wy } = unproject(sx, sy, TILE_W, TILE_H);
+    const w = clampWorld(wx, wy);
+    omniLight.position.x = w.x;
+    omniLight.position.y = w.y;
     return;
   }
 
-  // Hover cursor update
+  // Hover cursor
   const { bx, by } = getBallScreenPos();
   const onBall = Math.hypot(cx - bx, cy - by) < HIT_RADIUS;
-
+  const onProp = hitTestProps(cx, cy) !== null;
   let onLight = false;
   if (lightMode === 'manual') {
     const { lx, ly } = getLightScreenPos();
     onLight = Math.hypot(cx - lx, cy - ly) < HIT_RADIUS;
   }
-
-  canvas.style.cursor = onBall || onLight ? 'grab' : 'default';
+  canvas.style.cursor = onBall || onLight ? 'grab' : onProp ? 'pointer' : 'crosshair';
 }
 
 function onPointerUp(): void {
   dragging = null;
-  canvas.style.cursor = 'default';
+  canvas.style.cursor = 'crosshair';
 }
 
 canvas.addEventListener('mousedown', onPointerDown);
@@ -186,91 +270,50 @@ canvas.addEventListener('touchstart', onPointerDown, { passive: true });
 canvas.addEventListener('touchmove', onPointerMove, { passive: true });
 canvas.addEventListener('touchend', onPointerUp);
 
-// ─── UI — mode toggle ─────────────────────────────────────────────────────────
+// ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 
-const modeBtn = document.getElementById('mode-btn') as HTMLButtonElement;
-
-function updateModeBtn(): void {
-  if (lightMode === 'orbit') {
-    modeBtn.textContent = 'Light: Orbit';
-    modeBtn.classList.remove('active');
-  } else {
-    modeBtn.textContent = 'Light: Manual';
-    modeBtn.classList.add('active');
+const KEY_STEP = 0.5;
+window.addEventListener('keydown', (e) => {
+  if (e.target instanceof HTMLInputElement) return;
+  switch (e.key) {
+    case 'm': case 'M':
+      lightMode = lightMode === 'orbit' ? 'manual' : 'orbit';
+      updateModeBtn();
+      break;
+    case 'ArrowUp':    e.preventDefault(); character.position.y = clamp(character.position.y - KEY_STEP, 0.5, ROWS - 0.5); break;
+    case 'ArrowDown':  e.preventDefault(); character.position.y = clamp(character.position.y + KEY_STEP, 0.5, ROWS - 0.5); break;
+    case 'ArrowLeft':  e.preventDefault(); character.position.x = clamp(character.position.x - KEY_STEP, 0.5, COLS - 0.5); break;
+    case 'ArrowRight': e.preventDefault(); character.position.x = clamp(character.position.x + KEY_STEP, 0.5, COLS - 0.5); break;
   }
-}
-
-modeBtn.addEventListener('click', () => {
-  if (lightMode === 'orbit') {
-    lightMode = 'manual';
-    // Seed manual position from current orbit position
-    manualLightX = lightX;
-    manualLightY = lightY;
-  } else {
-    lightMode = 'orbit';
-  }
-  updateModeBtn();
 });
 
-updateModeBtn();
+// ─── HUD ─────────────────────────────────────────────────────────────────────
 
-// ─── Render loop ─────────────────────────────────────────────────────────────
+const hudBall     = $<HTMLSpanElement>('hud-ball');
+const hudLight    = $<HTMLSpanElement>('hud-light');
+const hudCrystal  = $<HTMLSpanElement>('hud-crystal');
+const hudBoulder  = $<HTMLSpanElement>('hud-boulder');
+const hudChest    = $<HTMLSpanElement>('hud-chest');
 
-function render(ts: number): void {
-  if (lightMode === 'orbit') {
-    orbitTime = ts * 0.0006;
-    lightX = 5 + Math.cos(orbitTime) * LIGHT_ORBIT_R;
-    lightY = 5 + Math.sin(orbitTime) * LIGHT_ORBIT_R;
-  } else {
-    lightX = manualLightX;
-    lightY = manualLightY;
-  }
-
-  const lightProj = project(lightX, lightY, 0, TILE_W, TILE_H);
-  const lightScreenX = ORIGIN_X + lightProj.sx;
-  const lightScreenY = ORIGIN_Y + lightProj.sy - lightElevation;
-
-  // 1. Clear
-  ctx.clearRect(0, 0, canvasW, canvasH);
-
-  // 2. Ambient background glow
-  const bgGlow = ctx.createRadialGradient(
-    lightScreenX, lightScreenY, 0,
-    lightScreenX, lightScreenY, LIGHT_RADIUS_SCREEN * 1.2,
-  );
-  bgGlow.addColorStop(0, 'rgba(255, 200, 80, 0.07)');
-  bgGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = bgGlow;
-  ctx.fillRect(0, 0, canvasW, canvasH);
-
-  // 3. Floor
-  floor.draw(ctx, lightX, lightY, LIGHT_RADIUS_SCREEN);
-
-  // 4. Ball + shadow + light halo
-  ball.draw(ctx, TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y, {
-    x: lightX,
-    y: lightY,
-    elevation: lightElevation,
-  });
-
-  // 5. Drag hint rings (shown only when not dragging)
-  if (dragging === null) {
-    drawHintRing(ctx, getBallScreenPos().bx, getBallScreenPos().by, 'rgba(255,255,255,0.12)');
-    if (lightMode === 'manual') {
-      const { lx, ly } = getLightScreenPos();
-      drawHintRing(ctx, lx, ly, 'rgba(255, 220, 80, 0.25)');
-    }
-  }
-
-  requestAnimationFrame(render);
+function hpBar(hp: HealthComponent | undefined): string {
+  if (!hp) return '';
+  const filled = Math.round(hp.fraction * 8);
+  return ` ${'█'.repeat(filled)}${'░'.repeat(8 - filled)} ${hp.hp}/${hp.maxHp}`;
 }
 
-function drawHintRing(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  color: string,
-): void {
+function updateHud(): void {
+  const p = character.position;
+  const l = omniLight.position;
+  hudBall.textContent  = `player  x:${p.x.toFixed(1)} y:${p.y.toFixed(1)} z:${p.z.toFixed(0)}`;
+  hudLight.textContent = `light   x:${l.x.toFixed(1)} y:${l.y.toFixed(1)} z:${l.z.toFixed(0)}`;
+  hudCrystal.textContent  = `crystal${hpBar(crystal.getComponent('health'))}`;
+  hudBoulder.textContent  = `boulder${hpBar(boulder.getComponent('health'))}`;
+  hudChest.textContent    = `chest  ${hpBar(chest.getComponent('health'))}`;
+}
+
+// ─── Render loop ──────────────────────────────────────────────────────────────
+
+function drawHintRing(ctx: CanvasRenderingContext2D, x: number, y: number, color: string): void {
   ctx.beginPath();
   ctx.arc(x, y, HIT_RADIUS, 0, Math.PI * 2);
   ctx.strokeStyle = color;
@@ -280,4 +323,41 @@ function drawHintRing(
   ctx.setLineDash([]);
 }
 
-requestAnimationFrame(render);
+engine.start(
+  // postFrame — overlays
+  (_ts) => {
+    const ctx = engine.ctx;
+    if (dragging === null) {
+      const { bx, by } = getBallScreenPos();
+      drawHintRing(ctx, bx, by, 'rgba(255,255,255,0.15)');
+      if (lightMode === 'manual') {
+        const { lx, ly } = getLightScreenPos();
+        drawHintRing(ctx, lx, ly, 'rgba(255,220,80,0.35)');
+      }
+    }
+    updateHud();
+  },
+  // preFrame — background glow
+  (ts) => {
+    if (lightMode === 'orbit') {
+      orbitTime = ts * 0.001 * orbitSpeed;
+      omniLight.position.x = LIGHT_CENTER_X + Math.cos(orbitTime) * LIGHT_ORBIT_R;
+      omniLight.position.y = LIGHT_CENTER_Y + Math.sin(orbitTime) * LIGHT_ORBIT_R;
+    }
+    const lp = project(omniLight.position.x, omniLight.position.y, 0, TILE_W, TILE_H);
+    const lsx = ORIGIN_X + lp.sx;
+    const lsy = ORIGIN_Y + lp.sy - omniLight.position.z;
+    const ctx = engine.ctx;
+    const r = (omniLight.radius ?? 320) * 1.2;
+    const bgGlow = ctx.createRadialGradient(lsx, lsy, 0, lsx, lsy, r);
+    bgGlow.addColorStop(0, hexToRgba(omniLight.color, 0.08));
+    bgGlow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = bgGlow;
+    ctx.fillRect(0, 0, canvasW, canvasH);
+  },
+);
+
+function hexToRgba(hex: string, alpha: number): string {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return `rgba(${(n >> 16) & 0xff},${(n >> 8) & 0xff},${n & 0xff},${alpha})`;
+}
