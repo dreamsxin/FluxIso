@@ -11,6 +11,7 @@ import { hexToRgba } from './math/color';
 import { AudioManager } from './audio/AudioManager';
 import { ParticleSystem } from './animation/ParticleSystem';
 import { Minimap } from './core/Minimap';
+import { MovementComponent } from './ecs/components/MovementComponent';
 
 // ─── Canvas & Engine ──────────────────────────────────────────────────────────
 
@@ -118,6 +119,15 @@ for (const cloud of clouds) {
   cloud.boundsY = ROWS;
   scene.addObject(cloud);
 }
+
+// ─── MovementComponent on player (A* pathfinding) ────────────────────────────
+
+const playerMv = new MovementComponent({
+  speed:    3.5,
+  radius:   0.35,
+  collider: scene.collider ?? undefined,
+});
+playerMv.onAttach(character);
 
 // ─── Minimap ──────────────────────────────────────────────────────────────────
 
@@ -284,6 +294,7 @@ function onPointerDown(e: MouseEvent | TouchEvent): void {
     dragging = 'ball';
     dragOffsetX = cx - bx;
     dragOffsetY = cy - by;
+    playerMv.stopMoving();   // cancel any in-progress path
     canvas.style.cursor = 'grabbing';
     return;
   }
@@ -305,10 +316,14 @@ function onPointerDown(e: MouseEvent | TouchEvent): void {
     return;
   }
 
-  // Floor click → moveTo (zoom + pan aware)
-  const world = scene.camera.screenToWorld(cx, cy, canvasW, canvasH, TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y);
+  // Floor click → A* pathfinding (zoom + pan aware)
+  const world   = scene.camera.screenToWorld(cx, cy, canvasW, canvasH, TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y);
   const clamped = clampWorld(world.x, world.y);
-  character.moveTo(clamped.x, clamped.y, character.position.z);
+  const reached = playerMv.pathTo(clamped.x, clamped.y, character.position.z);
+  if (!reached) {
+    // Goal unreachable — flash the canvas edge briefly
+    flashUnreachable();
+  }
 }
 
 function onPointerMove(e: MouseEvent | TouchEvent): void {
@@ -378,9 +393,15 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// ─── Unreachable flash ────────────────────────────────────────────────────────
+
+let _flashAlpha = 0;
+function flashUnreachable(): void { _flashAlpha = 0.28; }
+
 // ─── HUD ─────────────────────────────────────────────────────────────────────
 
 const hudBall     = $<HTMLSpanElement>('hud-ball');
+const hudPath     = $<HTMLSpanElement>('hud-path');
 const hudLight    = $<HTMLSpanElement>('hud-light');
 const hudCrystal  = $<HTMLSpanElement>('hud-crystal');
 const hudBoulder  = $<HTMLSpanElement>('hud-boulder');
@@ -396,6 +417,10 @@ function updateHud(): void {
   const p = character.position;
   const l = omniLight.position;
   hudBall.textContent  = `player  x:${p.x.toFixed(1)} y:${p.y.toFixed(1)} z:${p.z.toFixed(0)}`;
+  const wps = playerMv.remainingWaypoints.length;
+  hudPath.textContent  = playerMv.isMoving
+    ? `path    waypoints:${wps} remaining`
+    : `path    idle`;
   hudLight.textContent = `light   x:${l.x.toFixed(1)} y:${l.y.toFixed(1)} z:${l.z.toFixed(0)}`;
   hudCrystal.textContent  = `crystal${hpBar(crystal.getComponent('health'))}`;
   hudBoulder.textContent  = `boulder${hpBar(boulder.getComponent('health'))}`;
@@ -418,6 +443,51 @@ engine.start(
   // postFrame — overlays
   (_ts) => {
     const ctx = engine.ctx;
+
+    // Unreachable flash (red tint on canvas edge)
+    if (_flashAlpha > 0) {
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,60,60,${_flashAlpha.toFixed(2)})`;
+      ctx.lineWidth   = 6;
+      ctx.strokeRect(3, 3, canvasW - 6, canvasH - 6);
+      ctx.restore();
+      _flashAlpha = Math.max(0, _flashAlpha - 0.018);
+    }
+
+    // A* path visualisation — draw waypoint trail
+    const wps = playerMv.remainingWaypoints;
+    if (wps.length > 0) {
+      ctx.save();
+      ctx.setLineDash([4, 5]);
+      ctx.strokeStyle = 'rgba(85,144,204,0.55)';
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath();
+      // Start from character screen pos
+      const { bx, by } = getBallScreenPos();
+      ctx.moveTo(bx, by);
+      for (const wp of wps) {
+        const { sx, sy } = scene.camera.worldToScreen(
+          wp.x, wp.y, character.position.z,
+          TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+        );
+        ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+      // Draw small dots at each waypoint
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(85,144,204,0.7)';
+      for (const wp of wps) {
+        const { sx, sy } = scene.camera.worldToScreen(
+          wp.x, wp.y, character.position.z,
+          TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+        );
+        ctx.beginPath();
+        ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     if (dragging === null) {
       const { bx, by } = getBallScreenPos();
       drawHintRing(ctx, bx, by, 'rgba(255,255,255,0.15)');
@@ -426,6 +496,7 @@ engine.start(
         drawHintRing(ctx, lx, ly, 'rgba(255,220,80,0.35)');
       }
     }
+
     // Minimap — bottom-right corner of canvas
     if (minimapVisible) {
       const pad = 14;
@@ -435,8 +506,10 @@ engine.start(
 
     updateHud();
   },
-  // preFrame — background glow
+  // preFrame — pathfinding update + background glow
   (ts) => {
+    playerMv.update(ts);
+
     if (lightMode === 'orbit') {
       orbitTime = ts * 0.001 * orbitSpeed;
       omniLight.position.x = LIGHT_CENTER_X + Math.cos(orbitTime) * LIGHT_ORBIT_R;
