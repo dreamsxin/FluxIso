@@ -19,8 +19,8 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 - **Lightmap baking** — `LightmapCache` on `OffscreenCanvas`; floor re-baked only when lights or camera change
 - **Shadow casting** — `ShadowCaster` ray-projects object AABBs from OmniLight onto ground plane; convex hull; distance falloff
 - **Audio** — `AudioManager` (Web Audio API); one-shot SFX, looping BGM, spatial distance attenuation; master/sfx/bgm volume
-- **Scene editor** — Visual placement of walls/lights/props; property panel; JSON export/import; keyboard shortcuts
-- **Sprite editor** — 8-direction animation preview grid; upload/URL image loading; action config (row/frames/fps); JSON export for `SpriteSheet` config
+- **Scene editor** — Visual placement of walls/lights/props; undo/redo (Ctrl+Z/Y, 100 steps); drag-to-move; collision layer paint; object list; scene resize; JSON export+copy
+- **Sprite editor** — 8-direction animation preview; upload/URL; anchorY config; frame click inspect; action config; JSON export + copy to clipboard
 - **Library packaging** — Vite lib mode; ESM + CJS dual output; `luxiso.d.ts`; npm-ready
 - **TypeScript-first** — Strict mode, fully typed public API, ES module tree-shakeable exports
 
@@ -752,24 +752,35 @@ The scene editor lets you visually build and export scene JSON files.
 
 | Button | Key | Tool |
 |---|---|---|
-| ↖ | `V` | Select — click to select and edit object properties |
+| ↖ | `V` | Select / drag-to-move — click to select, drag to reposition |
 | ▬ | `W` | Wall — click start point, click end point |
 | ✦ | `L` | Omni Light — click to place |
 | ◉ | `C` | Character — click to place (snaps to tile centre) |
 | ◆ | `1` | Crystal prop |
 | ⬟ | `2` | Boulder prop |
 | ▣ | `3` | Chest prop |
+| ✓ | `P` | Paint walkable — click/drag tiles to mark passable (green overlay) |
+| ✕ | `B` | Paint blocked — click/drag tiles to mark impassable (red overlay) |
 
-**Other shortcuts:**
-- `Esc` — cancel current operation / deselect
-- `Delete` / `Backspace` — remove selected object
+**Keyboard shortcuts:**
 
-**Property panel (right side):** When an object is selected, its numeric and color properties appear as editable fields. Changes apply immediately.
+| Key | Action |
+|---|---|
+| `Ctrl+Z` | Undo |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
+| `Esc` | Cancel current operation / deselect |
+| `Delete` / `Backspace` | Remove selected object |
+
+**Scene settings (top bar):** Set scene name, Cols and Rows. Changing size resizes the canvas and preserves the existing walkable grid.
+
+**Object list (right panel):** All placed objects listed by type and ID. Click any row to select it.
+
+**Property panel:** When an object is selected, its numeric and color properties appear as editable fields. Changes apply immediately.
 
 **JSON workflow:**
 1. Build your scene visually
-2. Click **Export** — the JSON appears in the textarea
-3. Copy and save as a `.json` file in `public/scenes/`
+2. Click **Export + Copy** — the JSON is generated and copied to clipboard
+3. Save as a `.json` file in `public/scenes/`
 4. Load it with `engine.loadScene('/scenes/my-scene.json')`
 
 To import an existing scene: paste its JSON into the textarea and click **Import**.
@@ -784,7 +795,7 @@ The sprite editor helps you configure `SpriteSheet` clips for 8-direction charac
 
 1. **Load image** — upload a file or paste a URL. The sheet preview shows the image with a grid overlay.
 
-2. **Set frame size** — enter the pixel dimensions of a single frame (Frame W × Frame H). The grid updates live.
+2. **Set frame config** — enter Frame W × Frame H in pixels, Draw Scale, and Anchor Y (0 = top-anchored, 1 = bottom-anchored). The anchor line is shown as an orange dashed line in each preview cell.
 
 3. **Configure actions** — each action row defines:
    - `name` — action identifier (e.g. `idle`, `walk`, `attack`)
@@ -795,9 +806,11 @@ The sprite editor helps you configure `SpriteSheet` clips for 8-direction charac
 
    The standard layout expects 8 consecutive rows per action (S, SW, W, NW, N, NE, E, SE).
 
-4. **Preview** — the right panel shows all 8 directions playing simultaneously. Use the action selector to switch between actions. The clip name shown under each preview confirms which clip is resolved (including fallbacks).
+4. **Inspect frames** — click any cell in the sheet preview to highlight it. The frame coordinates (col, row, x, y, w, h) are shown below the preview.
 
-5. **Export** — click **Export JSON** to get the full `SpriteSheet` config. Use it directly:
+5. **Preview** — the right panel shows all 8 directions playing simultaneously. Use the action selector to switch between actions. The clip name shown under each preview confirms which clip is resolved (including fallbacks).
+
+6. **Export** — click **Export JSON** to generate the full `SpriteSheet` config, then **Copy to Clipboard**. Use it directly:
 
 ```ts
 import { SpriteSheet } from 'luxiso';
@@ -960,6 +973,7 @@ audio.playSfx('/sfx/hit.mp3', { volume: vol });
 | Unit tests — Vitest; 72 tests: IsoProjection, color, depthSort, TileCollider, Camera, HealthComponent, Engine | ✅ |
 | Scene editor — visual placement, property panel, JSON export/import, keyboard shortcuts | ✅ |
 | Sprite editor — 8-direction preview grid; upload/URL; action config; JSON export | ✅ |
+| Editor improvements — undo/redo; drag-to-move; collision layer paint; object list; scene resize; anchorY; frame inspect | ✅ |
 | Library packaging — Vite lib mode; ESM + CJS dual output; luxiso.d.ts; npm-ready | ✅ |
 
 ### Next Up
@@ -969,7 +983,7 @@ audio.playSfx('/sfx/hit.mp3', { volume: vol });
 | P5 | **ECS: MovementComponent + EventBus** | Reusable movement logic; inter-component events |
 | P5 | **Physics hardening** | Diagonal corner-slide fix; continuous collision detection |
 | P5 | **Performance: dirty-flag sort + frustum culling** | Skip topoSort when nothing moved |
-| P5 | **Editor: undo/redo + collision layer editor** | Command stack; visual walkable grid toggle |
+| P5 | **Editor: undo/redo + collision layer editor** | Command stack; visual walkable grid toggle | ✅ |
 | P5 | **Validation layer** | JSON schema validation; component type-safe lookup |
 | P5 | **Extended ECS components** | TimerComponent, TweenComponent, TriggerZoneComponent |
 
