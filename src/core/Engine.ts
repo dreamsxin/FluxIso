@@ -4,6 +4,7 @@ import { Wall, WallOptions } from '../elements/Wall';
 import { OmniLight } from '../lighting/OmniLight';
 import { DirectionalLight } from '../lighting/DirectionalLight';
 import { Character } from '../elements/Character';
+import { Cloud } from '../elements/props/Cloud';
 import { TileCollider } from '../physics/TileCollider';
 
 export interface EngineOptions {
@@ -49,6 +50,17 @@ interface SceneJson {
     z?: number;
     radius?: number;
     color?: string;
+  }>;
+  clouds?: Array<{
+    id: string;
+    x: number;
+    y: number;
+    altitude?: number;
+    speed?: number;
+    angle?: number;
+    scale?: number;
+    color?: string;
+    seed?: number;
   }>;
 }
 
@@ -146,6 +158,21 @@ export class Engine {
       scene.addObject(
         new Character({ id: c.id, x: c.x, y: c.y, z: c.z, radius: c.radius, color: c.color }),
       );
+    }
+
+    for (const c of json.clouds ?? []) {
+      const cloud = new Cloud({
+        id: c.id, x: c.x, y: c.y,
+        altitude: c.altitude,
+        speed:    c.speed,
+        angle:    c.angle,
+        scale:    c.scale,
+        color:    c.color,
+        seed:     c.seed,
+      });
+      cloud.boundsX = json.cols ?? json.floor?.cols ?? 10;
+      cloud.boundsY = json.rows ?? json.floor?.rows ?? 10;
+      scene.addObject(cloud);
     }
 
     // Build collision layer
