@@ -10,6 +10,7 @@ import { Entity } from './ecs/Entity';
 import { hexToRgba } from './math/color';
 import { AudioManager } from './audio/AudioManager';
 import { ParticleSystem } from './animation/ParticleSystem';
+import { Minimap } from './core/Minimap';
 
 // ─── Canvas & Engine ──────────────────────────────────────────────────────────
 
@@ -118,6 +119,12 @@ for (const cloud of clouds) {
   scene.addObject(cloud);
 }
 
+// ─── Minimap ──────────────────────────────────────────────────────────────────
+
+const minimap = new Minimap(scene, { cols: COLS, rows: ROWS });
+let minimapVisible = true;
+let minimapSize    = 150;
+
 // ─── Light orbit state ────────────────────────────────────────────────────────
 
 const LIGHT_CENTER_X = 5;
@@ -136,6 +143,16 @@ function $<T extends HTMLElement>(id: string): T {
 }
 
 // ─── Panel: Ball controls ─────────────────────────────────────────────────────
+
+const minimapToggle    = $<HTMLInputElement>('minimap-toggle');
+const minimapSizeSlider = $<HTMLInputElement>('minimap-size');
+
+minimapToggle.addEventListener('change', () => {
+  minimapVisible = minimapToggle.checked;
+});
+minimapSizeSlider.addEventListener('input', () => {
+  minimapSize = Number(minimapSizeSlider.value);
+});
 
 const ballElevSlider = $<HTMLInputElement>('ball-elev');
 const ballElevVal    = $<HTMLSpanElement>('ball-elev-val');
@@ -409,6 +426,13 @@ engine.start(
         drawHintRing(ctx, lx, ly, 'rgba(255,220,80,0.35)');
       }
     }
+    // Minimap — bottom-right corner of canvas
+    if (minimapVisible) {
+      const pad = 14;
+      const sz  = minimapSize;
+      minimap.draw(ctx, canvasW - sz - pad, canvasH - sz - pad, sz, sz);
+    }
+
     updateHud();
   },
   // preFrame — background glow
