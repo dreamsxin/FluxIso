@@ -57,12 +57,18 @@ export class Camera {
     this.zoom = Math.max(0.25, Math.min(4, zoom));
   }
 
-  /** Called each frame before drawing. Lerps toward follow target. */
-  update(): void {
+  /**
+   * Called each frame before drawing. Lerps toward follow target.
+   * `dt` is the frame delta in seconds; pass it for frame-rate-independent
+   * smoothing (lerpFactor is treated as the per-60fps factor, so the actual
+   * factor is adjusted via `1 - (1-lerpFactor)^(dt*60)`).
+   */
+  update(dt = 1 / 60): void {
     if (this._target) {
       const tx = this._target.position.x;
       const ty = this._target.position.y;
-      const t = this.lerpFactor;
+      // Frame-rate-independent lerp: same convergence speed at any FPS
+      const t = this.lerpFactor >= 1 ? 1 : 1 - Math.pow(1 - this.lerpFactor, dt * 60);
       this.x += (tx - this.x) * t;
       this.y += (ty - this.y) * t;
       this._clamp();

@@ -3,6 +3,8 @@ export { Engine } from './core/Engine';
 export { AssetLoader } from './core/AssetLoader';
 export type { EngineOptions } from './core/Engine';
 export { Scene } from './core/Scene';
+export { Minimap } from './core/Minimap';
+export type { MinimapStyle } from './core/Minimap';
 export type { SceneOptions } from './core/Scene';
 export { Camera } from './core/Camera';
 export type { CameraBounds, CameraOptions } from './core/Camera';
@@ -43,6 +45,8 @@ export type { EmitterConfig, EmitterShape, ParticleBlend } from './animation/Par
 
 // Physics
 export { TileCollider } from './physics/TileCollider';
+export { Pathfinder } from './physics/Pathfinder';
+export type { IsoVec2 } from './physics/Pathfinder';
 
 // Audio
 export { AudioManager } from './audio/AudioManager';

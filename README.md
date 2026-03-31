@@ -430,6 +430,86 @@ DirectionalAnimator.buildSheet(url, frameW, frameH, actions, scale)  // grid-lay
 DirectionalAnimator.auditSheet(sheet, action)   // { present, missing } clip names
 ```
 
+### `Pathfinder`
+
+```ts
+Pathfinder.find(
+  collider: TileCollider,
+  start: IsoVec2,          // world position (tile floor = tile index)
+  goal:  IsoVec2,
+): IsoVec2[] | null        // tile-centre waypoints, or null if unreachable
+
+// Usage with MovementComponent:
+const path = Pathfinder.find(collider, { x: 1, y: 2 }, { x: 7, y: 5 });
+if (path) mv.followPath(path);
+// or via shorthand:
+mv.pathTo(7, 5);           // calls Pathfinder internally, returns false if unreachable
+mv.followPath(waypoints);  // manually supply pre-computed path
+```
+
+Features: 8-directional movement (diagonal cost √2), corner-cutting prevention,
+string-pulled path to remove redundant intermediate waypoints.
+
+### `MovementComponent` (updated)
+
+```ts
+mv.moveTo(x, y, z?)              // direct movement, no pathfinding
+mv.pathTo(x, y, z?): boolean     // A* path via attached collider; false = unreachable
+mv.followPath(waypoints, z?)     // follow pre-computed IsoVec2[] path
+mv.stopMoving()
+mv.isMoving: boolean
+mv.remainingWaypoints: readonly IsoVec2[]
+```
+
+### `Minimap`
+
+```ts
+new Minimap(scene, { cols, rows, style? })
+
+minimap.draw(ctx, x, y, w, h)   // blit overlay onto main canvas (call in postFrame)
+minimap.setScene(scene)          // hot-swap scene reference
+
+// Style options (all optional):
+{
+  bg:          '#1a1a2e',         // background
+  walkable:    '#2a3a4a',         // open tile
+  blocked:     '#0a0a14',         // blocked tile
+  grid:        'rgba(255,255,255,0.06)',
+  playerColor: '#5590cc',         // Character dots (with pulse ring)
+  objectColor: '#cc8855',         // other IsoObject dots
+  border:      'rgba(255,255,255,0.25)',
+  radius:      6,                 // corner radius px
+}
+
+// Example — in postFrame:
+minimap.draw(ctx, canvas.width - 160, 16, 144, 144);
+```
+
+### `Scene.toJSON()`
+
+```ts
+scene.toJSON(): Record<string, unknown>
+// Returns a plain object matching the SceneJson schema accepted by Engine.loadScene().
+// Covers: floor (with walkable grid from collider), walls, lights, characters, clouds.
+// JSON.stringify-safe — no circular refs.
+
+const json = scene.toJSON();
+localStorage.setItem('level', JSON.stringify(json));
+
+// Round-trip:
+const saved = JSON.parse(localStorage.getItem('level')!);
+const scene2 = engine.buildScene(saved);
+```
+
+### `Camera` (updated)
+
+```ts
+camera.update(dt?: number)   // dt in seconds; frame-rate-independent lerp
+// lerpFactor is now treated as "per-60fps factor":
+//   actual factor = 1 - (1 - lerpFactor)^(dt * 60)
+// Same visual convergence speed at 60, 120, or 144 fps.
+```
+
 ### `IsoProjection`
 
 ```ts
@@ -477,17 +557,20 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 | Validator: scene JSON + ECS component assertions | |
 | Scene editor: drag-drop, undo/redo, collision paint, JSON export | |
 | Unit tests: 116 tests across 12 files (Vitest 4, Node ≥ 22) | |
+| A* Pathfinder: 8-directional, corner-cut prevention, string-pull | |
+| MovementComponent.pathTo() / followPath() | |
+| Minimap: OffscreenCanvas HUD overlay, walkable grid + object dots | |
+| Scene.toJSON(): full round-trip serialization to SceneJson schema | |
+| Camera.update(dt): frame-rate-independent lerp (now 131 tests / 14 files) | |
 
 ### Pending
 
 | Priority | Item |
 |---|---|
-| P2 | **Camera lerp dt-based** — current `x += (tx-x)*factor` is frame-rate dependent; replace with `1-(1-factor)^dt` or explicit lerp speed (units/sec) |
-| P2 | **Frustum culling refinement** — currently uses simple AABB vs viewport rect; add camera-space clip before topoSort |
-| P3 | **Pathfinding** — A* over TileCollider grid; `character.pathTo(x, y)` with waypoint queue |
-| P3 | **Minimap** — `OffscreenCanvas` overview rendered from top-down tile grid + object positions |
+| P2 | **Frustum culling refinement** — add camera-space clip before topoSort (current margin-based cull is generous) |
+| P3 | **Character.pathTo()** — wire Pathfinder directly into Character class as convenience shorthand |
 | P4 | **Vite lib mode** — ESM + CJS dual output; `luxiso.d.ts` rollup; npm publish |
-| P4 | **Performance** — dirty-flag topoSort skip when nothing moved; instanced floor tile rendering |
+| P4 | **Performance** — instanced floor tile rendering; Pathfinder result cache (invalidate on collider change) |
 | P4 | **Cloud in editor** — add `cloud` tool to `EditorState.ToolType` + `EditorRenderer._rebuild()` |
 
 ## License

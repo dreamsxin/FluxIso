@@ -16,7 +16,7 @@ export interface CloudOptions {
   scale?: number;
   /** Base color (hex). Default '#d8e8f8'. */
   color?: string;
-  /** Random seed for shape variation (0â€“1). Default 0.5. */
+  /** Random seed for shape variation (0â€?). Default 0.5. */
   seed?: number;
 }
 
@@ -43,7 +43,7 @@ export class Cloud extends IsoObject {
 
   constructor(opts: CloudOptions) {
     const alt = opts.altitude ?? 6;
-    // z in screen pixels: altitude * tileH (approximate; tileH=32 â†’ 1 unit = 32px)
+    // z in screen pixels: altitude * tileH (approximate; tileH=32 â†?1 unit = 32px)
     super(opts.id, opts.x, opts.y, alt * 32);
     this._speed    = opts.speed ?? 0.4;
     this._angle    = opts.angle ?? 0;
@@ -51,8 +51,15 @@ export class Cloud extends IsoObject {
     this._seed     = opts.seed  ?? 0.5;
   }
 
+  // ©¤©¤ Serialization helpers ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+  get speed(): number  { return this._speed; }
+  get angle(): number  { return this._angle; }
+  get scale(): number  { return this._scale; }
+  get seed():  number  { return this._seed;  }
+  get altitude(): number { return this.position.z / 32; }
+
   get aabb(): AABB {
-    // Clouds are high in the air â€” their AABB baseZ reflects their altitude
+    // Clouds are high in the air â€?their AABB baseZ reflects their altitude
     // so they sort correctly above ground objects.
     const r = 1.2 * this._scale;
     return {
@@ -110,7 +117,7 @@ export class Cloud extends IsoObject {
 
     // â”€â”€ Low-poly cloud body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Build a deterministic set of "puffs" from the seed value.
-    // Each puff is an irregular convex polygon (5â€“7 vertices).
+    // Each puff is an irregular convex polygon (5â€? vertices).
     const puffs = buildPuffs(this._seed, s);
 
     ctx.save();
@@ -169,7 +176,7 @@ function buildPuffs(seed: number, s: number): Puff[] {
 
   const puffs: Puff[] = [];
 
-  // 4â€“6 overlapping puffs arranged in a loose cluster
+  // 4â€? overlapping puffs arranged in a loose cluster
   const count = 4 + Math.floor(rng() * 3);
   for (let i = 0; i < count; i++) {
     const offX = (rng() - 0.5) * 38 * s;

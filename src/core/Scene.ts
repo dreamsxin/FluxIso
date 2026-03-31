@@ -6,6 +6,9 @@ import { ShadowCaster } from '../lighting/ShadowCaster';
 import { Camera } from './Camera';
 import { LightmapCache } from './LightmapCache';
 import { Floor } from '../elements/Floor';
+import { Wall } from '../elements/Wall';
+import { Character } from '../elements/Character';
+import { Cloud } from '../elements/props/Cloud';
 import { project } from '../math/IsoProjection';
 import { topoSort } from '../math/depthSort';
 import { TileCollider } from '../physics/TileCollider';
@@ -77,8 +80,13 @@ export class Scene {
 
   // ── Per-frame update ───────────────────────────────────────────────────────
 
+  private _lastTs = 0;
+
   update(ts?: number): void {
-    this.camera.update();
+    const now = ts ?? performance.now();
+    const dt  = this._lastTs === 0 ? 1 / 60 : Math.min((now - this._lastTs) / 1000, 0.1);
+    this._lastTs = now;
+    this.camera.update(dt);
     for (const obj of this.objects) {
       const updatable = obj as unknown as { update?: (ts?: number, collider?: TileCollider | null) => void };
       if (typeof updatable.update === 'function') {
@@ -231,6 +239,100 @@ export class Scene {
     return objects.map(o =>
       `${o.id}:${o.position.x.toFixed(2)},${o.position.y.toFixed(2)},${o.position.z.toFixed(2)}`
     ).join('|');
+  }
+
+  // ── Serialization ──────────────────────────────────────────────────────────
+
+  /**
+   * Export the scene as a plain JSON object compatible with `Engine.loadScene()`.
+   *
+   * Props other than Cloud, Character, Floor, Wall are omitted (they carry
+   * runtime state that cannot round-trip cleanly). Add custom serialization
+   * by subclassing Scene and overriding this method.
+   */
+  toJSON(): Record<string, unknown> {
+    const floors      = this.objects.filter((o): o is Floor      => o instanceof Floor);
+    const walls       = this.objects.filter((o): o is Wall       => o instanceof Wall);
+    const characters  = this.objects.filter((o): o is Character  => o instanceof Character);
+    const clouds      = this.objects.filter((o): o is Cloud      => o instanceof Cloud);
+
+    const floor = floors[0];
+    const walkable = this.collider
+      ? Array.from({ length: this.collider.rows }, (_, r) =>
+          Array.from({ length: this.collider!.cols }, (__, c) => this.collider!.isWalkable(c, r)),
+        )
+      : undefined;
+
+    return {
+      name:  'Untitled Scene',
+      cols:  this.cols,
+      rows:  this.rows,
+      tileW: this.tileW,
+      tileH: this.tileH,
+
+      ...(floor ? {
+        floor: {
+          id:           floor.id,
+          cols:         floor.cols,
+          rows:         floor.rows,
+          ...(floor.color         ? { color:        floor.color }        : {}),
+          ...(floor.altColor      ? { altColor:      floor.altColor }     : {}),
+          ...(floor.tileImageUrl  ? { tileImage:     floor.tileImageUrl } : {}),
+          ...(floor.altTileImageUrl ? { altTileImage: floor.altTileImageUrl } : {}),
+          ...(walkable            ? { walkable }                          : {}),
+        },
+      } : {}),
+
+      walls: walls.map(w => ({
+        id:       w.id,
+        x:        w.position.x,
+        y:        w.position.y,
+        endX:     w.endX,
+        endY:     w.endY,
+        height:   w.wallHeight,
+        color:    w.color,
+        openings: w.openings,
+      })),
+
+      lights: [
+        ...this.omniLights.map(l => ({
+          type:      'omni',
+          x:         l.position.x,
+          y:         l.position.y,
+          z:         l.position.z,
+          color:     l.color,
+          intensity: l.intensity,
+          radius:    l.radius,
+        })),
+        ...this.dirLights.map(l => ({
+          type:      'directional',
+          angle:     Math.round(l.angle * 180 / Math.PI),
+          elevation: Math.round(l.elevation * 180 / Math.PI),
+          color:     l.color,
+          intensity: l.intensity,
+        })),
+      ],
+
+      characters: characters.map(c => ({
+        id:     c.id,
+        x:      c.position.x,
+        y:      c.position.y,
+        z:      c.position.z,
+        radius: c.radius,
+        color:  c.color,
+      })),
+
+      clouds: clouds.map(c => ({
+        id:       c.id,
+        x:        c.position.x,
+        y:        c.position.y,
+        altitude: c.altitude,
+        speed:    c.speed,
+        angle:    c.angle,
+        scale:    c.scale,
+        seed:     c.seed,
+      })),
+    };
   }
 
   private drawLightHalo(
