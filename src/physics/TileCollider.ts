@@ -105,6 +105,10 @@ export class TileCollider {
     r = 0.4,
     steps = 4,
   ): { dx: number; dy: number } {
+    // Fast path: if destination is clear, skip binary search
+    if (this.canOccupy(x + dx - r, y + dy - r, x + dx + r, y + dy + r)) {
+      return { dx, dy };
+    }
     // Binary-search the largest safe fraction
     let lo = 0, hi = 1;
     for (let i = 0; i < steps; i++) {

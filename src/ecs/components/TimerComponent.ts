@@ -48,7 +48,7 @@ export class TimerComponent implements Component {
   start():  void { this._running = true; this._done = false; }
   pause():  void { this._running = false; }
   reset():  void { this._elapsed = 0; this._done = false; }
-  restart():void { this._elapsed = 0; this._done = false; this._running = true; }
+  restart():void { this._elapsed = 0; this._done = false; this._running = true; this._lastTs = 0; }
 
   update(ts?: number): void {
     if (!this._running || this._done) return;

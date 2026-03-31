@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MovementComponent } from '../ecs/components/MovementComponent';
 import { TileCollider } from '../physics/TileCollider';
+import { EventBus } from '../ecs/EventBus';
 
 function makeOwner(x = 0, y = 0, z = 0) {
   return { id: 'e', position: { x, y, z }, aabb: {} as never, draw: () => {} } as never;
@@ -35,7 +36,6 @@ describe('MovementComponent — basic movement', () => {
   });
 
   it('emits arrival event', () => {
-    const { EventBus } = require('../ecs/EventBus');
     const bus = new EventBus();
     const onArrival = vi.fn();
     bus.on('arrival', onArrival);

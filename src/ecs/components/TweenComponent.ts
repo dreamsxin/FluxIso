@@ -86,7 +86,7 @@ export class TweenComponent implements Component {
 
   pause():   void { this._running = false; }
   resume():  void { this._running = true; }
-  restart(): void { this._elapsed = 0; this._done = false; this._running = true; this._iteration = 0; this._forward = true; }
+  restart(): void { this._elapsed = 0; this._done = false; this._running = true; this._iteration = 0; this._forward = true; this._lastTs = 0; }
 
   update(ts?: number): void {
     if (!this._owner || !this._running || this._done) return;
@@ -116,20 +116,20 @@ export class TweenComponent implements Component {
       const repeat = this._opts.repeat ?? 0;
       const yoyo   = this._opts.yoyo   ?? false;
 
-      if (yoyo) this._forward = !this._forward;
-
       this._iteration++;
       this._elapsed = 0;
 
       const maxIter = repeat === -1 ? Infinity : repeat + 1;
       if (this._iteration >= maxIter) {
-        // Snap to final value
+        // Snap to the end of the current (pre-flip) direction
         for (const t of this._opts.targets) {
           pos[t.prop] = this._forward ? t.to : t.from;
         }
         this._done    = true;
         this._running = false;
         this._opts.onComplete?.();
+      } else if (yoyo) {
+        this._forward = !this._forward;
       }
     }
   }
