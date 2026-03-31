@@ -53,32 +53,71 @@ export class TileCollider {
   }
 
   /**
-   * Slide-and-clamp collision resolution.
-   * Given a desired move from (x, y) by (dx, dy) with a half-size footprint `r`,
-   * returns the largest allowed displacement that does not enter a blocked tile.
-   * Tries X and Y axes independently (AABB sliding).
+   * Slide-and-clamp collision resolution with diagonal corner handling.
+   *
+   * Tries the full move first, then each axis independently.
+   * When both axes are blocked (corner case), attempts a small diagonal
+   * push-out to prevent the entity from getting stuck in corners.
    */
   resolveMove(
     x: number, y: number,
     dx: number, dy: number,
     r = 0.4,
   ): { dx: number; dy: number } {
-    // Try full move
     const nx = x + dx;
     const ny = y + dy;
+
+    // Full move
     if (this.canOccupy(nx - r, ny - r, nx + r, ny + r)) {
       return { dx, dy };
     }
 
-    // Try X only
+    // X only
     const xOnly = this.canOccupy(nx - r, y - r, nx + r, y + r);
-    // Try Y only
+    // Y only
     const yOnly = this.canOccupy(x - r, ny - r, x + r, ny + r);
 
-    return {
-      dx: xOnly ? dx : 0,
-      dy: yOnly ? dy : 0,
-    };
+    if (xOnly) return { dx, dy: 0 };
+    if (yOnly) return { dx: 0, dy };
+
+    // Both axes blocked — try a small diagonal slide away from the corner.
+    // Find which corner of the current tile we're closest to and nudge away.
+    const cx = Math.round(x), cy = Math.round(y);
+    const pushX = x < cx ? -0.01 : 0.01;
+    const pushY = y < cy ? -0.01 : 0.01;
+    if (this.canOccupy(x + pushX - r, y + pushY - r, x + pushX + r, y + pushY + r)) {
+      return { dx: pushX, dy: pushY };
+    }
+
+    return { dx: 0, dy: 0 };
+  }
+
+  /**
+   * Continuous collision detection for fast-moving objects.
+   * Sweeps the AABB along the movement vector and returns the safe fraction
+   * of the move (0 = fully blocked, 1 = fully free).
+   *
+   * Use when `speed * dt` could exceed a tile width in a single frame.
+   */
+  sweepMove(
+    x: number, y: number,
+    dx: number, dy: number,
+    r = 0.4,
+    steps = 4,
+  ): { dx: number; dy: number } {
+    // Binary-search the largest safe fraction
+    let lo = 0, hi = 1;
+    for (let i = 0; i < steps; i++) {
+      const mid = (lo + hi) / 2;
+      const tx = x + dx * mid;
+      const ty = y + dy * mid;
+      if (this.canOccupy(tx - r, ty - r, tx + r, ty + r)) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    return { dx: dx * lo, dy: dy * lo };
   }
 
   /**

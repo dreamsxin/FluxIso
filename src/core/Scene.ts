@@ -22,10 +22,14 @@ export class Scene {
   readonly camera: Camera;
   private objects: IsoObject[] = [];
   private lights: BaseLight[] = [];
-  /** Optional tile-based collision layer. Set via engine.buildScene() or directly. */
   collider: TileCollider | null = null;
-  /** Lightmap cache for the floor layer. Initialised lazily on first draw. */
   private _lightmapCache: LightmapCache | null = null;
+
+  // ── Performance: dirty-flag sort cache ────────────────────────────────────
+  private _sortedCache: IsoObject[] = [];
+  private _sortDirty = true;
+  /** Snapshot of AABB positions used to detect movement between frames. */
+  private _aabbSnapshot: string = '';
 
   readonly tileW: number;
   readonly tileH: number;
@@ -44,11 +48,13 @@ export class Scene {
 
   addObject(obj: IsoObject): void {
     this.objects.push(obj);
+    this._sortDirty = true;
   }
 
   removeById(id: string): void {
     this.objects = this.objects.filter((o) => o.id !== id);
-    this.lights = this.lights.filter((l) => (l as { id?: string }).id !== id);
+    this.lights  = this.lights.filter((l) => (l as { id?: string }).id !== id);
+    this._sortDirty = true;
   }
 
   getById(id: string): IsoObject | undefined {
@@ -158,8 +164,21 @@ export class Scene {
       ShadowCaster.draw(ctx, light, sceneObjects, this.tileW, this.tileH);
     }
 
-    const sorted = topoSort(sceneObjects);
-    for (const obj of sorted) {
+    // ── Frustum culling ────────────────────────────────────────────────────
+    // Compute visible world bounds from camera + canvas size.
+    // Objects whose AABB centre is far outside the view are skipped.
+    const visibleObjects = this._frustumCull(sceneObjects, canvasW, canvasH, originX, originY);
+
+    // ── Dirty-flag topoSort ────────────────────────────────────────────────
+    // Re-sort only when object positions have changed.
+    const snap = this._buildAabbSnapshot(visibleObjects);
+    if (this._sortDirty || snap !== this._aabbSnapshot) {
+      this._sortedCache  = topoSort(visibleObjects);
+      this._aabbSnapshot = snap;
+      this._sortDirty    = false;
+    }
+
+    for (const obj of this._sortedCache) {
       obj.draw(dc);
     }
 
@@ -172,6 +191,46 @@ export class Scene {
     }
 
     this.camera.restoreTransform(ctx);
+  }
+
+  private _frustumCull(
+    objects: IsoObject[],
+    canvasW: number,
+    canvasH: number,
+    originX: number,
+    originY: number,
+  ): IsoObject[] {
+    // Compute world-space bounds visible through the camera.
+    // Add a generous margin (2 tiles) to avoid pop-in at edges.
+    const margin = 2;
+    const zoom   = this.camera.zoom;
+    const halfW  = (canvasW / 2) / zoom / (this.tileW / 2) + margin;
+    const halfH  = (canvasH / 2) / zoom / (this.tileH / 2) + margin;
+    const cx     = this.camera.x;
+    const cy     = this.camera.y;
+
+    // In iso space: visible x+y range and x-y range
+    const sumMin  = (cx + cy) - halfH * 2;
+    const sumMax  = (cx + cy) + halfH * 2;
+    const diffMin = (cx - cy) - halfW * 2;
+    const diffMax = (cx - cy) + halfW * 2;
+
+    return objects.filter((obj) => {
+      const { minX, minY, maxX, maxY } = obj.aabb;
+      const cX = (minX + maxX) / 2;
+      const cY = (minY + maxY) / 2;
+      const sum  = cX + cY;
+      const diff = cX - cY;
+      return sum  >= sumMin  && sum  <= sumMax
+          && diff >= diffMin && diff <= diffMax;
+    });
+  }
+
+  private _buildAabbSnapshot(objects: IsoObject[]): string {
+    // Compact snapshot: only position, not full AABB, for speed
+    return objects.map(o =>
+      `${o.id}:${o.position.x.toFixed(2)},${o.position.y.toFixed(2)},${o.position.z.toFixed(2)}`
+    ).join('|');
   }
 
   private drawLightHalo(

@@ -50,8 +50,22 @@ export type { PlayOptions, SpatialOptions } from './audio/AudioManager';
 // ECS
 export { Entity } from './ecs/Entity';
 export type { Component } from './ecs/Component';
+export { EventBus, globalBus } from './ecs/EventBus';
+export type { DamageEvent, HealEvent, DeathEvent, MoveEvent, ArrivalEvent, TriggerEvent } from './ecs/EventBus';
 export { HealthComponent } from './ecs/components/HealthComponent';
 export type { HealthOptions } from './ecs/components/HealthComponent';
+export { MovementComponent } from './ecs/components/MovementComponent';
+export type { MovementOptions } from './ecs/components/MovementComponent';
+export { TimerComponent } from './ecs/components/TimerComponent';
+export type { TimerOptions } from './ecs/components/TimerComponent';
+export { TweenComponent, Easing } from './ecs/components/TweenComponent';
+export type { TweenOptions, TweenTarget, EasingFn } from './ecs/components/TweenComponent';
+export { TriggerZoneComponent } from './ecs/components/TriggerZoneComponent';
+export type { TriggerZoneOptions } from './ecs/components/TriggerZoneComponent';
+
+// Validation
+export { validateSceneJson, validateComponents, requireComponent } from './core/Validator';
+export type { ValidationResult } from './core/Validator';
 
 // Math
 export { project, unproject, depthKey } from './math/IsoProjection';
