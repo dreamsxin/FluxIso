@@ -208,29 +208,48 @@ export class Scene {
     _originX: number,
     _originY: number,
   ): IsoObject[] {
-    // Compute world-space bounds visible through the camera.
-    // Add a generous margin (2 tiles) to avoid pop-in at edges.
-    const margin = 2;
+    // Compute the world-space iso-parallelogram visible through the camera.
+    //
+    // The camera transform maps world → screen as:
+    //   sx = (x - y) * tileW/2  (the "diff" axis)
+    //   sy = (x + y) * tileH/2  (the "sum"  axis)
+    // shifted by the camera's own (x, y) position.
+    //
+    // Rather than testing AABB centres, we test whether the object's full
+    // AABB overlaps the visible region on both iso axes simultaneously.
+    // An object is visible iff:
+    //   AABB.maxSum  >= viewSumMin   AND   AABB.minSum  <= viewSumMax
+    //   AABB.maxDiff >= viewDiffMin  AND   AABB.minDiff <= viewDiffMax
+    //
+    // where sum  = x + y  (maps to the vertical screen axis)
+    //       diff = x - y  (maps to the horizontal screen axis)
+    //
+    // A small padding (0.5 tile) prevents sub-pixel pop-in at exact edges.
+    const pad    = 0.5;
     const zoom   = this.camera.zoom;
-    const halfW  = (canvasW / 2) / zoom / (this.tileW / 2) + margin;
-    const halfH  = (canvasH / 2) / zoom / (this.tileH / 2) + margin;
-    const cx     = this.camera.x;
-    const cy     = this.camera.y;
+    // Half-extents in world-iso units that the canvas can show
+    const halfSum  = (canvasH / 2) / zoom / (this.tileH / 2) + pad;
+    const halfDiff = (canvasW / 2) / zoom / (this.tileW / 2) + pad;
+    const camSum   = this.camera.x + this.camera.y;
+    const camDiff  = this.camera.x - this.camera.y;
 
-    // In iso space: visible x+y range and x-y range
-    const sumMin  = (cx + cy) - halfH * 2;
-    const sumMax  = (cx + cy) + halfH * 2;
-    const diffMin = (cx - cy) - halfW * 2;
-    const diffMax = (cx - cy) + halfW * 2;
+    const sumMin  = camSum  - halfSum  * 2;
+    const sumMax  = camSum  + halfSum  * 2;
+    const diffMin = camDiff - halfDiff * 2;
+    const diffMax = camDiff + halfDiff * 2;
 
     return objects.filter((obj) => {
       const { minX, minY, maxX, maxY } = obj.aabb;
-      const cX = (minX + maxX) / 2;
-      const cY = (minY + maxY) / 2;
-      const sum  = cX + cY;
-      const diff = cX - cY;
-      return sum  >= sumMin  && sum  <= sumMax
-          && diff >= diffMin && diff <= diffMax;
+      // Compute the sum/diff range of the AABB corners
+      // sum  extremes: min at (minX+minY), max at (maxX+maxY)
+      // diff extremes: min at (minX-maxY), max at (maxX-minY)
+      const aabbSumMin  = minX + minY;
+      const aabbSumMax  = maxX + maxY;
+      const aabbDiffMin = minX - maxY;
+      const aabbDiffMax = maxX - minY;
+
+      return aabbSumMax  >= sumMin  && aabbSumMin  <= sumMax
+          && aabbDiffMax >= diffMin && aabbDiffMin <= diffMax;
     });
   }
 

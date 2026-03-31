@@ -42,7 +42,7 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 npm install
 npm run dev        # http://localhost:5173 — interactive demo
 npm run build      # production build → dist/
-npx vitest --run   # run 131 unit tests (requires Node ≥ 22)
+npx vitest --run   # run 143 unit tests (requires Node ≥ 22)
 ```
 
 ## Demo Controls
@@ -312,6 +312,12 @@ character.moveTo(x, y, z?): void       // smooth interpolation with collision
 character.stopMoving(): void
 character.isMoving: boolean
 character.setSpriteSheet(sheet, initialClip?): void
+character.moveTo(x, y, z?): void               // direct smooth movement
+character.pathTo(tx, ty, collider, tz?): boolean // A* — returns false if unreachable
+character.followPath(waypoints[], z?): void      // follow pre-computed IsoVec2[] path
+character.stopMoving(): void
+character.isMoving: boolean
+character.remainingWaypoints: readonly IsoVec2[]
 character.playAnimation(name: string): void
 ```
 
@@ -556,22 +562,22 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 | JSON scene loader: floor/walls/lights/chars/props/clouds | |
 | Validator: scene JSON + ECS component assertions | |
 | Scene editor: drag-drop, undo/redo, collision paint, JSON export | |
-| A* Pathfinder: 8-directional, corner-cut prevention, string-pull | |
+| A* Pathfinder: 8-directional, corner-cut prevention, Bresenham LoS string-pull, min-heap O(log n) | |
 | MovementComponent.pathTo() / followPath() | |
 | Minimap: OffscreenCanvas HUD overlay, walkable grid + object dots | |
 | Scene.toJSON(): full round-trip serialization to SceneJson schema | |
 | Camera.update(dt): frame-rate-independent lerp | |
+| Character.pathTo(tx, ty, collider) — A* convenience shorthand on Character | |
+| Precise AABB frustum culling — full minX/maxX/minY/maxY vs view parallelogram | |
 | TypeScript strict-mode: 0 errors across all source + test files | |
-| Unit tests: 131 tests across 14 files (Vitest 4, Node ≥ 22) | |
+| Unit tests: 143 tests across 15 files (Vitest 4, Node ≥ 22) | |
 
 ### Pending
 
 | Priority | Item |
 |---|---|
-| P2 | **Frustum culling refinement** — add camera-space clip before topoSort (current margin-based cull is generous) |
-| P3 | **Character.pathTo()** — wire Pathfinder directly into Character class as convenience shorthand |
 | P4 | **Vite lib mode** — ESM + CJS dual output; `luxiso.d.ts` rollup; npm publish |
-| P4 | **Performance** — instanced floor tile rendering; Pathfinder min-heap open list (O(n)→O(log n)); _stringPull full LoS simplification; result cache |
+| P4 | **Performance** — instanced floor tile rendering; Pathfinder result cache (invalidate on collider change) |
 
 ## License
 

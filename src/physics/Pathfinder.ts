@@ -9,6 +9,71 @@ interface Node {
   h: number;   // heuristic to goal
   f: number;   // g + h
   parent: Node | null;
+  /** Heap index — kept in sync by BinaryHeap for O(1) decrease-key. */
+  _heapIdx: number;
+}
+
+// ── Binary min-heap keyed on Node.f ─────────────────────────────────────────
+// Standard array-backed heap. push O(log n), pop O(log n), update O(log n).
+
+class BinaryHeap {
+  private _data: Node[] = [];
+
+  get size(): number { return this._data.length; }
+
+  push(node: Node): void {
+    node._heapIdx = this._data.length;
+    this._data.push(node);
+    this._bubbleUp(this._data.length - 1);
+  }
+
+  pop(): Node {
+    const top  = this._data[0];
+    const last = this._data.pop()!;
+    if (this._data.length > 0) {
+      last._heapIdx = 0;
+      this._data[0] = last;
+      this._sinkDown(0);
+    }
+    return top;
+  }
+
+  /** Call after decreasing node.f to restore heap invariant. */
+  decreased(node: Node): void {
+    this._bubbleUp(node._heapIdx);
+  }
+
+  private _bubbleUp(i: number): void {
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (this._data[parent].f <= this._data[i].f) break;
+      this._swap(parent, i);
+      i = parent;
+    }
+  }
+
+  private _sinkDown(i: number): void {
+    const n = this._data.length;
+    for (;;) {
+      let smallest = i;
+      const l = (i << 1) + 1;
+      const r = l + 1;
+      if (l < n && this._data[l].f < this._data[smallest].f) smallest = l;
+      if (r < n && this._data[r].f < this._data[smallest].f) smallest = r;
+      if (smallest === i) break;
+      this._swap(i, smallest);
+      i = smallest;
+    }
+  }
+
+  private _swap(a: number, b: number): void {
+    const da = this._data[a];
+    const db = this._data[b];
+    da._heapIdx = b;
+    db._heapIdx = a;
+    this._data[a] = db;
+    this._data[b] = da;
+  }
 }
 
 const key = (col: number, row: number) => `${col},${row}`;
@@ -22,7 +87,9 @@ const key = (col: number, row: number) => `${col},${row}`;
  * - Supports 8-directional movement (diagonal cost = √2).
  * - Diagonal moves are blocked when both adjacent cardinal tiles are blocked
  *   (corner-cutting prevention).
- * - Path is smoothed with string-pulling (funnel algorithm over the grid).
+ * - Open list uses a binary min-heap for O(log n) push/pop.
+ * - Path is post-processed with Bresenham LoS string-pulling to straighten
+ *   zigzag routes across open areas.
  *
  * @example
  *   const path = Pathfinder.find(collider, { x: 1, y: 1 }, { x: 7, y: 5 });
@@ -46,29 +113,31 @@ export class Pathfinder {
     if (!collider.isWalkable(gc, gr)) return null;
     if (sc === gc && sr === gr) return [{ x: gc + 0.5, y: gr + 0.5 }];
 
-    const open: Node[] = [];
+    const open   = new BinaryHeap();
     const closed = new Set<string>();
     const best   = new Map<string, number>(); // key → best g seen
+    const nodeMap = new Map<string, Node>();  // key → open-list node (for decrease-key)
 
-    const startNode: Node = { col: sc, row: sr, g: 0, h: Pathfinder._h(sc, sr, gc, gr), f: 0, parent: null };
+    const startNode: Node = {
+      col: sc, row: sr,
+      g: 0, h: Pathfinder._h(sc, sr, gc, gr), f: 0,
+      parent: null, _heapIdx: 0,
+    };
     startNode.f = startNode.h;
     open.push(startNode);
     best.set(key(sc, sr), 0);
+    nodeMap.set(key(sc, sr), startNode);
 
-    while (open.length > 0) {
-      // Pop node with lowest f
-      let idx = 0;
-      for (let i = 1; i < open.length; i++) {
-        if (open[i].f < open[idx].f) idx = i;
-      }
-      const cur = open.splice(idx, 1)[0];
+    while (open.size > 0) {
+      const cur = open.pop();
       const ck  = key(cur.col, cur.row);
 
       if (closed.has(ck)) continue;
       closed.add(ck);
+      nodeMap.delete(ck);
 
       if (cur.col === gc && cur.row === gr) {
-        return Pathfinder._reconstruct(cur);
+        return Pathfinder._reconstruct(cur, collider);
       }
 
       for (const [dc, dr, cost] of Pathfinder._neighbors(collider, cur.col, cur.row)) {
@@ -82,14 +151,26 @@ export class Pathfinder {
         best.set(nk, g);
 
         const h = Pathfinder._h(nc, nr, gc, gr);
-        open.push({ col: nc, row: nr, g, h, f: g + h, parent: cur });
+        const existing = nodeMap.get(nk);
+        if (existing) {
+          // Decrease-key: update in place and restore heap invariant
+          existing.g      = g;
+          existing.h      = h;
+          existing.f      = g + h;
+          existing.parent = cur;
+          open.decreased(existing);
+        } else {
+          const node: Node = { col: nc, row: nr, g, h, f: g + h, parent: cur, _heapIdx: 0 };
+          open.push(node);
+          nodeMap.set(nk, node);
+        }
       }
     }
 
     return null; // unreachable
   }
 
-  // ── Internal helpers ────────────────────────────────────────────────────────
+  // ── Internal helpers ─────────────────────────────────────────────────────
 
   /** Octile heuristic for 8-directional grids. */
   private static _h(c: number, r: number, gc: number, gr: number): number {
@@ -108,21 +189,20 @@ export class Pathfinder {
     row: number,
   ): [number, number, number][] {
     const dirs: [number, number, number][] = [
-      [ 0, -1, 1],        // N
-      [ 1,  0, 1],        // E
-      [ 0,  1, 1],        // S
-      [-1,  0, 1],        // W
-      [ 1, -1, Math.SQRT2], // NE
-      [ 1,  1, Math.SQRT2], // SE
-      [-1,  1, Math.SQRT2], // SW
-      [-1, -1, Math.SQRT2], // NW
+      [ 0, -1, 1],           // N
+      [ 1,  0, 1],           // E
+      [ 0,  1, 1],           // S
+      [-1,  0, 1],           // W
+      [ 1, -1, Math.SQRT2],  // NE
+      [ 1,  1, Math.SQRT2],  // SE
+      [-1,  1, Math.SQRT2],  // SW
+      [-1, -1, Math.SQRT2],  // NW
     ];
     const result: [number, number, number][] = [];
     for (const [dc, dr, cost] of dirs) {
       const nc = col + dc;
       const nr = row + dr;
       if (!collider.isWalkable(nc, nr)) continue;
-      // Diagonal: prevent corner-cutting
       if (dc !== 0 && dr !== 0) {
         if (!collider.isWalkable(col + dc, row) || !collider.isWalkable(col, row + dr)) continue;
       }
@@ -131,8 +211,8 @@ export class Pathfinder {
     return result;
   }
 
-  /** Reconstruct path from goal node back to start; return tile centres. */
-  private static _reconstruct(goal: Node): IsoVec2[] {
+  /** Reconstruct path from goal node back to start; apply string-pulling. */
+  private static _reconstruct(goal: Node, collider: TileCollider): IsoVec2[] {
     const raw: IsoVec2[] = [];
     let n: Node | null = goal;
     while (n) {
@@ -140,25 +220,59 @@ export class Pathfinder {
       n = n.parent;
     }
     raw.reverse();
-    return Pathfinder._stringPull(raw);
+    return Pathfinder._stringPull(raw, collider);
   }
 
   /**
-   * Simple string-pulling: remove waypoints that are directly line-of-sight
-   * reachable from the previous kept waypoint (grid-level LoS via tile walk).
-   * Reduces zigzag paths on open areas to straight segments.
+   * String-pulling via Bresenham grid line-of-sight.
+   *
+   * Walks the path from an anchor point and advances the anchor whenever
+   * there is a clear LoS to a further waypoint, skipping everything in
+   * between. This converts staircased A* paths into straight-line segments
+   * wherever the terrain is open.
    */
-  private static _stringPull(path: IsoVec2[]): IsoVec2[] {
+  private static _stringPull(path: IsoVec2[], collider: TileCollider): IsoVec2[] {
     if (path.length <= 2) return path;
+
     const out: IsoVec2[] = [path[0]];
+    let anchor = 0;
+
     for (let i = 2; i < path.length; i++) {
-      // Keep path[i-1] if path[anchor] can't reach path[i] directly
-      // (simple check: just keep all for now — full LoS requires collider ref;
-      //  the real smoothing happens in MovementComponent via linear interpolation)
-      out.push(path[i - 1]);
+      // Check LoS from current anchor to path[i]
+      if (!Pathfinder._hasLoS(path[anchor], path[i], collider)) {
+        // Lost LoS: keep path[i-1] as the last valid intermediate point
+        out.push(path[i - 1]);
+        anchor = i - 1;
+      }
     }
+
     out.push(path[path.length - 1]);
-    // Deduplicate consecutive duplicates
-    return out.filter((p, i) => i === 0 || p.x !== out[i - 1].x || p.y !== out[i - 1].y);
+    return out;
+  }
+
+  /**
+   * Bresenham line walk to check grid LoS between two tile-centre points.
+   * Returns true if every tile along the line is walkable.
+   */
+  private static _hasLoS(a: IsoVec2, b: IsoVec2, collider: TileCollider): boolean {
+    let c0 = Math.floor(a.x);
+    let r0 = Math.floor(a.y);
+    const c1 = Math.floor(b.x);
+    const r1 = Math.floor(b.y);
+
+    const dc = Math.abs(c1 - c0);
+    const dr = Math.abs(r1 - r0);
+    const sc = c0 < c1 ? 1 : -1;
+    const sr = r0 < r1 ? 1 : -1;
+    let err = dc - dr;
+
+    for (;;) {
+      if (!collider.isWalkable(c0, r0)) return false;
+      if (c0 === c1 && r0 === r1) break;
+      const e2 = err << 1;
+      if (e2 > -dr) { err -= dr; c0 += sc; }
+      if (e2 <  dc) { err += dc; r0 += sr; }
+    }
+    return true;
   }
 }

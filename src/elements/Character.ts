@@ -4,6 +4,7 @@ import { IsoObject, DrawContext } from './IsoObject';
 import { SpriteSheet } from '../animation/SpriteSheet';
 import { AnimationController } from '../animation/AnimationController';
 import { TileCollider } from '../physics/TileCollider';
+import { Pathfinder, IsoVec2 } from '../physics/Pathfinder';
 import { shiftColor } from '../math/color';
 
 export interface CharacterOptions {
@@ -25,7 +26,9 @@ export class Character extends IsoObject {
   color: string;
   speed: number;
 
-  private target: { x: number; y: number; z: number } | null = null;
+  private _target: { x: number; y: number; z: number } | null = null;
+  /** Remaining path waypoints when following a multi-step path. */
+  private _waypoints: IsoVec2[] = [];
   private _prevX: number;
   private _prevY: number;
 
@@ -45,7 +48,7 @@ export class Character extends IsoObject {
     }
   }
 
-  // ── Public API ─────────────────────────────────────────────────────────────
+  // ── Public API ────────────────────────────────────────────────────────────
 
   /** Attach a sprite sheet and start animation. */
   setSpriteSheet(sheet: SpriteSheet, initialClip = 'idle'): void {
@@ -62,18 +65,50 @@ export class Character extends IsoObject {
     this.anim.play(name);
   }
 
-  /** Begin smooth movement toward world position (x, y, z). */
+  /** Begin smooth movement toward world position (x, y, z). No pathfinding. */
   moveTo(x: number, y: number, z = this.position.z): void {
-    this.target = { x, y, z };
+    this._waypoints = [];
+    this._target = { x, y, z };
+  }
+
+  /**
+   * Use A* to find a path to (tx, ty) on the supplied collider and begin
+   * following it. Returns `true` if a path was found, `false` if unreachable.
+   *
+   * Falls back to a direct `moveTo` when `collider` is null/undefined.
+   */
+  pathTo(tx: number, ty: number, collider: TileCollider | null | undefined, tz = this.position.z): boolean {
+    if (!collider) {
+      this.moveTo(tx, ty, tz);
+      return true;
+    }
+    const path = Pathfinder.find(collider, this.position, { x: tx, y: ty });
+    if (!path) return false;
+    this._followWaypoints(path, tz);
+    return true;
+  }
+
+  /**
+   * Follow a pre-computed array of world-space waypoints.
+   * Each waypoint is consumed in order; the character stops at the last one.
+   */
+  followPath(waypoints: IsoVec2[], z = this.position.z): void {
+    this._followWaypoints(waypoints, z);
   }
 
   /** Cancel any in-progress movement. */
   stopMoving(): void {
-    this.target = null;
+    this._target = null;
+    this._waypoints = [];
   }
 
   get isMoving(): boolean {
-    return this.target !== null;
+    return this._target !== null;
+  }
+
+  /** Remaining waypoints on the current path (read-only). */
+  get remainingWaypoints(): readonly IsoVec2[] {
+    return this._waypoints;
   }
 
   // ── AABB ──────────────────────────────────────────────────────────────────
@@ -99,37 +134,39 @@ export class Character extends IsoObject {
     this._prevX = this.position.x;
     this._prevY = this.position.y;
 
-    // Move toward target
-    if (this.target) {
-      const dx = this.target.x - this.position.x;
-      const dy = this.target.y - this.position.y;
-      const dz = this.target.z - this.position.z;
+    if (this._target) {
+      const dx = this._target.x - this.position.x;
+      const dy = this._target.y - this.position.y;
+      const dz = this._target.z - this.position.z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
       if (dist < this.speed) {
-        // Arrived: final position check
+        // Arrived at current waypoint
         const r = 0.4;
         if (!collider || collider.canOccupy(
-          this.target.x - r, this.target.y - r,
-          this.target.x + r, this.target.y + r,
+          this._target.x - r, this._target.y - r,
+          this._target.x + r, this._target.y + r,
         )) {
-          this.position.x = this.target.x;
-          this.position.y = this.target.y;
-          this.position.z = this.target.z;
+          this.position.x = this._target.x;
+          this.position.y = this._target.y;
+          this.position.z = this._target.z;
         }
-        this.target = null;
+
+        // Advance to next waypoint or stop
+        const next = this._waypoints.shift();
+        this._target = next ? { x: next.x, y: next.y, z: this._target.z } : null;
       } else {
         const stepDx = (dx / dist) * this.speed;
         const stepDy = (dy / dist) * this.speed;
 
         if (collider) {
-          // Resolve step against collision
           const resolved = collider.resolveMove(
             this.position.x, this.position.y, stepDx, stepDy,
           );
-          // If fully blocked in both axes, cancel target
           if (resolved.dx === 0 && resolved.dy === 0) {
-            this.target = null;
+            // Fully blocked — drop target and remaining path
+            this._target = null;
+            this._waypoints = [];
           } else {
             this.position.x += resolved.dx;
             this.position.y += resolved.dy;
@@ -150,7 +187,6 @@ export class Character extends IsoObject {
 
       if (moving) {
         this.anim.direction = AnimationController.directionFrom(moveDx, moveDy);
-        // Auto-switch between walk and idle
         if (this.anim.currentClip.name !== 'walk' &&
             this.anim.spriteSheet.hasClip('walk')) {
           this.anim.play('walk');
@@ -205,7 +241,6 @@ export class Character extends IsoObject {
     const frame = anim.currentClip.frames[anim.frameIndex];
     const w = frame.w * sheet.scale;
     const h = frame.h * sheet.scale;
-    // Anchor: bottom-center by default (anchorY=1)
     const dx = bx - w / 2;
     const dy = by - h * sheet.anchorY;
 
@@ -275,6 +310,14 @@ export class Character extends IsoObject {
     ctx.fillStyle = glint;
     ctx.fill();
   }
-}
 
-// ── helpers removed — imported from src/math/color.ts ────────────────────────
+  // ── Internal ──────────────────────────────────────────────────────────────
+
+  private _followWaypoints(waypoints: IsoVec2[], z: number): void {
+    if (waypoints.length === 0) return;
+    // First waypoint becomes the immediate target; rest go into the queue
+    const first = waypoints[0];
+    this._target = { x: first.x, y: first.y, z };
+    this._waypoints = waypoints.slice(1);
+  }
+}
