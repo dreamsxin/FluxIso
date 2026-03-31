@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { TimerComponent } from '../ecs/components/TimerComponent';
 import { TweenComponent, Easing } from '../ecs/components/TweenComponent';
 import { TriggerZoneComponent } from '../ecs/components/TriggerZoneComponent';
+import { IsoObject } from '../elements/IsoObject';
 
 // ── TimerComponent ────────────────────────────────────────────────────────────
 
@@ -59,8 +60,8 @@ describe('TimerComponent', () => {
 // ── TweenComponent ────────────────────────────────────────────────────────────
 
 describe('TweenComponent', () => {
-  function makeOwner(x = 0, y = 0, z = 0) {
-    return { id: 'e', position: { x, y, z }, aabb: {} as never, draw: () => {} } as never;
+  function makeOwner(x = 0, y = 0, z = 0): IsoObject {
+    return { id: 'e', position: { x, y, z }, aabb: { minX: 0, minY: 0, maxX: 1, maxY: 1, baseZ: 0 }, draw: () => {} } as unknown as IsoObject;
   }
 
   function advanceTween(tween: TweenComponent, totalSeconds: number, step = 0.05): void {
@@ -141,8 +142,8 @@ describe('TweenComponent', () => {
 // ── TriggerZoneComponent ──────────────────────────────────────────────────────
 
 describe('TriggerZoneComponent', () => {
-  function makeObj(id: string, x: number, y: number) {
-    return { id, position: { x, y, z: 0 }, aabb: {} as never, draw: () => {} } as never;
+  function makeObj(id: string, x: number, y: number): IsoObject {
+    return { id, position: { x, y, z: 0 }, aabb: { minX: 0, minY: 0, maxX: 1, maxY: 1, baseZ: 0 }, draw: () => {} } as unknown as IsoObject;
   }
 
   it('fires onEnter when target enters zone', () => {

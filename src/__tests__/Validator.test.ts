@@ -69,17 +69,26 @@ describe('validateComponents', () => {
 describe('requireComponent', () => {
   it('returns component when present', () => {
     const comp = { componentType: 'health' };
-    const entity = { id: 'e', getComponent: () => comp };
+    const entity = {
+      id: 'e',
+      getComponent<C>(_type: string): C | undefined { return comp as unknown as C; },
+    };
     expect(requireComponent(entity, 'health')).toBe(comp);
   });
 
   it('throws when required component missing', () => {
-    const entity = { id: 'e', getComponent: () => undefined };
+    const entity = {
+      id: 'e',
+      getComponent<C>(_type: string): C | undefined { return undefined; },
+    };
     expect(() => requireComponent(entity, 'health')).toThrow(/health/);
   });
 
   it('returns undefined when not required', () => {
-    const entity = { id: 'e', getComponent: () => undefined };
+    const entity = {
+      id: 'e',
+      getComponent<C>(_type: string): C | undefined { return undefined; },
+    };
     expect(requireComponent(entity, 'health', false)).toBeUndefined();
   });
 });

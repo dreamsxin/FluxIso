@@ -263,12 +263,15 @@ window.addEventListener('keydown', (e) => {
 const statusbar = document.getElementById('statusbar')!;
 const toolHints: Record<ToolType, string> = {
   select:    'Click an object to select it. Delete key removes selection.',
+  move:      'Click and drag to reposition the selected object.',
   wall:      'Click to set wall start, click again to set end.',
   omnilight: 'Click to place an Omni Light.',
   character: 'Click to place a Character.',
   crystal:   'Click to place a Crystal.',
   boulder:   'Click to place a Boulder.',
   chest:     'Click to place a Chest.',
+  blocked:   'Click tiles to toggle blocked (unwalkable) areas.',
+  walkable:  'Click tiles to mark them as walkable.',
 };
 state.onChange(() => {
   statusbar.textContent = toolHints[state.activeTool] ?? '';

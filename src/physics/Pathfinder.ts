@@ -151,7 +151,6 @@ export class Pathfinder {
   private static _stringPull(path: IsoVec2[]): IsoVec2[] {
     if (path.length <= 2) return path;
     const out: IsoVec2[] = [path[0]];
-    let anchor = 0;
     for (let i = 2; i < path.length; i++) {
       // Keep path[i-1] if path[anchor] can't reach path[i] directly
       // (simple check: just keep all for now — full LoS requires collider ref;

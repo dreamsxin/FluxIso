@@ -80,11 +80,14 @@ export class Camera {
    * After this call, draw all scene objects, then call restoreTransform().
    * The transform maps world-space iso coordinates so that the camera's
    * world position appears at the canvas centre.
+   *
+   * canvasW/canvasH are accepted for API symmetry but the origin is driven
+   * by the caller-supplied originX/originY.
    */
   applyTransform(
     ctx: CanvasRenderingContext2D,
-    canvasW: number,
-    canvasH: number,
+    _canvasW: number,
+    _canvasH: number,
     tileW: number,
     tileH: number,
     originX: number,
@@ -130,12 +133,16 @@ export class Camera {
   /**
    * Convert a canvas pixel position to world coordinates, accounting for
    * the current camera transform (zoom + pan).
+   *
+   * canvasW/canvasH are accepted for API symmetry (e.g. centred-origin
+   * callers) but the actual inverse only needs the origin offsets supplied
+   * to applyTransform.
    */
   screenToWorld(
     cx: number,
     cy: number,
-    canvasW: number,
-    canvasH: number,
+    _canvasW: number,
+    _canvasH: number,
     tileW: number,
     tileH: number,
     originX: number,

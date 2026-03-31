@@ -205,8 +205,8 @@ export class Scene {
     objects: IsoObject[],
     canvasW: number,
     canvasH: number,
-    originX: number,
-    originY: number,
+    _originX: number,
+    _originY: number,
   ): IsoObject[] {
     // Compute world-space bounds visible through the camera.
     // Add a generous margin (2 tiles) to avoid pop-in at edges.

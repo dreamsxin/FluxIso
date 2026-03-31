@@ -2,9 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { MovementComponent } from '../ecs/components/MovementComponent';
 import { TileCollider } from '../physics/TileCollider';
 import { EventBus } from '../ecs/EventBus';
+import { IsoObject } from '../elements/IsoObject';
 
-function makeOwner(x = 0, y = 0, z = 0) {
-  return { id: 'e', position: { x, y, z }, aabb: {} as never, draw: () => {} } as never;
+function makeOwner(x = 0, y = 0, z = 0): IsoObject {
+  return { id: 'e', position: { x, y, z }, aabb: { minX: 0, minY: 0, maxX: 1, maxY: 1, baseZ: 0 }, draw: () => {} } as unknown as IsoObject;
 }
 
 describe('MovementComponent — basic movement', () => {

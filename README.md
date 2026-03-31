@@ -42,7 +42,7 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 npm install
 npm run dev        # http://localhost:5173 — interactive demo
 npm run build      # production build → dist/
-npx vitest --run   # run 116 unit tests (requires Node ≥ 22)
+npx vitest --run   # run 131 unit tests (requires Node ≥ 22)
 ```
 
 ## Demo Controls
@@ -556,12 +556,13 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 | JSON scene loader: floor/walls/lights/chars/props/clouds | |
 | Validator: scene JSON + ECS component assertions | |
 | Scene editor: drag-drop, undo/redo, collision paint, JSON export | |
-| Unit tests: 116 tests across 12 files (Vitest 4, Node ≥ 22) | |
 | A* Pathfinder: 8-directional, corner-cut prevention, string-pull | |
 | MovementComponent.pathTo() / followPath() | |
 | Minimap: OffscreenCanvas HUD overlay, walkable grid + object dots | |
 | Scene.toJSON(): full round-trip serialization to SceneJson schema | |
-| Camera.update(dt): frame-rate-independent lerp (now 131 tests / 14 files) | |
+| Camera.update(dt): frame-rate-independent lerp | |
+| TypeScript strict-mode: 0 errors across all source + test files | |
+| Unit tests: 131 tests across 14 files (Vitest 4, Node ≥ 22) | |
 
 ### Pending
 
@@ -570,8 +571,7 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 | P2 | **Frustum culling refinement** — add camera-space clip before topoSort (current margin-based cull is generous) |
 | P3 | **Character.pathTo()** — wire Pathfinder directly into Character class as convenience shorthand |
 | P4 | **Vite lib mode** — ESM + CJS dual output; `luxiso.d.ts` rollup; npm publish |
-| P4 | **Performance** — instanced floor tile rendering; Pathfinder result cache (invalidate on collider change) |
-| P4 | **Cloud in editor** — add `cloud` tool to `EditorState.ToolType` + `EditorRenderer._rebuild()` |
+| P4 | **Performance** — instanced floor tile rendering; Pathfinder min-heap open list (O(n)→O(log n)); _stringPull full LoS simplification; result cache |
 
 ## License
 

@@ -46,7 +46,7 @@ function makeCanvas(): HTMLCanvasElement {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('Engine — construction', () => {
+describe('Engine �?construction', () => {
   it('sets default origin to canvas centre', () => {
     const canvas = makeCanvas();
     const engine = new Engine({ canvas });
@@ -66,7 +66,7 @@ describe('Engine — construction', () => {
   });
 });
 
-describe('Engine — buildScene', () => {
+describe('Engine �?buildScene', () => {
   it('returns a Scene instance', () => {
     const engine = new Engine({ canvas: makeCanvas() });
     const scene = engine.buildScene({
@@ -100,7 +100,7 @@ describe('Engine — buildScene', () => {
   });
 });
 
-describe('Engine — setScene / scene getter', () => {
+describe('Engine �?setScene / scene getter', () => {
   it('setScene stores the scene', () => {
     const engine = new Engine({ canvas: makeCanvas() });
     const scene = new Scene({ cols: 4, rows: 4 });
@@ -109,10 +109,10 @@ describe('Engine — setScene / scene getter', () => {
   });
 });
 
-describe('Engine — start / stop', () => {
+describe('Engine �?start / stop', () => {
   beforeEach(() => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn((cb: FrameRequestCallback) => {
-      // Don't actually call cb — just return an id
+    vi.stubGlobal('requestAnimationFrame', vi.fn((_cb: FrameRequestCallback) => {
+      // Don't actually call cb �?just return an id
       return 1;
     }));
     vi.stubGlobal('cancelAnimationFrame', vi.fn());

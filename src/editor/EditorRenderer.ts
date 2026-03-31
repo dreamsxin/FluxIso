@@ -2,7 +2,6 @@
  * EditorRenderer — drives the Engine to preview the current EditorState.
  */
 import { Engine } from '../core/Engine';
-import { Scene } from '../core/Scene';
 import { Crystal } from '../elements/props/Crystal';
 import { Boulder } from '../elements/props/Boulder';
 import { Chest } from '../elements/props/Chest';

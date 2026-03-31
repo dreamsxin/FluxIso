@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { topoSort, AABB, Sortable } from '../math/depthSort';
+import { topoSort, Sortable } from '../math/depthSort';
 
 function makeObj(minX: number, minY: number, maxX: number, maxY: number, baseZ = 0): Sortable {
   return { aabb: { minX, minY, maxX, maxY, baseZ } };
