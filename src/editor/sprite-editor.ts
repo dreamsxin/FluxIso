@@ -20,15 +20,18 @@ const loadUrlBtn    = document.getElementById('btn-load-url')  as HTMLButtonElem
 const frameWInput   = document.getElementById('frame-w')       as HTMLInputElement;
 const frameHInput   = document.getElementById('frame-h')       as HTMLInputElement;
 const scaleInput    = document.getElementById('sprite-scale')  as HTMLInputElement;
+const anchorYInput  = document.getElementById('anchor-y')      as HTMLInputElement;
 const actionsList   = document.getElementById('actions-list')  as HTMLElement;
 const addActionBtn  = document.getElementById('btn-add-action')as HTMLButtonElement;
 const exportBtn     = document.getElementById('btn-export-sprite') as HTMLButtonElement;
+const copyJsonBtn   = document.getElementById('btn-copy-json') as HTMLButtonElement;
 const jsonOut       = document.getElementById('sprite-json')   as HTMLTextAreaElement;
 const previewGrid   = document.getElementById('preview-grid')  as HTMLElement;
 const sheetPreview  = document.getElementById('sheet-preview') as HTMLCanvasElement;
 const sheetCtx      = sheetPreview.getContext('2d')!;
 const activeActionSel = document.getElementById('active-action') as HTMLSelectElement;
 const playBtn       = document.getElementById('btn-play')      as HTMLButtonElement;
+const frameInfo     = document.getElementById('frame-info')    as HTMLElement;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -43,7 +46,8 @@ interface ActionDef {
 
 let imageEl: HTMLImageElement | null = null;
 let imageUrl = '';
-let frameW = 64, frameH = 64, drawScale = 1;
+let frameW = 64, frameH = 64, drawScale = 1, anchorY = 1;
+let selectedFrameCol = -1, selectedFrameRow = -1;
 let actions: ActionDef[] = [
   { id: 1, name: 'idle', rowStart: 0, frameCount: 4, fps: 6,  loop: true },
   { id: 2, name: 'walk', rowStart: 8, frameCount: 8, fps: 12, loop: true },
@@ -117,6 +121,19 @@ function drawSheetPreview(): void {
       sheetCtx.fillRect(0, row * gh, a.frameCount * gw, gh);
     }
   });
+
+  // Selected frame highlight
+  if (selectedFrameCol >= 0 && selectedFrameRow >= 0) {
+    sheetCtx.strokeStyle = 'rgba(255,220,60,0.9)';
+    sheetCtx.lineWidth = 1.5;
+    sheetCtx.strokeRect(
+      selectedFrameCol * gw + 0.75,
+      selectedFrameRow * gh + 0.75,
+      gw - 1.5, gh - 1.5,
+    );
+    sheetCtx.fillStyle = 'rgba(255,220,60,0.12)';
+    sheetCtx.fillRect(selectedFrameCol * gw, selectedFrameRow * gh, gw, gh);
+  }
 }
 
 // ── Config inputs ─────────────────────────────────────────────────────────────
@@ -131,7 +148,29 @@ function drawSheetPreview(): void {
   });
 });
 
-// ── Actions list ──────────────────────────────────────────────────────────────
+anchorYInput.addEventListener('input', () => {
+  anchorY = Math.max(0, Math.min(1, parseFloat(anchorYInput.value) || 1));
+  rebuildSheet();
+});
+// ── Sheet preview click — highlight selected frame ────────────────────────────
+
+sheetPreview.addEventListener('click', (e) => {
+  if (!imageEl) return;
+  const rect = sheetPreview.getBoundingClientRect();
+  const px = (e.clientX - rect.left) * (sheetPreview.width  / rect.width);
+  const py = (e.clientY - rect.top)  * (sheetPreview.height / rect.height);
+  const scale = sheetPreview.width / imageEl.width;
+  const gw = frameW * scale, gh = frameH * scale;
+  selectedFrameCol = Math.floor(px / gw);
+  selectedFrameRow = Math.floor(py / gh);
+  drawSheetPreview();
+  // Show frame info
+  const srcX = selectedFrameCol * frameW;
+  const srcY = selectedFrameRow * frameH;
+  frameInfo.textContent = `frame col:${selectedFrameCol} row:${selectedFrameRow}  →  x:${srcX} y:${srcY} w:${frameW} h:${frameH}`;
+});
+
+
 
 function renderActionsList(): void {
   actionsList.innerHTML = '';
@@ -192,11 +231,10 @@ function rebuildSheet(): void {
     drawScale,
   );
 
-  // Manually inject the loaded image into AssetLoader cache via the sheet
-  // (since we loaded it via FileReader, not fetch)
-  (sheet as unknown as { _injectedImage: HTMLImageElement })._injectedImage = imageEl;
+  // Apply anchorY (buildSheet defaults to 1; patch it)
+  Object.defineProperty(sheet, 'anchorY', { get: () => anchorY, configurable: true });
 
-  // Patch: override the image getter to return our loaded image
+  // Inject loaded image (bypasses AssetLoader fetch)
   Object.defineProperty(sheet, 'image', { get: () => imageEl, configurable: true });
 
   animators = new Map(DIRS.map(dir => [
@@ -258,6 +296,18 @@ function tick(ts: number): void {
     const dy = (canvas.height - dh) / 2;
     ctx.drawImage(image, frame.x, frame.y, frame.w, frame.h, dx, dy, dw, dh);
 
+    // Anchor line
+    const anchorLineY = dy + dh * anchorY;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,180,40,0.6)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(dx, anchorLineY);
+    ctx.lineTo(dx + dw, anchorLineY);
+    ctx.stroke();
+    ctx.restore();
+
     // Clip name label
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(0, canvas.height - 14, canvas.width, 14);
@@ -287,6 +337,7 @@ exportBtn.addEventListener('click', () => {
     url: imageUrl,
     frameW, frameH,
     scale: drawScale,
+    anchorY,
     actions: actions.map(a => ({
       name: a.name, rowStart: a.rowStart, frameCount: a.frameCount, fps: a.fps, loop: a.loop,
     })),
@@ -298,6 +349,13 @@ exportBtn.addEventListener('click', () => {
   };
   jsonOut.value = JSON.stringify(config, null, 2);
   jsonOut.select();
+});
+
+copyJsonBtn.addEventListener('click', () => {
+  if (!jsonOut.value) { alert('Export first.'); return; }
+  navigator.clipboard.writeText(jsonOut.value)
+    .then(() => { copyJsonBtn.textContent = '✓ Copied!'; setTimeout(() => { copyJsonBtn.textContent = 'Copy to Clipboard'; }, 1500); })
+    .catch(() => { jsonOut.select(); document.execCommand('copy'); });
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────

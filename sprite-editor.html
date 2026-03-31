@@ -194,6 +194,7 @@
           <div class="field"><label>Frame W (px)</label><input type="number" id="frame-w" value="64" min="1" /></div>
           <div class="field"><label>Frame H (px)</label><input type="number" id="frame-h" value="64" min="1" /></div>
           <div class="field"><label>Draw Scale</label><input type="number" id="sprite-scale" value="1" min="0.1" step="0.1" /></div>
+          <div class="field"><label>Anchor Y</label><input type="number" id="anchor-y" value="1" min="0" max="1" step="0.1" title="0=top, 1=bottom" /></div>
         </div>
       </div>
 
@@ -217,6 +218,7 @@
         <div class="section-title">Export</div>
         <div class="json-area">
           <textarea id="sprite-json" placeholder="Click Export to generate config JSON…" spellcheck="false" readonly></textarea>
+          <button id="btn-copy-json" style="margin-top:4px;width:100%;background:#12121c;border:1px solid #1e1e2e;color:#555;padding:4px;border-radius:3px;cursor:pointer;font-size:0.70rem;">Copy to Clipboard</button>
         </div>
       </div>
 
@@ -224,8 +226,9 @@
 
     <!-- Centre: sheet preview -->
     <div class="centre-panel">
-      <h2>Sheet Preview</h2>
+      <h2>Sheet Preview — click a frame to inspect</h2>
       <canvas id="sheet-preview" width="400" height="300"></canvas>
+      <div id="frame-info" style="font-size:0.65rem;color:#3a3a5a;font-family:monospace;min-height:16px;"></div>
     </div>
 
     <!-- Right: 8-direction preview -->
