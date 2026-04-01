@@ -116,7 +116,7 @@ if (boulderHp) {
 
 const chestHp = chest.getComponent<HealthComponent>('health');
 if (chestHp) {
-  chestHp.onChange = (hp, max) => {
+  chestHp.onChange = (hp: number, max: number) => {
     if (hp < max) chest.open();
     spawnFx(chest.position.x, chest.position.y, 'spark', '#ffd040', 6);
   };

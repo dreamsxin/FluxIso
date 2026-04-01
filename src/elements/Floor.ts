@@ -166,13 +166,13 @@ export class Floor extends IsoObject {
       }
 
       // Apply lighting: scale base color by illum, then add light color tint
-      const ambient = 0.25;
+      const ambient = 0.42;
       const illumTotal = Math.min(1, (rIllum + gIllum + bIllum) / 3);
       const scale = ambient + illumTotal * (1 - ambient);
 
-      const fr = Math.min(255, Math.round(r * scale + rIllum * 60));
-      const fg = Math.min(255, Math.round(g * scale + gIllum * 60));
-      const fb = Math.min(255, Math.round(b * scale + bIllum * 60));
+      const fr = Math.min(255, Math.round(r * scale + rIllum * 45));
+      const fg = Math.min(255, Math.round(g * scale + gIllum * 45));
+      const fb = Math.min(255, Math.round(b * scale + bIllum * 45));
 
       // If no lights at all, use original procedural scheme
       if (rIllum + gIllum + bIllum < 0.01) {

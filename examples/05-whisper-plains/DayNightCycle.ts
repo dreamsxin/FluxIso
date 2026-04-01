@@ -107,7 +107,7 @@ export class DayNightCycle {
     const p = this._phase;
 
     // 强度：正午最强，午夜最弱
-    const intensity = this._lerp(1.3, 0.12, n);
+    const intensity = this._lerp(1.8, 0.12, n);
 
     // 颜色：白天暖白 → 黄昏橙红 → 夜晚冷蓝
     const dusk = Math.max(0, 1 - Math.min(
@@ -133,11 +133,11 @@ export class DayNightCycle {
   getAmbientParams(): { color: string; intensity: number } {
     const n = this.nightness;
     const r = Math.round(this._lerp(255, 40,  n));
-    const g = Math.round(this._lerp(220, 60,  n));
-    const b = Math.round(this._lerp(140, 180, n));
+    const g = Math.round(this._lerp(235, 60,  n));
+    const b = Math.round(this._lerp(180, 180, n));
     return {
       color:     `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`,
-      intensity: this._lerp(0.72, 0.12, n),
+      intensity: this._lerp(1.1, 0.12, n),
     };
   }
 

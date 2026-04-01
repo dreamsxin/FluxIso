@@ -24,14 +24,19 @@ export class HealthComponent implements Component {
   private _max: number;
   private _current: number;
   private _owner: IsoObject | null = null;
-  private readonly _onDeath?: (owner: IsoObject) => void;
-  private readonly _onChange?: (current: number, max: number, owner: IsoObject) => void;
+  private readonly _onDeathCb?: (owner: IsoObject) => void;
+  private readonly _onChangeCb?: (current: number, max: number, owner: IsoObject) => void;
+
+  /** Public callback — set after construction if needed. */
+  onDeath?: (owner: IsoObject) => void;
+  /** Public callback — set after construction if needed. */
+  onChange?: (current: number, max: number, owner: IsoObject) => void;
 
   constructor(opts: HealthOptions) {
     this._max = opts.max;
     this._current = opts.current ?? opts.max;
-    this._onDeath = opts.onDeath;
-    this._onChange = opts.onChange;
+    this._onDeathCb = opts.onDeath;
+    this._onChangeCb = opts.onChange;
   }
 
   onAttach(owner: IsoObject): void {
@@ -59,7 +64,8 @@ export class HealthComponent implements Component {
     this._current = Math.max(0, this._current - amount);
     this._notify();
     if (this._current === 0 && this._owner) {
-      this._onDeath?.(this._owner);
+      this._onDeathCb?.(this._owner);
+      this.onDeath?.(this._owner);
     }
   }
 
@@ -77,6 +83,9 @@ export class HealthComponent implements Component {
   }
 
   private _notify(): void {
-    if (this._owner) this._onChange?.(this._current, this._max, this._owner);
+    if (this._owner) {
+      this._onChangeCb?.(this._current, this._max, this._owner);
+      this.onChange?.(this._current, this._max, this._owner);
+    }
   }
 }

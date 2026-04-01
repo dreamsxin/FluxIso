@@ -66,11 +66,11 @@ export function buildPlainsScene(): { scene: Scene; portal: Portal; collider: Ti
 
   // ── 光照 ──────────────────────────────────────────────────────────────────
   scene.addLight(new DirectionalLight({
-    angle: 215, elevation: 52, color: '#fff6d8', intensity: 0.9,
+    angle: 215, elevation: 52, color: '#fff6d8', intensity: 1.2,
   }));
   scene.addLight(new OmniLight({
     x: PLAINS_COLS / 2, y: PLAINS_ROWS / 2, z: 120,
-    color: '#ffd888', intensity: 0.45, radius: 900,
+    color: '#ffe8a0', intensity: 0.75, radius: 1200,
   }));
   // 传送阵紫色补光（带 id，方便 demo 动态访问）
   scene.addLight(new OmniLight({
