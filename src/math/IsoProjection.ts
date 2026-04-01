@@ -12,13 +12,13 @@ export interface ScreenVec2 {
 /**
  * IsoView — defines the camera's isometric projection parameters.
  *
- * rotation: horizontal view direction in degrees. Standard iso uses 45°
- *   increments (NE=0, NW=90, SW=180, SE=270). Arbitrary values are supported
- *   for smooth rotation transitions.
+ * rotation: horizontal view direction in degrees.
+ *   Rotation is applied as a canvas 2D transform matrix in Camera.applyTransform,
+ *   so individual project() calls do NOT need to handle rotation.
  *
  * elevation: vertical tilt ratio (tileH / tileW). Standard 2:1 iso = 0.5.
  *   Range 0.2 (near-side view) → 1.0 (near-top-down).
- *   Affects both the projection and the depth sort.
+ *   This IS applied inside project() via effTileH = tileW * elevation.
  */
 export interface IsoView {
   /** Horizontal rotation in degrees (0 = NE-facing, 90 = NW, 180 = SW, 270 = SE). Default 0. */
@@ -31,13 +31,10 @@ export const DEFAULT_ISO_VIEW: IsoView = { rotation: 0, elevation: 0.5 };
 
 /**
  * Projects isometric world coordinates to screen coordinates.
+ * Standard 2:1 isometric ratio: tileW = 2 * tileH.
  *
- * With default view (rotation=0, elevation=0.5):
- *   sx = (x - y) * tileW/2
- *   sy = (x + y) * tileH/2 - z
- *
- * rotation rotates the world around the vertical axis in the iso plane.
- * elevation scales the vertical compression (tileH = tileW * elevation).
+ * Rotation is NOT applied here — it is handled by the canvas transform matrix
+ * in Camera.applyTransform. Only elevation scaling is applied.
  */
 export function project(
   x: number,
@@ -47,31 +44,16 @@ export function project(
   tileH: number,
   view?: IsoView,
 ): ScreenVec2 {
-  if (!view || (view.rotation === 0 && view.elevation === 0.5)) {
-    // Fast path: standard 2:1 iso
-    return {
-      sx: (x - y) * (tileW / 2),
-      sy: (x + y) * (tileH / 2) - z,
-    };
-  }
-
-  // Apply horizontal rotation: rotate world XY around the iso vertical axis
-  const rad = (view.rotation * Math.PI) / 180;
-  const cos = Math.cos(rad), sin = Math.sin(rad);
-  const rx = x * cos - y * sin;
-  const ry = x * sin + y * cos;
-
-  // Apply elevation: tileH = tileW * elevation
-  const effTileH = tileW * view.elevation;
+  const effTileH = view ? tileW * view.elevation : tileH;
   return {
-    sx: (rx - ry) * (tileW / 2),
-    sy: (rx + ry) * (effTileH / 2) - z,
+    sx: (x - y) * (tileW / 2),
+    sy: (x + y) * (effTileH / 2) - z,
   };
 }
 
 /**
  * Unprojects screen coordinates back to isometric world XY (at z=0).
- * Inverse of project() with z=0.
+ * Inverse of project() with z=0. Rotation is NOT handled here.
  */
 export function unproject(
   sx: number,
@@ -83,18 +65,7 @@ export function unproject(
   const effTileH = view ? tileW * view.elevation : tileH;
   const a = sx / (tileW / 2);
   const b = sy / (effTileH / 2);
-  const rx = (a + b) / 2;
-  const ry = (b - a) / 2;
-
-  if (!view || view.rotation === 0) return { x: rx, y: ry };
-
-  // Undo rotation
-  const rad = -(view.rotation * Math.PI) / 180;
-  const cos = Math.cos(rad), sin = Math.sin(rad);
-  return {
-    x: rx * cos - ry * sin,
-    y: rx * sin + ry * cos,
-  };
+  return { x: (a + b) / 2, y: (b - a) / 2 };
 }
 
 /**

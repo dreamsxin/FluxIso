@@ -244,21 +244,19 @@ export class Scene {
       offCtx.save();
       offCtx.translate(originX, originY);
       offCtx.scale(this.camera.zoom, this.camera.zoom);
-      // Camera offset accounting for view rotation
-      let camOffX: number, camOffY: number;
-      if (this.view.rotation !== 0) {
-        const rad = (this.view.rotation * Math.PI) / 180;
-        const cos = Math.cos(rad), sin = Math.sin(rad);
-        const rx = this.camera.x * cos - this.camera.y * sin;
-        const ry = this.camera.x * sin + this.camera.y * cos;
-        const effH = this.tileW * this.view.elevation;
-        camOffX = -(rx - ry) * (this.tileW / 2);
-        camOffY = -(rx + ry) * (effH / 2);
-      } else {
-        const effH = this.tileW * this.view.elevation;
-        camOffX = -(this.camera.x - this.camera.y) * (this.tileW / 2);
-        camOffY = -(this.camera.x + this.camera.y) * (effH / 2);
+
+      // Apply view rotation+elevation matrix (same as Camera.applyTransform)
+      const rot  = this.view.rotation;
+      const elev = this.view.elevation;
+      if (rot !== 0 || elev !== 0.5) {
+        const rad = (rot * Math.PI) / 180;
+        const c = Math.cos(rad), s = Math.sin(rad);
+        const r = elev / 0.5;
+        offCtx.transform(c, -s * r, s / r, c, 0, 0);
       }
+
+      const camOffX = -(this.camera.x - this.camera.y) * (this.tileW / 2);
+      const camOffY = -(this.camera.x + this.camera.y) * (this.tileH / 2);
       offCtx.translate(camOffX, camOffY);
 
       const floorDc: DrawContext = {
