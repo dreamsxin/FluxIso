@@ -104,9 +104,8 @@ export class Floor extends IsoObject {
           bIllum += (lb / 255) * factor;
         }
 
-        rIllum = Math.min(1, rIllum);
-        gIllum = Math.min(1, gIllum);
-        bIllum = Math.min(1, bIllum);
+        // Do NOT clamp here — keep raw values so color tint from directional
+        // light (warm sunrise, cool dusk) is preserved in drawTile.
 
         // Corner of this tile (top vertex of the diamond)
         const { sx: cx, sy: cy } = project(col, row, 0, tileW, tileH);
@@ -146,16 +145,17 @@ export class Floor extends IsoObject {
       ctx.drawImage(img, cx - hw, cy - hh, tileW, tileH);
 
       // Darken by inverse of illumination
-      const alpha = 1 - Math.min(1, (rIllum + gIllum + bIllum) / 3 + 0.15);
+      const avgIllum = (rIllum + gIllum + bIllum) / 3;
+      const alpha = 1 - Math.min(1, avgIllum * 0.8 + 0.15);
       if (alpha > 0.01) {
         ctx.fillStyle = `rgba(0,0,0,${alpha.toFixed(3)})`;
         ctx.fill();
       }
 
       // Additive color tint from lights
-      if (rIllum + gIllum + bIllum > 0.05) {
+      if (avgIllum > 0.05) {
         ctx.globalCompositeOperation = 'screen';
-        ctx.fillStyle = `rgb(${Math.round(rIllum * 40)},${Math.round(gIllum * 40)},${Math.round(bIllum * 40)})`;
+        ctx.fillStyle = `rgb(${Math.round(Math.min(255, rIllum * 40))},${Math.round(Math.min(255, gIllum * 40))},${Math.round(Math.min(255, bIllum * 40))})`;
         ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
       }
@@ -167,15 +167,13 @@ export class Floor extends IsoObject {
         [r, g, b] = hexToRgb(this.color);
       }
 
-      // illumTotal is the sum of ambient + all lights, already in 0–1.
-      // Use it directly as a brightness multiplier — when ambient is high
-      // (daytime) the tile is bright; when low (night) it darkens naturally.
-      // The +tint term adds colored light on top of the base color.
-      const illumTotal = Math.min(1, (rIllum + gIllum + bIllum) / 3);
-
-      const fr = Math.min(255, Math.round(r * illumTotal + rIllum * 55));
-      const fg = Math.min(255, Math.round(g * illumTotal + gIllum * 55));
-      const fb = Math.min(255, Math.round(b * illumTotal + bIllum * 55));
+      // Multiply base tile color by the light color components directly.
+      // rIllum/gIllum/bIllum are NOT pre-clamped, so warm/cool tints from
+      // directional light (sunrise orange, noon white, dusk red) show through.
+      // We clamp only at the final rgb() output.
+      const fr = Math.min(255, Math.round(r * rIllum));
+      const fg = Math.min(255, Math.round(g * gIllum));
+      const fb = Math.min(255, Math.round(b * bIllum));
 
       ctx.fillStyle = `rgb(${fr},${fg},${fb})`;
       ctx.fill();

@@ -141,8 +141,11 @@ export class ShadowCaster {
     const shadowDx = -Math.cos(light.angle) * shadowLen;
     const shadowDy = -Math.sin(light.angle) * shadowLen;
 
-    // Alpha: stronger at low elevation (long shadows), weaker at high noon
-    const alpha = Math.min(0.55, light.intensity * 0.35 * (1 - elev / (Math.PI / 2)));
+    // Alpha: stronger at low elevation (long shadows at dawn/dusk), softer at noon
+    // Use a curve that keeps shadows visible across the full day arc
+    const elevNorm = elev / (Math.PI / 2); // 0=horizon, 1=zenith
+    const shadowAlphaFactor = 0.15 + 0.55 * (1 - elevNorm * elevNorm); // quadratic falloff
+    const alpha = Math.min(0.60, light.intensity * shadowAlphaFactor);
     if (alpha < 0.01) return;
 
     ctx.save();

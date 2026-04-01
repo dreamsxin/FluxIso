@@ -3,8 +3,15 @@
  * All functions accept CSS hex strings (#rrggbb) and return CSS color strings.
  */
 
-/** Parse a hex color string to [r, g, b] components (0–255). */
+/** Parse a CSS color string to [r, g, b] components (0–255).
+ * Supports both `#rrggbb` hex and `rgb(r,g,b)` formats.
+ */
 export function hexToRgb(hex: string): [number, number, number] {
+  if (hex.startsWith('rgb')) {
+    const m = hex.match(/rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (m) return [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
+    return [0, 0, 0];
+  }
   const n = parseInt(hex.replace('#', ''), 16);
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }

@@ -120,12 +120,23 @@ export class DayNightCycle {
     const b = Math.round(this._lerp(220, 200, n) - dusk * 60);
     const color = `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`;
 
-    // 太阳角度：随 phase 从东到西旋转（0°=东，180°=西）
-    const angle = 90 + p * 360 * 0.5; // 缓慢绕一圈
+    // 太阳角度：日出从东(225°)→正午(180°)→日落西(135°)，夜晚月亮反向
+    // 使用太阳在天空中的实际水平位置（phase 0=日出右侧, 0.5=日落左侧）
+    const isSun = p < 0.5;
+    let angle: number;
+    if (isSun) {
+      // 太阳从东南(225°)扫到西南(135°)
+      const t = p / 0.5; // 0=日出 1=日落
+      angle = 225 - t * 90; // 225° → 135°
+    } else {
+      // 月亮从东南(225°)扫到西南(135°)
+      const t = (p - 0.5) / 0.5;
+      angle = 225 - t * 90;
+    }
 
-    // 仰角：正午高(60°)，日出/日落低(10°)，夜晚极低(5°)
+    // 仰角：正午高(60°)，日出/日落低(8°)，夜晚极低(3°)
     const sunArc = Math.sin(p * Math.PI * 2); // 正午最高
-    const elevation = this._lerp(5, 60, Math.max(0, sunArc));
+    const elevation = this._lerp(3, 60, Math.max(0, sunArc));
 
     return { color, intensity, angle, elevation };
   }
@@ -157,8 +168,8 @@ export class DayNightCycle {
     const b = Math.round(this._lerp(220, 80,  n));
     return {
       color:     `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`,
-      // 白天 0.85 保证草地足够亮，夜晚 0.06 真正变暗
-      intensity: this._lerp(0.85, 0.06, n),
+      // 白天 0.55 留出空间给方向光贡献，夜晚 0.06 真正变暗
+      intensity: this._lerp(0.55, 0.06, n),
     };
   }
 

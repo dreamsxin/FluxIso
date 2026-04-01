@@ -192,8 +192,6 @@ export class Scene {
     const cache = this._lightmapCache;
     if (cache.isDirty(omniLights, dirLights, this.camera.x, this.camera.y, this.camera.zoom, ambientRgb)) {
       cache.begin();
-
-      // Draw floor into the offscreen canvas using a temporary 2D context.
       // We apply the camera transform to the offscreen canvas so the cached
       // image is always in canvas-pixel space and can be blitted directly.
       const offCtx = cache.ctx as unknown as CanvasRenderingContext2D;
