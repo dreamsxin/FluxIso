@@ -23,8 +23,16 @@ export class WaveLake extends IsoObject {
   private _time = 0;
   private _lastTs = 0;
 
-  // 水面漂浮光粒子
   private _glints: Array<{ x: number; y: number; phase: number; size: number; speed: number }> = [];
+
+  // 水纹：角色游动时产生的扩散圆环
+  private _ripples: Array<{
+    x: number; y: number;
+    r: number;       // 当前半径（世界单位）
+    maxR: number;    // 最大半径
+    alpha: number;   // 当前透明度
+    speed: number;   // 扩散速度
+  }> = [];
 
   constructor(id: string, cols: number, rows: number) {
     super(id, 0, 0, 0);
@@ -48,15 +56,25 @@ export class WaveLake extends IsoObject {
     return { minX: 0, minY: 0, maxX: this.cols, maxY: this.rows, baseZ: -10 };
   }
 
+  /** 在世界坐标 (x, y) 处生成一个水纹 */
+  addRipple(x: number, y: number): void {
+    this._ripples.push({ x, y, r: 0.1, maxR: 1.4, alpha: 0.7, speed: 1.8 });
+  }
+
   update(ts?: number): void {
     const now = ts ?? performance.now();
     const dt = this._lastTs === 0 ? 0.016 : Math.min((now - this._lastTs) / 1000, 0.1);
     this._lastTs = now;
     this._time += dt;
 
-    for (const g of this._glints) {
-      g.phase += dt * g.speed;
+    for (const g of this._glints) g.phase += dt * g.speed;
+
+    // 更新水纹
+    for (const rp of this._ripples) {
+      rp.r += dt * rp.speed;
+      rp.alpha = Math.max(0, rp.alpha - dt * 1.1);
     }
+    this._ripples = this._ripples.filter(rp => rp.alpha > 0.01);
   }
 
   draw(dc: DrawContext): void {
@@ -143,6 +161,44 @@ export class WaveLake extends IsoObject {
       tileW * this.cols * 2,
       tileH * this.rows * 2,
     );
+
+    // ── 水纹（角色游动产生的扩散椭圆环） ─────────────────────────────────────
+    const scaleY = tileH / tileW;
+    for (const rp of this._ripples) {
+      const h = this._wave(rp.x, rp.y, t);
+      const { sx, sy } = project(rp.x, rp.y, h, tileW, tileH);
+      const rx = originX + sx;
+      const ry = originY + sy;
+      const screenR = rp.r * (tileW / 2);
+
+      ctx.save();
+      ctx.translate(rx, ry);
+      ctx.scale(1, scaleY);
+
+      // 外环（主水纹）
+      ctx.beginPath();
+      ctx.arc(0, 0, screenR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(160,220,255,${(rp.alpha * 0.7).toFixed(2)})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // 内环（次级水纹，稍小）
+      if (rp.r > 0.3) {
+        ctx.beginPath();
+        ctx.arc(0, 0, screenR * 0.6, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(200,240,255,${(rp.alpha * 0.35).toFixed(2)})`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+
+      // 中心高光点
+      ctx.beginPath();
+      ctx.arc(0, 0, 2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(220,250,255,${(rp.alpha * 0.5).toFixed(2)})`;
+      ctx.fill();
+
+      ctx.restore();
+    }
   }
 
   private _wave(col: number, row: number, t: number): number {
@@ -489,10 +545,11 @@ export class LotusFlower extends IsoObject {
 
 // ── 构建湖水场景 ───────────────────────────────────────────────────────────
 
-export function buildLakeScene(cols: number, rows: number): Scene {
+export function buildLakeScene(cols: number, rows: number): { scene: Scene; lake: WaveLake } {
   const scene = new Scene({ tileW: 64, tileH: 32, cols, rows });
 
-  scene.addObject(new WaveLake('lake', cols, rows));
+  const lake = new WaveLake('lake', cols, rows);
+  scene.addObject(lake);
 
   scene.addLight(new DirectionalLight({ angle: 225, elevation: 42, color: '#90c0ff', intensity: 0.85 }));
   scene.addLight(new OmniLight({ x: cols / 2, y: rows / 2, z: 80, color: '#3870c0', intensity: 0.55, radius: 600 }));
@@ -532,5 +589,5 @@ export function buildLakeScene(cols: number, rows: number): Scene {
     scene.addObject(new LotusFlower(`lotus-${i}`, lx as number, ly as number, i * 0.6));
   }
 
-  return scene;
+  return { scene, lake };
 }

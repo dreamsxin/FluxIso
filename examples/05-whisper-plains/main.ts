@@ -86,7 +86,7 @@ const sunLight = plainsScene.dirLights[0] as DirectionalLight | undefined;
 // ── 湖水场景 ──────────────────────────────────────────────────────────────
 
 const LAKE_COLS = 13, LAKE_ROWS = 13;
-const lakeScene = buildLakeScene(LAKE_COLS, LAKE_ROWS);
+const { scene: lakeScene, lake: waveLake } = buildLakeScene(LAKE_COLS, LAKE_ROWS);
 
 const lakeHero = new CubeHero('hero-lake', LAKE_COLS / 2, LAKE_ROWS / 2);
 lakeScene.addObject(lakeHero);
@@ -239,6 +239,11 @@ let _clickMarkerAlpha = 0;
 let _clickMarkerX = 0;
 let _clickMarkerY = 0;
 
+let _lakeClickTarget: { x: number; y: number } | null = null;
+let _lakeClickMarkerAlpha = 0;
+let _lakeClickMarkerX = 0;
+let _lakeClickMarkerY = 0;
+
 let rippleTimer = 0, dustTimer = 0, mistTimer = 0, dreamTimer = 0;
 const RIPPLE_INTERVAL = 0.32, DUST_INTERVAL = 0.7, MIST_INTERVAL = 1.0, DREAM_INTERVAL = 0.5;
 
@@ -250,37 +255,23 @@ let _lastTs = 0;
 
 engine.start(
   (ts) => {
-    // 点击行走标记（在 HUD 下方，场景坐标系）
+    // 草原点击标记
     if (_clickMarkerAlpha > 0.01 && currentSceneName === 'plains') {
       const screen = plainsScene.camera.worldToScreen(
         _clickMarkerX, _clickMarkerY, 0,
         plainsScene.tileW, plainsScene.tileH,
         engine.originX, engine.originY,
       );
-      const ctx = engine.ctx;
-      const a = _clickMarkerAlpha;
-      const t = performance.now() * 0.004;
-      ctx.save();
-      // 外圈脉冲环
-      const ringR = 10 + Math.sin(t * 3) * 2;
-      ctx.beginPath();
-      ctx.arc(screen.sx, screen.sy, ringR, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(180,140,255,${(a * 0.8).toFixed(2)})`;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      // 内圈实心点
-      ctx.beginPath();
-      ctx.arc(screen.sx, screen.sy, 3, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(220,180,255,${a.toFixed(2)})`;
-      ctx.fill();
-      // 十字准星
-      ctx.strokeStyle = `rgba(255,220,255,${(a * 0.6).toFixed(2)})`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(screen.sx - 7, screen.sy); ctx.lineTo(screen.sx + 7, screen.sy);
-      ctx.moveTo(screen.sx, screen.sy - 7); ctx.lineTo(screen.sx, screen.sy + 7);
-      ctx.stroke();
-      ctx.restore();
+      _drawClickMarker(engine.ctx, screen.sx, screen.sy, _clickMarkerAlpha, ts);
+    }
+    // 湖水点击标记
+    if (_lakeClickMarkerAlpha > 0.01 && currentSceneName === 'lake') {
+      const screen = lakeScene.camera.worldToScreen(
+        _lakeClickMarkerX, _lakeClickMarkerY, 0,
+        lakeScene.tileW, lakeScene.tileH,
+        engine.originX, engine.originY,
+      );
+      _drawClickMarker(engine.ctx, screen.sx, screen.sy, _lakeClickMarkerAlpha, ts);
     }
     hud.draw(engine.ctx, canvas.width, canvas.height);
     transition.draw(canvas.width, canvas.height, ts);
@@ -418,22 +409,70 @@ engine.start(
 
     } else if (currentSceneName === 'lake') {
       const kbAxis = map.axis('right', 'left', 'down', 'up');
-      if (kbAxis.x !== 0 || kbAxis.y !== 0) {
+      const hasKbLake = kbAxis.x !== 0 || kbAxis.y !== 0;
+
+      // 点击目标
+      if (input.pointer.pressed) {
+        const world = lakeScene.camera.screenToWorld(
+          input.pointer.x, input.pointer.y,
+          canvas.width, canvas.height,
+          lakeScene.tileW, lakeScene.tileH,
+          engine.originX, engine.originY,
+        );
+        const tx = Math.max(0.5, Math.min(LAKE_COLS - 0.5, world.x));
+        const ty = Math.max(0.5, Math.min(LAKE_ROWS - 0.5, world.y));
+        _lakeClickTarget = { x: tx, y: ty };
+        _lakeClickMarkerX = tx;
+        _lakeClickMarkerY = ty;
+        _lakeClickMarkerAlpha = 1;
+      }
+      if (hasKbLake) _lakeClickTarget = null;
+
+      let lakeMoveX = 0, lakeMoveY = 0;
+
+      if (hasKbLake) {
         const len = Math.hypot(kbAxis.x, kbAxis.y) || 1;
-        const nx = Math.max(0.5, Math.min(LAKE_COLS - 0.5, lakeHero.position.x + kbAxis.x / len * SPEED));
-        const ny = Math.max(0.5, Math.min(LAKE_ROWS - 0.5, lakeHero.position.y + kbAxis.y / len * SPEED));
+        lakeMoveX = kbAxis.x / len * SPEED;
+        lakeMoveY = kbAxis.y / len * SPEED;
+      } else if (_lakeClickTarget) {
+        const dx = _lakeClickTarget.x - lakeHero.position.x;
+        const dy = _lakeClickTarget.y - lakeHero.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < SPEED * 1.2) {
+          lakeHero.position.x = _lakeClickTarget.x;
+          lakeHero.position.y = _lakeClickTarget.y;
+          _lakeClickTarget = null;
+          lakeHero.velX = 0;
+          lakeHero.velY = 0;
+        } else {
+          lakeMoveX = (dx / dist) * SPEED;
+          lakeMoveY = (dy / dist) * SPEED;
+        }
+      }
+
+      if (lakeMoveX !== 0 || lakeMoveY !== 0) {
+        const nx = Math.max(0.5, Math.min(LAKE_COLS - 0.5, lakeHero.position.x + lakeMoveX));
+        const ny = Math.max(0.5, Math.min(LAKE_ROWS - 0.5, lakeHero.position.y + lakeMoveY));
         lakeHero.velX = nx - lakeHero.position.x;
         lakeHero.velY = ny - lakeHero.position.y;
         lakeHero.position.x = nx;
         lakeHero.position.y = ny;
       } else {
-        lakeHero.velX = 0; lakeHero.velY = 0;
+        lakeHero.velX = 0;
+        lakeHero.velY = 0;
       }
+
+      if (_lakeClickMarkerAlpha > 0) _lakeClickMarkerAlpha = Math.max(0, _lakeClickMarkerAlpha - dt * 1.8);
 
       const moving = Math.hypot(lakeHero.velX, lakeHero.velY) > 0.002;
       if (moving) {
+        // 水纹：直接加到 WaveLake
         rippleTimer += dt;
-        if (rippleTimer >= RIPPLE_INTERVAL) { rippleTimer = 0; spawnRipple(lakeScene, lakeHero.position.x, lakeHero.position.y); }
+        if (rippleTimer >= RIPPLE_INTERVAL) {
+          rippleTimer = 0;
+          waveLake.addRipple(lakeHero.position.x, lakeHero.position.y);
+          spawnRipple(lakeScene, lakeHero.position.x, lakeHero.position.y);
+        }
       } else { rippleTimer = 0; }
 
       mistTimer += dt;
@@ -595,4 +634,26 @@ function hexToRgba(hex: string, alpha: number): string {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
+}
+
+function _drawClickMarker(ctx: CanvasRenderingContext2D, sx: number, sy: number, alpha: number, ts: number): void {
+  const t = ts * 0.004;
+  ctx.save();
+  const ringR = 10 + Math.sin(t * 3) * 2;
+  ctx.beginPath();
+  ctx.arc(sx, sy, ringR, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(180,140,255,${(alpha * 0.8).toFixed(2)})`;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(220,180,255,${alpha.toFixed(2)})`;
+  ctx.fill();
+  ctx.strokeStyle = `rgba(255,220,255,${(alpha * 0.6).toFixed(2)})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(sx - 7, sy); ctx.lineTo(sx + 7, sy);
+  ctx.moveTo(sx, sy - 7); ctx.lineTo(sx, sy + 7);
+  ctx.stroke();
+  ctx.restore();
 }
