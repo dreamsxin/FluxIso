@@ -53,6 +53,14 @@ export class ClickMover {
   get markerY(): number { return this._markerY; }
   get markerAlpha(): number { return this._markerAlpha; }
 
+  /** Clear any pending click target and velocity. Call on scene enter. */
+  reset(): void {
+    this._target = null;
+    this._markerAlpha = 0;
+    this.velX = 0;
+    this.velY = 0;
+  }
+
   update(
     dt: number,
     input: InputManager,

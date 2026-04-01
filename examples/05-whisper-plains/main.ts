@@ -133,6 +133,7 @@ mgr.register('plains', () => ({
     sceneLabel.text = '低语草原'; hintLabel.text = 'WASD / 点击 移动 · 走向传送阵';
     hintLabel.visible = true; portalHint.visible = false;
     _portalTriggered = false; _portalHintAlpha = 0;
+    plainsMover.reset();
     // 如果是从深海回来，播放降落光柱
     if (_returningFromDeep) {
       _returningFromDeep = false;
@@ -194,7 +195,7 @@ mgr.register('lake', () => ({
   onEnter() {
     sceneLabel.text = '幻梦之湖'; hintLabel.text = '感受水之低语… 寻找深海传送门'; hintLabel.visible = true;
     _lakePortalTriggered = false;
-    // 降落点：场景中央偏左上，远离传送门（右下角 9,9）
+    lakeMover.reset();
     const landX = 3.5, landY = 3.5;
     lakeHero.position.x = landX; lakeHero.position.y = landY;
     const beam = new Portal('arrival-beam', landX, landY);
@@ -227,7 +228,7 @@ mgr.register('deep', () => ({
   onEnter() {
     sceneLabel.text = '神秘深海'; hintLabel.text = '深海的秘密… 寻找回归之门'; hintLabel.visible = true;
     _deepPortalTriggered = false;
-    // 降落点：场景中央偏左上，远离传送门（右下角 10,10）
+    deepMover.reset();
     deepHero.position.x = 3.5; deepHero.position.y = 3.5;
     deepHero.triggerDescend();
     setTimeout(() => { hintLabel.visible = false; }, 4000);
