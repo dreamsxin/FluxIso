@@ -218,6 +218,15 @@ export class Scene {
         floor.draw(floorDc);
       }
 
+      // Draw shadows into the lightmap so they appear under all objects
+      const shadowCasters = sceneObjects.filter(o => o.visible && o.castsShadow !== false);
+      for (const light of omniLights) {
+        ShadowCaster.draw(offCtx, light, shadowCasters, this.tileW, this.tileH);
+      }
+      for (const light of dirLights) {
+        ShadowCaster.drawDirectional(offCtx, light, shadowCasters, this.tileW, this.tileH);
+      }
+
       offCtx.restore();
 
       cache.end();
@@ -242,9 +251,8 @@ export class Scene {
     };
 
     // Cast ground shadows from each OmniLight before drawing objects
-    for (const light of omniLights) {
-      ShadowCaster.draw(ctx, light, sceneObjects.filter(o => o.visible), this.tileW, this.tileH);
-    }
+    // NOTE: shadows are now baked into the lightmap offscreen canvas above,
+    // so they correctly appear beneath all scene objects.
 
     // ── Frustum culling ────────────────────────────────────────────────────
     const visibleObjects = this._frustumCull(sceneObjects.filter(o => o.visible), canvasW, canvasH, originX, originY);
