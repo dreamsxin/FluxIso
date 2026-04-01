@@ -31,6 +31,7 @@
  */
 import { Engine } from './Engine';
 import { Scene } from './Scene';
+import { InputManager } from './InputManager';
 
 export interface ManagedScene {
   scene: Scene;
@@ -42,6 +43,27 @@ export interface ManagedScene {
   onPause?(): void | Promise<void>;
   /** Called when the scene above this one is popped. */
   onResume?():void | Promise<void>;
+  /**
+   * Called every frame while this scene is active, before scene.draw().
+   * Use this to handle input, update game logic, and spawn particles.
+   * @param dt  Frame delta in seconds.
+   * @param input  The engine's InputManager for polling pointer/keyboard.
+   */
+  onUpdate?(dt: number, input: InputManager): void;
+  /**
+   * Called every frame to draw the background (sky, water, etc.) before
+   * the scene objects are rendered. Runs before scene.draw().
+   * @param ctx  The main canvas 2D context.
+   * @param w    Canvas width in pixels.
+   * @param h    Canvas height in pixels.
+   * @param ts   Timestamp in milliseconds (from requestAnimationFrame).
+   */
+  onDrawBackground?(ctx: CanvasRenderingContext2D, w: number, h: number, ts: number): void;
+  /**
+   * Called every frame after scene.draw() to render overlays (HUD markers,
+   * click indicators, etc.) on top of the scene.
+   */
+  onDrawOverlay?(ctx: CanvasRenderingContext2D, w: number, h: number, ts: number): void;
 }
 
 type SceneFactory = () => Promise<ManagedScene> | ManagedScene;
@@ -73,8 +95,22 @@ export class SceneManager {
     return this._stack.length > 0 ? this._stack[this._stack.length - 1].name : null;
   }
 
+  /** The active ManagedScene, or null if the stack is empty. */
+  get currentManaged(): ManagedScene | null {
+    return this._stack.length > 0 ? this._stack[this._stack.length - 1].managed : null;
+  }
+
   /** Depth of the scene stack. */
   get depth(): number { return this._stack.length; }
+
+  /**
+   * Call once per frame to drive the active scene's onUpdate hook.
+   * Typically called from your engine's preFrame callback.
+   */
+  update(dt: number, input: InputManager): void {
+    const managed = this.currentManaged;
+    if (managed?.onUpdate) managed.onUpdate(dt, input);
+  }
 
   /**
    * Push a new scene onto the stack.

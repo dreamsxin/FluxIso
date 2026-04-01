@@ -13,6 +13,8 @@ export { InputManager } from './core/InputManager';
 export type { PointerState } from './core/InputManager';
 export { SceneManager } from './core/SceneManager';
 export type { ManagedScene } from './core/SceneManager';
+export { ClickMover } from './core/ClickMover';
+export type { ClickMoverOptions } from './core/ClickMover';
 export { DebugRenderer } from './core/DebugRenderer';
 export type { DebugRendererOptions } from './core/DebugRenderer';
 export { HudLayer } from './core/HudLayer';
