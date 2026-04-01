@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LuxIso — 06 Voxel Lake</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #04080f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #aaa;
+      gap: 14px;
+      padding: 20px 12px;
+    }
+    h1 { font-size: 0.85rem; font-weight: 400; letter-spacing: 0.2em; text-transform: uppercase; color: #333; }
+    canvas { display: block; border-radius: 4px; box-shadow: 0 0 80px rgba(40,120,200,0.12); cursor: default; }
+    .panel {
+      display: flex; gap: 20px; align-items: center; flex-wrap: wrap; justify-content: center;
+      background: #080c14; border: 1px solid #141c28; border-radius: 8px;
+      padding: 10px 18px; font-size: 0.72rem; color: #3a4a5e;
+    }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .row label { width: 80px; color: #3a4a5e; }
+    input[type=range] { width: 110px; accent-color: #3080c0; cursor: pointer; }
+    .val { font-family: monospace; width: 36px; text-align: right; color: #2a3a4e; }
+  </style>
+</head>
+<body>
+  <h1>LuxIso — Voxel Lake</h1>
+  <canvas id="canvas"></canvas>
+  <div class="panel">
+    <div class="row">
+      <label>Wave speed</label>
+      <input id="wave-speed" type="range" min="0.2" max="4" value="1.2" step="0.1" />
+      <span class="val" id="wave-speed-val">1.2</span>
+    </div>
+    <div class="row">
+      <label>Amplitude</label>
+      <input id="amplitude" type="range" min="0.5" max="4" value="1.8" step="0.1" />
+      <span class="val" id="amplitude-val">1.8</span>
+    </div>
+    <div class="row">
+      <label>Wave length</label>
+      <input id="wave-len" type="range" min="0.5" max="4" value="1.5" step="0.1" />
+      <span class="val" id="wave-len-val">1.5</span>
+    </div>
+    <div class="row">
+      <label>Opacity</label>
+      <input id="opacity" type="range" min="0.2" max="1" value="0.72" step="0.02" />
+      <span class="val" id="opacity-val">0.72</span>
+    </div>
+  </div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
