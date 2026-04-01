@@ -15,6 +15,7 @@ import { Scene } from '../../src/core/Scene';
 import { DirectionalLight } from '../../src/lighting/DirectionalLight';
 import { OmniLight } from '../../src/lighting/OmniLight';
 import { Portal } from './Portal';
+import { FishSchool, WaterLilyFlower } from './AquaticLife';
 
 export const LAKE_PORTAL_X = 9;
 export const LAKE_PORTAL_Y = 9;
@@ -597,6 +598,30 @@ export function buildLakeScene(cols: number, rows: number): { scene: Scene; lake
   const portal = new Portal('lake-portal', LAKE_PORTAL_X, LAKE_PORTAL_Y);
   scene.addObject(portal);
   scene.addLight(new OmniLight({ id: 'portal-glow', x: LAKE_PORTAL_X, y: LAKE_PORTAL_Y, z: 50, color: '#a060ff', intensity: 0.5, radius: 280 }));
+
+  // ── 鱼群 ──────────────────────────────────────────────────────────────────
+  const fishGroups: Array<[number, number, string, string, number, number]> = [
+    [3.5, 3.5, '#f97316', '#fbbf24', 6, 0.1],
+    [8.5, 5.5, '#38bdf8', '#7dd3fc', 5, 0.4],
+    [5.5, 9.5, '#f472b6', '#fda4af', 7, 0.7],
+    [10.5, 7.5, '#4ade80', '#86efac', 4, 0.55],
+    [2.5, 7.5, '#c084fc', '#e9d5ff', 5, 0.25],
+  ];
+  for (const [i, [fx, fy, color, accent, count, seed]] of fishGroups.entries()) {
+    scene.addObject(new FishSchool(`fish-${i}`, fx, fy, { count, color, accentColor: accent, cols, rows, seed }));
+  }
+
+  // ── 荷花（升级版，带开放/花苞状态） ──────────────────────────────────────
+  const lilyPositions: Array<[number, number, number, number]> = [
+    [2.5, 4.5, 0.1, 1.0], [5.5, 3.5, 0.3, 0.6], [7.5, 5.5, 0.5, 1.0],
+    [4.5, 7.5, 0.7, 0.4], [9.5, 4.5, 0.2, 1.0], [3.5, 10.5, 0.8, 0.7],
+    [8.5, 10.5, 0.45, 1.0], [11.5, 6.5, 0.6, 0.5], [6.5, 11.5, 0.15, 1.0],
+    [1.5, 8.5, 0.9, 0.3],
+  ];
+  for (const [i, [lx, ly, seed, open]] of lilyPositions.entries()) {
+    if (Math.hypot(lx - LAKE_PORTAL_X, ly - LAKE_PORTAL_Y) < 2) continue;
+    scene.addObject(new WaterLilyFlower(`lily-${i}`, lx, ly, { seed, open }));
+  }
 
   return { scene, lake, portal };
 }

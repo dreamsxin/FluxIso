@@ -14,6 +14,7 @@ import { OmniLight } from '../../src/lighting/OmniLight';
 import { TileCollider } from '../../src/physics/TileCollider';
 import { LowPolyTree, LowPolyGrass, LowPolyFlower, LowPolyRock } from './LowPolyTree';
 import { Portal } from './Portal';
+import { Bunny, Deer, Butterfly } from './Animals';
 
 export const PLAINS_COLS = 16;
 export const PLAINS_ROWS = 16;
@@ -175,6 +176,28 @@ export function buildPlainsScene(): { scene: Scene; portal: Portal; collider: Ti
   // ── 传送阵 ────────────────────────────────────────────────────────────────
   const portal = new Portal('portal', PORTAL_X, PORTAL_Y);
   scene.addObject(portal);
+
+  // ── 动物 ──────────────────────────────────────────────────────────────────
+  const animalOpts = { cols: PLAINS_COLS, rows: PLAINS_ROWS };
+  // 兔子（5只，分散在草地上）
+  const bunnySpots: Array<[number, number, number]> = [
+    [4.5, 4.5, 0.1], [8.5, 2.5, 0.4], [3.5, 9.5, 0.7],
+    [11.5, 5.5, 0.2], [6.5, 12.5, 0.85],
+  ];
+  for (const [i, [bx, by, seed]] of bunnySpots.entries()) {
+    if (Math.hypot(bx - PORTAL_X, by - PORTAL_Y) < 3) continue;
+    scene.addObject(new Bunny(`bunny-${i}`, bx, by, { seed, ...animalOpts }));
+  }
+  // 鹿（2只，在开阔地带）
+  scene.addObject(new Deer('deer-0', 6.5, 5.5, { seed: 0.3, ...animalOpts }));
+  scene.addObject(new Deer('deer-1', 10.5, 9.5, { seed: 0.7, ...animalOpts }));
+  // 蝴蝶（4只，在花朵附近飞舞）
+  const butterflySpots: Array<[number, number, number]> = [
+    [5.5, 3.5, 0.15], [8.5, 8.5, 0.5], [4.5, 11.5, 0.8], [12.5, 4.5, 0.35],
+  ];
+  for (const [i, [bfx, bfy, seed]] of butterflySpots.entries()) {
+    scene.addObject(new Butterfly(`butterfly-${i}`, bfx, bfy, { seed, ...animalOpts }));
+  }
 
   return { scene, portal, collider };
 }
