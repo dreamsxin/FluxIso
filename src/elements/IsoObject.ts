@@ -36,9 +36,10 @@ export abstract class IsoObject {
   /**
    * Set to false to opt out of the ShadowCaster system entirely.
    * Use this when the object draws its own shadow in draw().
-   * Default true.
+   * Default false — objects must explicitly opt in to system shadow casting.
+   * Set to true (with optional shadowRadius) for objects that want ground shadows.
    */
-  castsShadow: boolean = true;
+  castsShadow: boolean = false;
 
   constructor(id: string, x: number, y: number, z: number) {
     this.id = id;

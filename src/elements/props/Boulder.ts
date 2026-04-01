@@ -16,6 +16,7 @@ export class Boulder extends Entity {
     this.radius = radius;
     // Use circular shadow footprint to match the round visual shape
     this.shadowRadius = 0.38;
+    this.castsShadow  = true;
   }
 
   get aabb(): AABB {

@@ -24,6 +24,7 @@ export class Crystal extends Entity {
     this.heightPx = heightPx;
     // Crystal has a narrow base; use a small circular shadow
     this.shadowRadius = 0.22;
+    this.castsShadow  = true;
   }
 
   get aabb(): AABB {

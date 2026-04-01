@@ -147,8 +147,9 @@ export class ShadowCaster {
       if (alpha < 0.01) continue;
 
       // Soft edge: use a radial gradient centred on the object base
-      const baseCx = (basePts[0][0] + basePts[2][0]) / 2;
-      const baseCy = (basePts[0][1] + basePts[2][1]) / 2;
+      // For circular samples, average all base points for accurate centre
+      const baseCx = basePts.reduce((sum, p) => sum + p[0], 0) / basePts.length;
+      const baseCy = basePts.reduce((sum, p) => sum + p[1], 0) / basePts.length;
       const shadowRadius = Math.max(
         ...hull.map(([hx, hy]) => Math.hypot(hx - baseCx, hy - baseCy)),
       ) * 1.1;

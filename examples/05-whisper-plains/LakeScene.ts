@@ -1,11 +1,12 @@
 /**
- * LakeScene — 幻梦之湖场景
+ * LakeScene — 幻梦之湖场景（精细版）
  *
- * - 起伏蓝色波浪平面（正弦/余弦实时波动）
- * - 低多边形石头、水草
- * - 荷叶（扁平圆柱 + 露珠）
- * - 偏冷色调，淡蓝环境光，雾效
- * - 脚下涟漪粒子
+ * - 多层波浪：深水 + 浅水 + 水面高光
+ * - 水面漂浮光粒子
+ * - 低多边形石头（带高光面）
+ * - 水草（贝塞尔曲线，颜色渐变）
+ * - 荷叶（带阴影 + 露珠）
+ * - 水雾效果
  */
 import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
 import { AABB } from '../../src/math/depthSort';
@@ -22,20 +23,29 @@ export class WaveLake extends IsoObject {
   private _time = 0;
   private _lastTs = 0;
 
+  // 水面漂浮光粒子
+  private _glints: Array<{ x: number; y: number; phase: number; size: number; speed: number }> = [];
+
   constructor(id: string, cols: number, rows: number) {
     super(id, 0, 0, 0);
     this.cols = cols;
     this.rows = rows;
-    // Lake surface draws itself; no system shadow needed
     this.castsShadow = false;
+
+    // 初始化水面光粒子
+    for (let i = 0; i < 20; i++) {
+      this._glints.push({
+        x: Math.random() * cols,
+        y: Math.random() * rows,
+        phase: Math.random() * Math.PI * 2,
+        size: 1 + Math.random() * 2.5,
+        speed: 0.8 + Math.random() * 1.2,
+      });
+    }
   }
 
   get aabb(): AABB {
-    return {
-      minX: 0, minY: 0,
-      maxX: this.cols, maxY: this.rows,
-      baseZ: -10,
-    };
+    return { minX: 0, minY: 0, maxX: this.cols, maxY: this.rows, baseZ: -10 };
   }
 
   update(ts?: number): void {
@@ -43,16 +53,19 @@ export class WaveLake extends IsoObject {
     const dt = this._lastTs === 0 ? 0.016 : Math.min((now - this._lastTs) / 1000, 0.1);
     this._lastTs = now;
     this._time += dt;
+
+    for (const g of this._glints) {
+      g.phase += dt * g.speed;
+    }
   }
 
   draw(dc: DrawContext): void {
     const { ctx, tileW, tileH, originX, originY } = dc;
     const t = this._time;
 
-    // 绘制每个瓦片的波浪面
+    // ── 波浪面 ──────────────────────────────────────────────────────────────
     for (let row = 0; row < this.rows; row++) {
       for (let col = 0; col < this.cols; col++) {
-        // 四个角的波浪高度
         const h00 = this._wave(col,     row,     t);
         const h10 = this._wave(col + 1, row,     t);
         const h11 = this._wave(col + 1, row + 1, t);
@@ -68,12 +81,12 @@ export class WaveLake extends IsoObject {
         const x11 = originX + p11.sx, y11 = originY + p11.sy;
         const x01 = originX + p01.sx, y01 = originY + p01.sy;
 
-        // 根据平均高度决定颜色（深浅蓝）
         const avgH = (h00 + h10 + h11 + h01) / 4;
-        const brightness = 0.5 + (avgH / 8) * 0.3;
-        const r = Math.round(20  * brightness);
-        const g = Math.round(80  * brightness);
-        const b = Math.round(160 * brightness);
+        // 多层颜色：深水蓝 → 浅水青
+        const depth = 0.42 + (avgH / 9) * 0.28;
+        const r = Math.round(15  + depth * 25);
+        const g = Math.round(55  + depth * 60);
+        const b = Math.round(140 + depth * 55);
 
         ctx.beginPath();
         ctx.moveTo(x00, y00);
@@ -84,32 +97,60 @@ export class WaveLake extends IsoObject {
         ctx.fillStyle = `rgb(${r},${g},${b})`;
         ctx.fill();
 
-        // 波光反射线（每隔几格）
-        if ((col + row) % 3 === 0) {
-          ctx.strokeStyle = `rgba(120,200,255,${0.1 + Math.sin(t * 3 + col + row) * 0.05})`;
-          ctx.lineWidth = 0.5;
+        // 波峰高光线
+        if (avgH > 3.5) {
+          ctx.strokeStyle = `rgba(160,220,255,${(avgH - 3.5) / 5 * 0.25})`;
+          ctx.lineWidth = 0.6;
           ctx.stroke();
         }
       }
     }
 
-    // 雾效叠加（底部渐变）
+    // ── 水面高光反射（screen blend） ─────────────────────────────────────────
+    for (const g of this._glints) {
+      const h = this._wave(g.x, g.y, t);
+      const { sx, sy } = project(g.x, g.y, h, tileW, tileH);
+      const gx = originX + sx;
+      const gy = originY + sy;
+      const brightness = 0.4 + Math.sin(g.phase) * 0.35;
+      if (brightness < 0.1) continue;
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      const gr = ctx.createRadialGradient(gx, gy, 0, gx, gy, g.size * 4);
+      gr.addColorStop(0,   `rgba(200,240,255,${brightness * 0.7})`);
+      gr.addColorStop(0.4, `rgba(140,200,255,${brightness * 0.3})`);
+      gr.addColorStop(1,   'rgba(80,160,255,0)');
+      ctx.beginPath();
+      ctx.arc(gx, gy, g.size * 4, 0, Math.PI * 2);
+      ctx.fillStyle = gr;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // ── 水雾（边缘渐变） ──────────────────────────────────────────────────────
     const fogGrad = ctx.createLinearGradient(
-      originX, originY - tileH * this.rows * 0.5,
-      originX, originY + tileH * this.rows * 0.5,
+      originX, originY - tileH * this.rows * 0.6,
+      originX, originY + tileH * this.rows * 0.4,
     );
-    fogGrad.addColorStop(0, 'rgba(40,80,140,0)');
-    fogGrad.addColorStop(1, 'rgba(40,80,140,0.18)');
+    fogGrad.addColorStop(0, 'rgba(30,60,120,0)');
+    fogGrad.addColorStop(0.7, 'rgba(30,60,120,0.08)');
+    fogGrad.addColorStop(1, 'rgba(30,60,120,0.22)');
     ctx.fillStyle = fogGrad;
-    ctx.fillRect(originX - tileW * this.cols, originY - tileH * this.rows,
-                 tileW * this.cols * 2, tileH * this.rows * 2);
+    ctx.fillRect(
+      originX - tileW * this.cols,
+      originY - tileH * this.rows,
+      tileW * this.cols * 2,
+      tileH * this.rows * 2,
+    );
   }
 
   private _wave(col: number, row: number, t: number): number {
     return (
-      Math.sin(col * 0.8 + t * 1.8) * 3 +
-      Math.cos(row * 0.7 + t * 1.4) * 2.5 +
-      Math.sin((col + row) * 0.5 + t * 2.2) * 1.5
+      Math.sin(col * 0.75 + t * 1.6) * 3.2 +
+      Math.cos(row * 0.65 + t * 1.3) * 2.8 +
+      Math.sin((col + row) * 0.45 + t * 2.0) * 1.8 +
+      Math.cos((col - row) * 0.3  + t * 2.8) * 0.8
     );
   }
 }
@@ -119,11 +160,13 @@ export class WaveLake extends IsoObject {
 export class LakeRock extends IsoObject {
   private _color: string;
   private _size: number;
+  private _seed: number;
 
-  constructor(id: string, x: number, y: number, opts: { color?: string; size?: number } = {}) {
+  constructor(id: string, x: number, y: number, opts: { color?: string; size?: number; seed?: number } = {}) {
     super(id, x, y, 0);
-    this._color = opts.color ?? '#4a5568';
+    this._color = opts.color ?? '#3a4a5c';
     this._size  = opts.size  ?? 1;
+    this._seed  = opts.seed  ?? 0.5;
     this.castsShadow = false;
   }
 
@@ -139,33 +182,44 @@ export class LakeRock extends IsoObject {
     const cx = originX + sx;
     const cy = originY + sy;
     const s = this._size;
+    const seed = this._seed;
 
     ctx.save();
     ctx.translate(cx, cy);
 
-    // 低多边形石头（不规则多边形）
-    const pts = [
-      [-8*s, -4*s], [-4*s, -10*s], [4*s, -9*s],
-      [9*s, -3*s],  [7*s, 3*s],    [0, 5*s],
-      [-6*s, 4*s],
-    ];
+    // 不规则多边形（用 seed 固定形状）
+    const VERTS = 6 + Math.floor(seed * 3);
+    const pts: Array<[number, number]> = [];
+    for (let i = 0; i < VERTS; i++) {
+      const a = (i / VERTS) * Math.PI * 2 - Math.PI / 2;
+      const r = (6 + Math.sin(seed * 17.3 + i * 2.1) * 2.5) * s;
+      pts.push([Math.cos(a) * r, Math.sin(a) * r * 0.52]);
+    }
+
+    // 主体（深色）
     ctx.beginPath();
     ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    for (let i = 1; i < VERTS; i++) ctx.lineTo(pts[i][0], pts[i][1]);
     ctx.closePath();
     ctx.fillStyle = this._color;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-    ctx.lineWidth = 0.8;
+
+    // 水下反光边缘
+    ctx.strokeStyle = 'rgba(80,160,220,0.25)';
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    // 高光面
+    // 高光面（顶部）
+    const topIdx = pts.reduce((b, p, i) => p[1] < pts[b][1] ? i : b, 0);
+    const p0 = pts[topIdx];
+    const p1 = pts[(topIdx + 1) % VERTS];
+    const p2 = pts[(topIdx - 1 + VERTS) % VERTS];
     ctx.beginPath();
-    ctx.moveTo(-4*s, -10*s);
-    ctx.lineTo(4*s, -9*s);
-    ctx.lineTo(0, -4*s);
+    ctx.moveTo(p0[0], p0[1]);
+    ctx.lineTo(p1[0], p1[1]);
+    ctx.lineTo(p2[0], p2[1]);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillStyle = 'rgba(120,180,220,0.2)';
     ctx.fill();
 
     ctx.restore();
@@ -176,19 +230,25 @@ export class LakeRock extends IsoObject {
 
 export class WaterGrass extends IsoObject {
   private _phase: number;
+  private _height: number;
+  private _lastTs = 0;
 
   constructor(id: string, x: number, y: number, seed = 0) {
     super(id, x, y, 0);
-    this._phase = seed * Math.PI * 2;
+    this._phase  = seed * Math.PI * 2;
+    this._height = 14 + seed * 8;
     this.castsShadow = false;
   }
 
   get aabb(): AABB {
-    return { minX: this.position.x - 0.1, minY: this.position.y - 0.1, maxX: this.position.x + 0.1, maxY: this.position.y + 0.1, baseZ: 0 };
+    return { minX: this.position.x - 0.12, minY: this.position.y - 0.12, maxX: this.position.x + 0.12, maxY: this.position.y + 0.12, baseZ: 0 };
   }
 
   update(ts?: number): void {
-    this._phase += (ts ?? 0) * 0.0005;
+    const now = ts ?? performance.now();
+    const dt = this._lastTs === 0 ? 0.016 : Math.min((now - this._lastTs) / 1000, 0.1);
+    this._lastTs = now;
+    this._phase += dt * 1.0;
   }
 
   draw(dc: DrawContext): void {
@@ -197,24 +257,37 @@ export class WaterGrass extends IsoObject {
     const { sx, sy } = project(x, y, 0, tileW, tileH);
     const cx = originX + sx;
     const cy = originY + sy;
-    const sway = Math.sin(this._phase) * 3;
+    const sway = Math.sin(this._phase) * 3.5;
+    const h = this._height;
 
     ctx.save();
     ctx.translate(cx, cy);
 
     const blades = [
-      { ox: -2, h: 16, color: '#2d8a6e' },
-      { ox:  1, h: 20, color: '#3aaa80' },
-      { ox:  4, h: 14, color: '#2d8a6e' },
+      { ox: -2.5, hMult: 0.85, color: '#1a6a50' },
+      { ox:  0.5, hMult: 1.0,  color: '#2a8a68' },
+      { ox:  3.0, hMult: 0.75, color: '#1a6a50' },
     ];
+
     for (const b of blades) {
+      const bh = h * b.hMult;
+      const tipX = b.ox + sway;
+      const tipY = -bh;
+      const ctrlX = b.ox + sway * 0.55;
+      const ctrlY = -bh * 0.5;
+
       ctx.beginPath();
-      ctx.moveTo(b.ox, 0);
-      ctx.quadraticCurveTo(b.ox + sway, -b.h * 0.5, b.ox + sway * 1.5, -b.h);
-      ctx.lineTo(b.ox + sway * 1.5 + 2, -b.h);
-      ctx.quadraticCurveTo(b.ox + sway + 2, -b.h * 0.5, b.ox + 2, 0);
+      ctx.moveTo(b.ox - 1.5, 0);
+      ctx.quadraticCurveTo(ctrlX - 1, ctrlY, tipX - 0.5, tipY);
+      ctx.lineTo(tipX + 0.5, tipY);
+      ctx.quadraticCurveTo(ctrlX + 1, ctrlY, b.ox + 1.5, 0);
       ctx.closePath();
-      ctx.fillStyle = b.color;
+
+      const grad = ctx.createLinearGradient(b.ox, 0, tipX, tipY);
+      grad.addColorStop(0, '#0d4a38');
+      grad.addColorStop(0.5, b.color);
+      grad.addColorStop(1, '#4abf90');
+      ctx.fillStyle = grad;
       ctx.fill();
     }
 
@@ -226,12 +299,13 @@ export class WaterGrass extends IsoObject {
 
 export class LilyPad extends IsoObject {
   private _phase: number;
-  private _color: string;
+  private _size: number;
+  private _lastTs = 0;
 
   constructor(id: string, x: number, y: number, seed = 0) {
     super(id, x, y, 2);
     this._phase = seed * Math.PI * 2;
-    this._color = '#2d8a3e';
+    this._size  = 10 + seed * 4;
     this.castsShadow = false;
   }
 
@@ -240,8 +314,119 @@ export class LilyPad extends IsoObject {
   }
 
   update(ts?: number): void {
-    this._phase += (ts ?? 0) * 0.0003;
-    this.position.z = 2 + Math.sin(this._phase) * 1.5;
+    const now = ts ?? performance.now();
+    const dt = this._lastTs === 0 ? 0.016 : Math.min((now - this._lastTs) / 1000, 0.1);
+    this._lastTs = now;
+    this._phase += dt * 0.5;
+    this.position.z = 2 + Math.sin(this._phase) * 1.8;
+  }
+
+  draw(dc: DrawContext): void {
+    const { ctx, tileW, tileH, originX, originY } = dc;
+    const { x, y, z } = this.position;
+    const { sx, sy } = project(x, y, z, tileW, tileH);
+    const cx = originX + sx;
+    const cy = originY + sy;
+    const r = this._size;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // 荷叶阴影
+    ctx.save();
+    ctx.scale(1, 0.28);
+    const sg = ctx.createRadialGradient(0, 2, 0, 0, 2, r * 1.1);
+    sg.addColorStop(0, 'rgba(0,0,0,0.18)');
+    sg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.arc(0, 2, r * 1.1, 0, Math.PI * 2);
+    ctx.fillStyle = sg;
+    ctx.fill();
+    ctx.restore();
+
+    // 荷叶主体（低多边形，8边形近似圆，带缺口）
+    ctx.save();
+    ctx.scale(1, 0.48);
+    const SIDES = 8;
+    ctx.beginPath();
+    for (let i = 0; i <= SIDES; i++) {
+      const a = (i / SIDES) * Math.PI * 2 - Math.PI * 0.12;
+      if (i === 0) ctx.moveTo(0, 0);
+      else if (i === 1) {
+        ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      } else {
+        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+    }
+    ctx.lineTo(0, 0);
+    ctx.closePath();
+
+    // 荷叶渐变（边缘深，中心亮）
+    const lg = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+    lg.addColorStop(0,   '#3aaa50');
+    lg.addColorStop(0.6, '#2a8a3e');
+    lg.addColorStop(1,   '#1a6a2e');
+    ctx.fillStyle = lg;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    ctx.restore();
+
+    // 叶脉（放射线）
+    ctx.save();
+    ctx.scale(1, 0.48);
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 1.75 + 0.2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a) * r * 0.9, Math.sin(a) * r * 0.9);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 露珠（2颗）
+    const drops = [{ x: r * 0.3, y: -r * 0.15, r: 2.2 }, { x: -r * 0.15, y: r * 0.1, r: 1.5 }];
+    for (const d of drops) {
+      const dy = d.y * 0.48;
+      ctx.beginPath();
+      ctx.arc(d.x, dy, d.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(180,235,255,0.85)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(d.x - d.r * 0.3, dy - d.r * 0.3, d.r * 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+}
+
+// ── 水面漂浮荷花（装饰） ───────────────────────────────────────────────────
+
+export class LotusFlower extends IsoObject {
+  private _phase: number;
+  private _lastTs = 0;
+
+  constructor(id: string, x: number, y: number, seed = 0) {
+    super(id, x, y, 4);
+    this._phase = seed * Math.PI * 2;
+    this.castsShadow = false;
+  }
+
+  get aabb(): AABB {
+    return { minX: this.position.x - 0.3, minY: this.position.y - 0.3, maxX: this.position.x + 0.3, maxY: this.position.y + 0.3, baseZ: 4 };
+  }
+
+  update(ts?: number): void {
+    const now = ts ?? performance.now();
+    const dt = this._lastTs === 0 ? 0.016 : Math.min((now - this._lastTs) / 1000, 0.1);
+    this._lastTs = now;
+    this._phase += dt * 0.4;
+    this.position.z = 4 + Math.sin(this._phase) * 1.5;
   }
 
   draw(dc: DrawContext): void {
@@ -254,39 +439,48 @@ export class LilyPad extends IsoObject {
     ctx.save();
     ctx.translate(cx, cy);
 
-    // 荷叶（扁平椭圆，带缺口）
-    ctx.save();
-    ctx.scale(1, 0.5);
-    ctx.beginPath();
-    ctx.arc(0, 0, 12, 0.3, Math.PI * 2 - 0.3);
-    ctx.lineTo(0, 0);
-    ctx.closePath();
-    ctx.fillStyle = this._color;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-    ctx.restore();
+    // 花瓣（3层，从外到内）
+    const layers = [
+      { n: 8, r: 9,  len: 7,  color: '#ffb8d0', alpha: 0.9 },
+      { n: 6, r: 6,  len: 6,  color: '#ffd0e0', alpha: 0.95 },
+      { n: 5, r: 3.5,len: 5,  color: '#fff0f5', alpha: 1.0 },
+    ];
 
-    // 叶脉
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 1.8 + 0.3;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(a) * 11, Math.sin(a) * 5.5);
-      ctx.stroke();
+    for (const [li, layer] of layers.entries()) {
+      const rot = this._phase * (li % 2 === 0 ? 0.1 : -0.08) + li * 0.3;
+      for (let i = 0; i < layer.n; i++) {
+        const a = (i / layer.n) * Math.PI * 2 + rot;
+        const px = Math.cos(a) * layer.r;
+        const py = Math.sin(a) * layer.r * 0.5;
+        const tx = Math.cos(a) * (layer.r + layer.len);
+        const ty = Math.sin(a) * (layer.r + layer.len) * 0.5;
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(px - Math.sin(a) * 2, py + Math.cos(a) * 1);
+        ctx.lineTo(tx, ty);
+        ctx.lineTo(px + Math.sin(a) * 2, py - Math.cos(a) * 1);
+        ctx.closePath();
+
+        const pg = ctx.createLinearGradient(0, 0, tx, ty);
+        pg.addColorStop(0, `rgba(255,180,200,${layer.alpha})`);
+        pg.addColorStop(1, layer.color);
+        ctx.fillStyle = pg;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,150,180,0.2)';
+        ctx.lineWidth = 0.3;
+        ctx.stroke();
+      }
     }
 
-    // 露珠
+    // 花心
     ctx.beginPath();
-    ctx.arc(3, -1, 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(180,230,255,0.8)';
+    ctx.arc(0, 0, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff9c4';
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(2.5, -1.5, 0.8, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#f59e0b';
     ctx.fill();
 
     ctx.restore();
@@ -298,52 +492,44 @@ export class LilyPad extends IsoObject {
 export function buildLakeScene(cols: number, rows: number): Scene {
   const scene = new Scene({ tileW: 64, tileH: 32, cols, rows });
 
-  // 波浪湖面
   scene.addObject(new WaveLake('lake', cols, rows));
 
-  // 冷色调方向光
-  scene.addLight(new DirectionalLight({
-    angle: 225,
-    elevation: 45,
-    color: '#80b4ff',
-    intensity: 0.9,
-  }));
+  scene.addLight(new DirectionalLight({ angle: 225, elevation: 42, color: '#90c0ff', intensity: 0.85 }));
+  scene.addLight(new OmniLight({ x: cols / 2, y: rows / 2, z: 80, color: '#3870c0', intensity: 0.55, radius: 600 }));
+  // 月光补光（冷白）
+  scene.addLight(new OmniLight({ x: cols * 0.3, y: rows * 0.3, z: 200, color: '#c0d8ff', intensity: 0.3, radius: 800 }));
 
-  // 淡蓝补光 — 湖面场景无实体对象需要投影，z 设低避免无效 shadow 计算
-  scene.addLight(new OmniLight({
-    x: cols / 2, y: rows / 2, z: 80,
-    color: '#4080c0',
-    intensity: 0.6,
-    radius: 600,
-  }));
-
-  // 湖底石头
-  const rockPositions = [
-    [2, 3], [5, 2], [8, 4], [3, 7], [7, 6], [1, 5], [9, 8],
-    [4, 9], [6, 1], [10, 3], [11, 7],
+  // 石头
+  const rocks = [
+    [2,3,0.8,'#3a4a5c',0.2],[5,2,1.1,'#2d3a4c',0.6],[8,4,0.7,'#4a5a6c',0.4],
+    [3,7,0.9,'#3a4a5c',0.8],[7,6,1.0,'#2d3a4c',0.1],[1,5,0.6,'#4a5a6c',0.5],
+    [9,8,0.8,'#3a4a5c',0.3],[4,9,1.2,'#2d3a4c',0.7],[6,1,0.7,'#4a5a6c',0.9],
+    [10,3,0.9,'#3a4a5c',0.4],[11,7,0.6,'#2d3a4c',0.2],[2,10,1.0,'#4a5a6c',0.6],
   ];
-  for (const [i, [rx, ry]] of rockPositions.entries()) {
-    scene.addObject(new LakeRock(`rock-${i}`, rx, ry, {
-      color: ['#4a5568', '#3d4a5c', '#5a6478'][i % 3],
-      size: 0.6 + (i % 3) * 0.3,
-    }));
+  for (const [i, [rx,ry,sz,col,seed]] of rocks.entries()) {
+    scene.addObject(new LakeRock(`rock-${i}`, rx as number, ry as number, { color: col as string, size: sz as number, seed: seed as number }));
   }
 
   // 水草
-  const grassPositions = [
-    [1.5, 2.5], [4.5, 1.5], [7.5, 3.5], [2.5, 6.5],
-    [8.5, 5.5], [5.5, 8.5], [10.5, 2.5], [3.5, 9.5],
+  const grasses = [
+    [1.5,2.5],[4.5,1.5],[7.5,3.5],[2.5,6.5],
+    [8.5,5.5],[5.5,8.5],[10.5,2.5],[3.5,9.5],
+    [0.5,4.5],[6.5,0.5],[9.5,7.5],[11.5,4.5],
   ];
-  for (const [i, [gx, gy]] of grassPositions.entries()) {
-    scene.addObject(new WaterGrass(`wgrass-${i}`, gx, gy, i * 0.7));
+  for (const [i,[gx,gy]] of grasses.entries()) {
+    scene.addObject(new WaterGrass(`wgrass-${i}`, gx as number, gy as number, i * 0.65));
   }
 
   // 荷叶
-  const padPositions = [
-    [3, 4], [6, 3], [5, 6], [8, 7], [2, 8], [9, 5],
-  ];
-  for (const [i, [px, py]] of padPositions.entries()) {
-    scene.addObject(new LilyPad(`pad-${i}`, px, py, i * 0.5));
+  const pads = [[3,4],[6,3],[5,6],[8,7],[2,8],[9,5],[4,11],[7,10],[11,9],[1,10]];
+  for (const [i,[px,py]] of pads.entries()) {
+    scene.addObject(new LilyPad(`pad-${i}`, px as number, py as number, i * 0.48));
+  }
+
+  // 荷花
+  const lotuses = [[4,5],[7,4],[6,8],[9,6],[3,9]];
+  for (const [i,[lx,ly]] of lotuses.entries()) {
+    scene.addObject(new LotusFlower(`lotus-${i}`, lx as number, ly as number, i * 0.6));
   }
 
   return scene;

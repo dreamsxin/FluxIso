@@ -356,6 +356,8 @@ export class ParticleSystem extends IsoObject {
 
   constructor(id: string, x: number, y: number, z = 0) {
     super(id, x, y, z);
+    // Particles are visual-only effects; never cast ground shadows
+    this.castsShadow = false;
   }
 
   get aabb(): AABB {

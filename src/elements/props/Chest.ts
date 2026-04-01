@@ -42,6 +42,7 @@ export class Chest extends Entity {
     this._woodColor = color;
     // Chest is roughly rectangular; use a slightly smaller shadow radius
     this.shadowRadius = 0.32;
+    this.castsShadow  = true;
   }
 
   open():   void { this._lidOpen = true;  }
