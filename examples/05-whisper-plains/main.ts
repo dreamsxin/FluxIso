@@ -231,7 +231,10 @@ mgr.register('deep', () => ({
     deepMover.reset();
     deepHero.position.x = 3.5; deepHero.position.y = 3.5;
     deepHero.triggerDescend();
-    setTimeout(() => { hintLabel.visible = false; }, 4000);
+    // 降落光柱
+    const deepBeam = new Portal('deep-arrival-beam', 3.5, 3.5);
+    deepScene.addObject(deepBeam); deepBeam.activateBeam(1.8);
+    setTimeout(() => { deepScene.removeById('deep-arrival-beam'); hintLabel.visible = false; }, 2600);
   },
   onUpdate(dt, inp) {
     deepMover.update(dt, inp, map, deepScene.camera, deepScene.tileW, deepScene.tileH, engine.originX, engine.originY, canvas.width, canvas.height, deepHero.position.x, deepHero.position.y);
