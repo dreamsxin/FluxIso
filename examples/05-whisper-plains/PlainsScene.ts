@@ -37,6 +37,7 @@ const TREE_TILES: Array<[number, number]> = [
 
 export function buildPlainsScene(): { scene: Scene; portal: Portal; collider: TileCollider } {
   const scene = new Scene({ tileW: 64, tileH: 32, cols: PLAINS_COLS, rows: PLAINS_ROWS });
+  scene.dynamicLighting = true; // 日夜交替需要每帧重新 bake 地面光照
 
   // ── 地面 ──────────────────────────────────────────────────────────────────
   scene.addObject(new Floor({

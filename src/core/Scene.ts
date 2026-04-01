@@ -59,6 +59,15 @@ export class Scene {
    */
   ambientIntensity = 0.15;
 
+  /**
+   * When true, the floor lightmap is re-baked every frame.
+   * Enable this whenever the scene has dynamic lighting (day/night cycle,
+   * moving lights, etc.) so gradual changes are always reflected.
+   * Has a small per-frame cost (one offscreen canvas redraw).
+   * Default false — static scenes use snapshot-based dirty detection.
+   */
+  dynamicLighting = false;
+
   constructor(opts: SceneOptions = {}) {
     this.tileW = opts.tileW ?? 64;
     this.tileH = opts.tileH ?? 32;
@@ -161,6 +170,7 @@ export class Scene {
     if (!this._lightmapCache) {
       this._lightmapCache = new LightmapCache(canvasW, canvasH);
     }
+    this._lightmapCache.alwaysDirty = this.dynamicLighting;
 
     const omniLights = this.omniLights;
     const dirLights  = this.dirLights;

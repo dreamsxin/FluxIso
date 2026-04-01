@@ -7,6 +7,13 @@ export class LightmapCache {
   private _dirty = true;
   private _snapshot: string = '';
 
+  /**
+   * When true, the lightmap is re-baked every frame without snapshot comparison.
+   * Set this when the scene has dynamic lighting (e.g. day/night cycle) so
+   * gradual light changes are always reflected without precision issues.
+   */
+  alwaysDirty = false;
+
   constructor(width: number, height: number) {
     this._canvas = new OffscreenCanvas(width, height);
     this._ctx = this._canvas.getContext('2d')!;
@@ -35,6 +42,7 @@ export class LightmapCache {
     cameraZoom = 1,
     ambientRgb: [number, number, number] = [0, 0, 0],
   ): boolean {
+    if (this.alwaysDirty) return true;
     const snap = this._buildSnapshot(omniLights, dirLights, cameraX, cameraY, cameraZoom, ambientRgb);
     if (snap !== this._snapshot) {
       this._dirty = true;
@@ -65,15 +73,17 @@ export class LightmapCache {
     cx: number, cy: number, zoom: number,
     ambientRgb: [number, number, number],
   ): string {
+    // toFixed(4) on lights/ambient — catches gradual day/night changes (~0.00027/frame at 60s period)
+    // Camera uses toFixed(2) since sub-pixel camera movement doesn't need re-bake
     const parts: string[] = [
       `cam:${cx.toFixed(2)},${cy.toFixed(2)},${zoom.toFixed(2)}`,
-      `amb:${ambientRgb[0].toFixed(2)},${ambientRgb[1].toFixed(2)},${ambientRgb[2].toFixed(2)}`,
+      `amb:${ambientRgb[0].toFixed(4)},${ambientRgb[1].toFixed(4)},${ambientRgb[2].toFixed(4)}`,
     ];
     for (const l of omniLights) {
-      parts.push(`o:${l.position.x.toFixed(2)},${l.position.y.toFixed(2)},${l.position.z.toFixed(2)},${l.color},${l.intensity.toFixed(2)},${l.radius},${l.isGlobal ? 1 : 0}`);
+      parts.push(`o:${l.position.x.toFixed(2)},${l.position.y.toFixed(2)},${l.position.z.toFixed(2)},${l.color},${l.intensity.toFixed(4)},${l.radius},${l.isGlobal ? 1 : 0}`);
     }
     for (const d of dirLights) {
-      parts.push(`d:${d.angle.toFixed(2)},${d.elevation.toFixed(2)},${d.color},${d.intensity.toFixed(2)}`);
+      parts.push(`d:${d.angle.toFixed(4)},${d.elevation.toFixed(4)},${d.color},${d.intensity.toFixed(4)}`);
     }
     return parts.join('|');
   }
