@@ -232,7 +232,12 @@ async function triggerTeleport(): Promise<void> {
   teleporting = false;
 }
 
-// ── 计时器 ────────────────────────────────────────────────────────────────
+// ── 点击行走目标 ──────────────────────────────────────────────────────────
+
+let _clickTarget: { x: number; y: number } | null = null;
+let _clickMarkerAlpha = 0;
+let _clickMarkerX = 0;
+let _clickMarkerY = 0;
 
 let rippleTimer = 0, dustTimer = 0, mistTimer = 0, dreamTimer = 0;
 const RIPPLE_INTERVAL = 0.32, DUST_INTERVAL = 0.7, MIST_INTERVAL = 1.0, DREAM_INTERVAL = 0.5;
@@ -245,6 +250,38 @@ let _lastTs = 0;
 
 engine.start(
   (ts) => {
+    // 点击行走标记（在 HUD 下方，场景坐标系）
+    if (_clickMarkerAlpha > 0.01 && currentSceneName === 'plains') {
+      const screen = plainsScene.camera.worldToScreen(
+        _clickMarkerX, _clickMarkerY, 0,
+        plainsScene.tileW, plainsScene.tileH,
+        engine.originX, engine.originY,
+      );
+      const ctx = engine.ctx;
+      const a = _clickMarkerAlpha;
+      const t = performance.now() * 0.004;
+      ctx.save();
+      // 外圈脉冲环
+      const ringR = 10 + Math.sin(t * 3) * 2;
+      ctx.beginPath();
+      ctx.arc(screen.sx, screen.sy, ringR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(180,140,255,${(a * 0.8).toFixed(2)})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // 内圈实心点
+      ctx.beginPath();
+      ctx.arc(screen.sx, screen.sy, 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(220,180,255,${a.toFixed(2)})`;
+      ctx.fill();
+      // 十字准星
+      ctx.strokeStyle = `rgba(255,220,255,${(a * 0.6).toFixed(2)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(screen.sx - 7, screen.sy); ctx.lineTo(screen.sx + 7, screen.sy);
+      ctx.moveTo(screen.sx, screen.sy - 7); ctx.lineTo(screen.sx, screen.sy + 7);
+      ctx.stroke();
+      ctx.restore();
+    }
     hud.draw(engine.ctx, canvas.width, canvas.height);
     transition.draw(canvas.width, canvas.height, ts);
   },
@@ -281,23 +318,78 @@ engine.start(
 
     if (teleporting) { input.flush(); return; }
 
-    const { x, y } = map.axis('right', 'left', 'down', 'up');
     const SPEED = 0.08;
 
     if (currentSceneName === 'plains') {
-      if (x !== 0 || y !== 0) {
-        const len = Math.hypot(x, y) || 1;
+      // ── 键盘输入 ────────────────────────────────────────────────────────
+      const kbAxis = map.axis('right', 'left', 'down', 'up');
+      const hasKb = kbAxis.x !== 0 || kbAxis.y !== 0;
+
+      // ── 鼠标点击目标 ────────────────────────────────────────────────────
+      if (input.pointer.pressed) {
+        const world = plainsScene.camera.screenToWorld(
+          input.pointer.x, input.pointer.y,
+          canvas.width, canvas.height,
+          plainsScene.tileW, plainsScene.tileH,
+          engine.originX, engine.originY,
+        );
+        // 限制在场景边界内
+        const tx = Math.max(0.5, Math.min(PLAINS_COLS - 0.5, world.x));
+        const ty = Math.max(0.5, Math.min(PLAINS_ROWS - 0.5, world.y));
+        _clickTarget = { x: tx, y: ty };
+        _clickMarkerX = tx;
+        _clickMarkerY = ty;
+        _clickMarkerAlpha = 1;
+      }
+
+      // 键盘输入时取消点击目标
+      if (hasKb) _clickTarget = null;
+
+      let moveX = 0, moveY = 0;
+
+      if (hasKb) {
+        // 键盘优先
+        const len = Math.hypot(kbAxis.x, kbAxis.y) || 1;
+        moveX = kbAxis.x / len * SPEED;
+        moveY = kbAxis.y / len * SPEED;
+      } else if (_clickTarget) {
+        // 点击行走：朝目标移动
+        const dx = _clickTarget.x - hero.position.x;
+        const dy = _clickTarget.y - hero.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < SPEED * 1.2) {
+          // 到达目标
+          hero.position.x = _clickTarget.x;
+          hero.position.y = _clickTarget.y;
+          _clickTarget = null;
+          hero.velX = 0;
+          hero.velY = 0;
+        } else {
+          moveX = (dx / dist) * SPEED;
+          moveY = (dy / dist) * SPEED;
+        }
+      }
+
+      if (moveX !== 0 || moveY !== 0) {
         const resolved = plainsCollider.resolveMove(
           hero.position.x, hero.position.y,
-          x / len * SPEED, y / len * SPEED, 0.32,
+          moveX, moveY, 0.32,
         );
+        // 碰撞时取消点击目标，避免卡墙
+        if (_clickTarget && Math.abs(resolved.dx - moveX) + Math.abs(resolved.dy - moveY) > 0.001) {
+          _clickTarget = null;
+        }
         hero.velX = resolved.dx;
         hero.velY = resolved.dy;
         hero.position.x += resolved.dx;
         hero.position.y += resolved.dy;
       } else {
-        hero.velX = 0; hero.velY = 0;
+        hero.velX = 0;
+        hero.velY = 0;
       }
+
+      // 点击标记淡出
+      if (_clickMarkerAlpha > 0) _clickMarkerAlpha = Math.max(0, _clickMarkerAlpha - dt * 1.8);
 
       const dist = Math.hypot(hero.position.x - PORTAL_X, hero.position.y - PORTAL_Y);
       hero.portalProximity = Math.max(0, 1 - dist / 4.0);
@@ -325,10 +417,11 @@ engine.start(
       }
 
     } else if (currentSceneName === 'lake') {
-      if (x !== 0 || y !== 0) {
-        const len = Math.hypot(x, y) || 1;
-        const nx = Math.max(0.5, Math.min(LAKE_COLS - 0.5, lakeHero.position.x + x / len * SPEED));
-        const ny = Math.max(0.5, Math.min(LAKE_ROWS - 0.5, lakeHero.position.y + y / len * SPEED));
+      const kbAxis = map.axis('right', 'left', 'down', 'up');
+      if (kbAxis.x !== 0 || kbAxis.y !== 0) {
+        const len = Math.hypot(kbAxis.x, kbAxis.y) || 1;
+        const nx = Math.max(0.5, Math.min(LAKE_COLS - 0.5, lakeHero.position.x + kbAxis.x / len * SPEED));
+        const ny = Math.max(0.5, Math.min(LAKE_ROWS - 0.5, lakeHero.position.y + kbAxis.y / len * SPEED));
         lakeHero.velX = nx - lakeHero.position.x;
         lakeHero.velY = ny - lakeHero.position.y;
         lakeHero.position.x = nx;
