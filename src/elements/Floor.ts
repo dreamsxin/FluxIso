@@ -167,12 +167,15 @@ export class Floor extends IsoObject {
         [r, g, b] = hexToRgb(this.color);
       }
 
-      // illumTotal drives the brightness scale; ambient is already baked into rIllum
+      // illumTotal is the sum of ambient + all lights, already in 0–1.
+      // Use it directly as a brightness multiplier — when ambient is high
+      // (daytime) the tile is bright; when low (night) it darkens naturally.
+      // The +tint term adds colored light on top of the base color.
       const illumTotal = Math.min(1, (rIllum + gIllum + bIllum) / 3);
 
-      const fr = Math.min(255, Math.round(r * illumTotal + rIllum * 30));
-      const fg = Math.min(255, Math.round(g * illumTotal + gIllum * 30));
-      const fb = Math.min(255, Math.round(b * illumTotal + bIllum * 30));
+      const fr = Math.min(255, Math.round(r * illumTotal + rIllum * 55));
+      const fg = Math.min(255, Math.round(g * illumTotal + gIllum * 55));
+      const fb = Math.min(255, Math.round(b * illumTotal + bIllum * 55));
 
       ctx.fillStyle = `rgb(${fr},${fg},${fb})`;
       ctx.fill();

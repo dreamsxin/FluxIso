@@ -157,8 +157,8 @@ export class DayNightCycle {
     const b = Math.round(this._lerp(220, 80,  n));
     return {
       color:     `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`,
-      // 白天 0.55，夜晚 0.06 — 让夜晚草地真正变暗
-      intensity: this._lerp(0.55, 0.06, n),
+      // 白天 0.85 保证草地足够亮，夜晚 0.06 真正变暗
+      intensity: this._lerp(0.85, 0.06, n),
     };
   }
 
