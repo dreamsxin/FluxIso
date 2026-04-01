@@ -163,6 +163,21 @@ function spawnDustMote(scene: Scene): void {
   scene.addObject(ps);
 }
 
+function spawnDreamMote(scene: Scene): void {
+  const id = `dream-${++fxId}`;
+  const x = 1 + Math.random() * (PLAINS_COLS - 2);
+  const y = 1 + Math.random() * (PLAINS_ROWS - 2);
+  const ps = new ParticleSystem(id, x, y, 0);
+  ps.addEmitter({ maxParticles: 3, rate: 0, shape: 'point',
+    lifetime: [3.5, 6.0], speed: [0.05, 0.18], angle: [0, Math.PI * 2],
+    vz: [0.3, 1.2], gravity: -0.12, size: [2, 5], sizeFinal: 0,
+    colorStart: '#c0a8ff', colorEnd: '#80c0ff', alphaStart: 0.55, alphaEnd: 0,
+    blend: 'screen', rotSpeed: [0, 0.5], particleShape: 'circle' });
+  ps.onExhausted = () => scene.removeById(id);
+  ps.burst(3);
+  scene.addObject(ps);
+}
+
 function spawnWaterMist(scene: Scene): void {
   const id = `mist-${++fxId}`;
   const x = 1 + Math.random() * (LAKE_COLS - 2);
@@ -195,8 +210,8 @@ async function triggerTeleport(): Promise<void> {
 
 // ── 计时器 ────────────────────────────────────────────────────────────────
 
-let rippleTimer = 0, dustTimer = 0, mistTimer = 0;
-const RIPPLE_INTERVAL = 0.32, DUST_INTERVAL = 0.7, MIST_INTERVAL = 1.0;
+let rippleTimer = 0, dustTimer = 0, mistTimer = 0, dreamTimer = 0;
+const RIPPLE_INTERVAL = 0.32, DUST_INTERVAL = 0.7, MIST_INTERVAL = 1.0, DREAM_INTERVAL = 0.5;
 
 // ── 启动 ─────────────────────────────────────────────────────────────────
 
@@ -281,6 +296,12 @@ engine.start(
       dustTimer += dt;
       if (dustTimer >= DUST_INTERVAL) { dustTimer = 0; spawnDustMote(plainsScene); }
 
+      // 白天梦幻光尘（nightness < 0.5 时才生成）
+      if (dayNight.nightness < 0.5) {
+        dreamTimer += dt;
+        if (dreamTimer >= DREAM_INTERVAL) { dreamTimer = 0; spawnDreamMote(plainsScene); }
+      }
+
     } else if (currentSceneName === 'lake') {
       if (x !== 0 || y !== 0) {
         const len = Math.hypot(x, y) || 1;
@@ -343,10 +364,54 @@ function drawSky(ctx: CanvasRenderingContext2D, w: number, h: number, scene: Sce
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, w, h);
 
+    // 白天梦幻：彩虹光晕（太阳周围）
+    const dayness = 1 - c.nightOverlay;
+    if (dayness > 0.3) {
+      const rainbowR = c.celestialRadius * 14;
+      const rainbow = ctx.createRadialGradient(cx, cy, c.celestialRadius * 2, cx, cy, rainbowR);
+      rainbow.addColorStop(0,    `rgba(255,220,180,${(dayness * 0.12).toFixed(3)})`);
+      rainbow.addColorStop(0.25, `rgba(255,180,220,${(dayness * 0.08).toFixed(3)})`);
+      rainbow.addColorStop(0.5,  `rgba(180,200,255,${(dayness * 0.10).toFixed(3)})`);
+      rainbow.addColorStop(0.75, `rgba(200,255,220,${(dayness * 0.06).toFixed(3)})`);
+      rainbow.addColorStop(1,    'rgba(0,0,0,0)');
+      ctx.fillStyle = rainbow;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    // 梦幻：底部地平线光晕（淡紫粉）
+    if (dayness > 0.2) {
+      const horizY = h * 0.68;
+      const horizGlow = ctx.createLinearGradient(0, horizY - 40, 0, horizY + 60);
+      horizGlow.addColorStop(0, 'rgba(0,0,0,0)');
+      horizGlow.addColorStop(0.4, `rgba(220,180,255,${(dayness * 0.18).toFixed(3)})`);
+      horizGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = horizGlow;
+      ctx.fillRect(0, horizY - 40, w, 100);
+    }
+
     // 夜晚遮罩
     if (c.nightOverlay > 0.02) {
       ctx.fillStyle = `rgba(4,9,26,${(c.nightOverlay * 0.82).toFixed(3)})`;
       ctx.fillRect(0, 0, w, h);
+    }
+
+    // 白天梦幻光点（漂浮的小精灵光）
+    const dayness2 = 1 - c.nightOverlay;
+    if (dayness2 > 0.15) {
+      const t2 = ts * 0.001;
+      for (let i = 0; i < 18; i++) {
+        const fx = (Math.sin(i * 73.1 + t2 * (0.12 + i * 0.008)) * 0.5 + 0.5) * w;
+        const fy = (Math.sin(i * 137.5 + t2 * (0.09 + i * 0.006)) * 0.5 + 0.5) * h * 0.75;
+        const pulse = 0.4 + Math.sin(t2 * (1.2 + i * 0.3) + i * 2.1) * 0.35;
+        const alpha = Math.max(0, pulse) * dayness2 * 0.55;
+        const colors = ['255,200,255', '200,220,255', '220,255,220', '255,240,180', '200,180,255'];
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(fx, fy, 1.2 + (i % 4) * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgb(${colors[i % colors.length]})`;
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
 
     // 星星
