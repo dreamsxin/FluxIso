@@ -9,13 +9,13 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 - **OmniLight** — RGB point light, per-channel accumulation, distance falloff, `illuminateAt()`
 - **DirectionalLight** — face-normal dot product; angle/elevation; per-channel color mix
 - **Lightmap cache** — `OffscreenCanvas` floor cache; auto-invalidates on light/camera change
-- **Shadow casting** — `ShadowCaster` projects AABB silhouettes onto z=0 plane with radial gradient
+- **Shadow casting** — `ShadowCaster` projects object silhouettes onto z=0 plane; circular footprint via `shadowRadius`; opt-in via `castsShadow = true` (default false)
 - **Tile materials** — procedural color or `tileImage` texture; light multiply + screen blend
 - **Wall openings** — door/window parallelogram clipping on wall faces
 - **Camera** — follow, pan, zoom, world-bounds clamping; `applyTransform()` fully wired into `Scene.draw()`
 - **Sprite animation** — `SpriteSheet` + `AnimationController` (idle/walk state machine, 8-direction)
 - **Directional animator** — `DirectionalAnimator`; clip naming `action_DIR`; fallback chain; `playOnce()`
-- **Particle system** — `ParticleSystem`; procedural circle/square + sprite mode; blend modes; presets: sparkBurst, fire, dustPuff, crystalShatter, coinSpill, spriteExplosion
+- **Particle system** — `ParticleSystem`; procedural circle/square + sprite mode; blend modes; presets: sparkBurst, emberTrail, dustPuff, crystalShatter, coinSpill, spriteExplosion
 - **Tile collision** — `TileCollider` walkable grid; AABB slide-and-clamp; `sweepMove()` binary search with fast-path
 - **ECS** — `Entity.addComponent()` / `getComponent()`; per-frame `component.update()`
 - **EventBus** — typed events (Damage/Heal/Death/Move/Arrival/Trigger); `globalBus` singleton
@@ -42,7 +42,7 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 npm install
 npm run dev        # http://localhost:5173 — interactive demo
 npm run build      # production build → dist/
-npx vitest --run   # run 143 unit tests (requires Node ≥ 22)
+npx vitest --run   # run 157 unit tests (requires Node ≥ 22)
 ```
 
 ## Demo Controls
@@ -165,11 +165,11 @@ Engine                     — canvas setup, RAF loop, JSON loader, TileCollider
 1. preFrame callback       — caller updates orbit, state
 2. clearRect               — clear canvas
 3. preFrame draw           — background radial glow from OmniLight
-4. LightmapCache.blit()    — floor rendered into OffscreenCanvas, blit to main ctx
-5. camera.applyTransform() — translate + scale ctx for camera follow/zoom
-6. ShadowCaster.draw()     — project silhouettes onto z=0 in camera space
-7. Scene.update(ts)        — camera + IsoObject.update(); Character moveTo; ECS components
-8. topoSort                — AABB overlap → Kahn each frame
+4. Scene.update(ts)        — camera lerp + IsoObject.update(); Character moveTo; ECS components
+5. LightmapCache.blit()    — floor rendered into OffscreenCanvas, blit to main ctx
+6. camera.applyTransform() — translate + scale ctx for camera follow/zoom
+7. ShadowCaster.draw()     — project silhouettes onto z=0 in camera space
+8. topoSort                — AABB overlap → Kahn each frame (dirty-flag cached)
 9. Scene.draw()            — Floor → Walls → sorted Characters/Props/Particles → halos
 10. postFrame callback     — hint rings, HUD
 ```
@@ -205,9 +205,16 @@ src/
 ├── core/
 │   ├── AssetLoader.ts           # Promise image cache; loadImage / loadAll / get
 │   ├── Camera.ts                # follow / pan / zoom / applyTransform / clamp
+│   ├── DebugRenderer.ts         # Overlay: collision grid, AABB, light radii, triggers, FPS
 │   ├── Engine.ts                # RAF loop; JSON loader (floor/walls/lights/chars/props/clouds); pre/postFrame
+│   ├── HudLayer.ts              # Canvas-space UI: labels, bars, buttons, panels
+│   ├── InputMap.ts              # Action-binding layer over InputManager; axis(); toJSON/fromJSON
 │   ├── LightmapCache.ts         # OffscreenCanvas floor cache; isDirty snapshot; blit()
+│   ├── Minimap.ts               # OffscreenCanvas HUD overlay; walkable grid + object dots
+│   ├── ObjectPool.ts            # Generic object pool; acquire/release/releaseAll; prewarm
 │   ├── Scene.ts                 # Object + light management; topoSort; frustum cull; LightmapCache; ShadowCaster
+│   ├── SceneManager.ts          # Named scene stack; push/pop/replace/goto; lifecycle hooks
+│   ├── SceneTransition.ts       # Canvas transition effects: fade, slide, circle-wipe; playIn/playOut/between
 │   └── Validator.ts             # validateSceneJson(); validateComponents(); requireComponent()
 ├── elements/
 │   ├── IsoObject.ts             # Abstract base: id, position (IsoVec3), aabb, draw, update
@@ -251,7 +258,6 @@ src/
 └── editor/
     ├── EditorState.ts           # Central store; undo/redo command stack (100 deep); walkable grid; JSON I/O
     ├── EditorRenderer.ts        # Engine-backed live preview; world↔screen coordinate mapping
-    ├── EditorRenderer.ts        # (see below)
     ├── editor.ts                # Full editor UI; toolbar; property panel; keyboard shortcuts
     └── sprite-editor.ts         # Sprite sheet frame inspector and clip builder
 
@@ -294,30 +300,29 @@ scene.collider: TileCollider | null
 
 ```ts
 new Camera(opts?: CameraOptions)
-camera.follow(target: IsoObject, lerp?: number): void  // attach follow target
+camera.follow(target: IsoObject): void         // attach follow target
+camera.unfollow(): void
 camera.pan(dx: number, dy: number): void
-camera.zoom: number                                     // 0.1–4, default 1
-camera.bounds: CameraBounds | null
-camera.applyTransform(ctx, originX, originY): void     // called by Scene.draw()
+camera.zoom: number                            // 0.25–4, default 1
+camera.lerpFactor: number                      // 0–1, default 1 (instant); < 1 = smooth follow
+camera.setBounds(bounds: CameraBounds): void
+camera.applyTransform(ctx, canvasW, canvasH, tileW, tileH, originX, originY): void
 camera.restoreTransform(ctx): void
-camera.worldToScreen(wx, wy, originX, originY, tileW, tileH): ScreenVec2
-camera.screenToWorld(sx, sy, originX, originY, tileW, tileH): IsoVec2
+camera.worldToScreen(wx, wy, wz, tileW, tileH, originX, originY): { sx, sy }
+camera.screenToWorld(cx, cy, canvasW, canvasH, tileW, tileH, originX, originY): { x, y }
 ```
 
 ### `Character`
 
 ```ts
 new Character({ id, x, y, z?, radius?, color?, spriteSheet?, speed? })
-character.moveTo(x, y, z?): void       // smooth interpolation with collision
-character.stopMoving(): void
-character.isMoving: boolean
-character.setSpriteSheet(sheet, initialClip?): void
-character.moveTo(x, y, z?): void               // direct smooth movement
+character.moveTo(x, y, z?): void               // direct smooth movement, no pathfinding
 character.pathTo(tx, ty, collider, tz?): boolean // A* — returns false if unreachable
 character.followPath(waypoints[], z?): void      // follow pre-computed IsoVec2[] path
 character.stopMoving(): void
 character.isMoving: boolean
 character.remainingWaypoints: readonly IsoVec2[]
+character.setSpriteSheet(sheet, initialClip?): void
 character.playAnimation(name: string): void
 ```
 
@@ -379,9 +384,13 @@ tween.progress: number   // 0–1
 ### `TriggerZoneComponent`
 
 ```ts
-new TriggerZoneComponent({ radius, onEnter?, onExit?, bus? })
-trigger.check(candidates: IsoObject[]): void  // call each frame
-// Emits EventBus: 'trigger' with { entered, exited } entity lists
+new TriggerZoneComponent({ radius?, onEnter?, onExit?, bus?, targets? })
+trigger.radius: number
+trigger.targets: IsoObject[]   // objects to test each frame (set after construction)
+trigger.contains(id: string): boolean
+trigger.insideIds: ReadonlySet<string>
+// Emits on EventBus: 'triggerEnter' / 'triggerExit' with { triggerId, enterId }
+// update() is called automatically by Scene.update() each frame
 ```
 
 ### `ParticleSystem`
@@ -395,7 +404,7 @@ ps.start(): void; ps.stop(): void       // continuous emitter
 
 // Presets:
 ParticleSystem.presets.sparkBurst({ color? })
-ParticleSystem.presets.fire({ color? })
+ParticleSystem.presets.emberTrail({ color? })
 ParticleSystem.presets.dustPuff({ color? })
 ParticleSystem.presets.crystalShatter({ color? })
 ParticleSystem.presets.coinSpill({ count? })

@@ -346,7 +346,7 @@ export class LowPolyFlower extends IsoObject {
     const now = ts ?? performance.now();
     const dt = this._lastTs === 0 ? 0.016 : Math.min((now - this._lastTs) / 1000, 0.1);
     this._lastTs = now;
-    this._phase += dt * 0.6; // 缓慢摇曳
+    this._phase += dt * 1.4; // 明显的摇曳速度
   }
 
   draw(dc: DrawContext): void {
@@ -355,30 +355,31 @@ export class LowPolyFlower extends IsoObject {
     const { sx, sy } = project(x, y, 0, tileW, tileH);
     const cx = originX + sx;
     const cy = originY + sy;
-    const bob = Math.sin(this._phase) * 1.2;
+    const bob = Math.sin(this._phase) * 2.5;       // 加大上下幅度
+    const sway = Math.sin(this._phase * 0.7) * 2;  // 左右摇摆
     const stemH = 10;
 
     ctx.save();
     ctx.translate(cx, cy);
 
-    // 茎（细线）
+    // 茎（细线，随风摇摆）
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(Math.sin(this._phase * 0.5) * 1.5, -stemH * 0.5, 0, -stemH + bob);
+    ctx.quadraticCurveTo(sway * 0.8, -stemH * 0.5, sway, -stemH + bob);
     ctx.strokeStyle = this._stemColor;
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
     // 花朵
     ctx.save();
-    ctx.translate(0, -stemH + bob);
+    ctx.translate(sway, -stemH + bob);
 
     // 花瓣（低多边形菱形）
     const n = this._petalCount;
     const petalR = 5;
     const petalLen = 5.5;
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + this._phase * 0.15;
+      const a = (i / n) * Math.PI * 2 + this._phase * 0.35;
       const px = Math.cos(a) * petalR;
       const py = Math.sin(a) * petalR * 0.55;
       const tx = Math.cos(a) * (petalR + petalLen);
