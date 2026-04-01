@@ -9,6 +9,7 @@ import { Entity } from '../../src/ecs/Entity';
 import { DrawContext } from '../../src/elements/IsoObject';
 import { AABB } from '../../src/math/depthSort';
 import { project } from '../../src/math/IsoProjection';
+import { DirectionalLight } from '../../src/lighting/DirectionalLight';
 
 export class CubeHero extends Entity {
   velX = 0;
@@ -98,7 +99,7 @@ export class CubeHero extends Entity {
   }
 
   draw(dc: DrawContext): void {
-    const { ctx, tileW, tileH, originX, originY } = dc;
+    const { ctx, tileW, tileH, originX, originY, dirLights } = dc;
     const { x, y, z } = this.position;
 
     // 角色当前屏幕位置（含 z 偏移）
@@ -111,8 +112,8 @@ export class CubeHero extends Entity {
     const gx = originX + gsx;
     const gy = originY + gsy;
 
-    // 先画地面阴影（在角色下方，不受倾斜变换影响）
-    this._drawShadowBlob(ctx, gx, gy);
+    // 先画地面阴影（响应太阳方向）
+    this._drawShadowBlob(ctx, cx, cy, gx, gy, dirLights, tileW, tileH);
 
     ctx.save();
     ctx.translate(cx, cy);
@@ -137,29 +138,68 @@ export class CubeHero extends Entity {
     }
 
     ctx.restore();
+
+    // 梦幻光晕：角色周围漂浮的彩色光圈（在相机变换空间里画）
+    this._drawDreamAura(ctx, cx, cy);
   }
 
-  // ── 地面投影阴影（画在 z=0 地面位置） ───────────────────────────────────
+  // ── 地面投影阴影（响应太阳方向） ────────────────────────────────────────
 
-  private _drawShadowBlob(ctx: CanvasRenderingContext2D, gx: number, gy: number): void {
-    // 读取当前相机变换矩阵，将相机空间坐标转换为真实屏幕坐标
+  private _drawShadowBlob(
+    ctx: CanvasRenderingContext2D,
+    cx: number, cy: number,
+    gx: number, gy: number,
+    dirLights: DirectionalLight[],
+    tileW: number, tileH: number,
+  ): void {
     const m = ctx.getTransform();
-    const screenX = m.a * gx + m.c * gy + m.e;
-    const screenY = m.b * gx + m.d * gy + m.f;
+    const zoom = m.a || 1;
+
+    // 从太阳方向光计算阴影偏移
+    // 角色高度（屏幕像素）= cy - gy（角色比地面高多少像素）
+    const heightPx = gy - cy; // 正值 = 角色在地面上方
+
+    let shadowOffX = 0;
+    let shadowOffY = 0;
+    let shadowAlpha = 0.45;
+    let shadowScaleX = 1.0;
+
+    if (dirLights.length > 0) {
+      const dl = dirLights[0];
+      const elev = dl.elevation;
+      if (elev > 0.01) {
+        // 阴影长度 = 高度 / tan(仰角)，单位：屏幕像素
+        const shadowLen = heightPx / Math.tan(elev);
+        // 阴影方向 = 光源方向的反方向（屏幕空间）
+        shadowOffX = -Math.cos(dl.angle) * shadowLen;
+        shadowOffY = -Math.sin(dl.angle) * shadowLen;
+        // 低仰角时阴影更长更淡，高仰角时更短更实
+        const elevNorm = Math.min(1, elev / (Math.PI / 2));
+        shadowAlpha = 0.15 + elevNorm * 0.35;
+        // 低仰角时横向拉伸
+        shadowScaleX = 1.0 + (1 - elevNorm) * 0.8;
+      }
+    }
+
+    // 阴影中心 = 地面位置 + 偏移
+    const shadowCx = gx + shadowOffX;
+    const shadowCy = gy + shadowOffY;
+
+    const screenX = m.a * shadowCx + m.c * shadowCy + m.e;
+    const screenY = m.b * shadowCx + m.d * shadowCy + m.f;
+    const r = 18 * zoom;
 
     ctx.save();
-    // 重置变换，直接在屏幕坐标系绘制，避免相机 zoom/scale 干扰
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.translate(screenX, screenY);
-    ctx.scale(1, 0.38);
-    const r = 20 * (m.a || 1); // 根据 zoom 缩放阴影半径
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-    g.addColorStop(0,   'rgba(0,0,0,0.45)');
-    g.addColorStop(0.5, 'rgba(0,0,0,0.2)');
-    g.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.scale(shadowScaleX, 0.38);
+    const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+    sg.addColorStop(0,   `rgba(0,0,0,${shadowAlpha.toFixed(2)})`);
+    sg.addColorStop(0.5, `rgba(0,0,0,${(shadowAlpha * 0.45).toFixed(2)})`);
+    sg.addColorStop(1,   'rgba(0,0,0,0)');
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fillStyle = g;
+    ctx.fillStyle = sg;
     ctx.fill();
     ctx.restore();
   }
@@ -294,6 +334,72 @@ export class CubeHero extends Entity {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
       ctx.restore();
+    }
+  }
+
+  // ── 梦幻光晕 ──────────────────────────────────────────────────────────────
+
+  private _drawDreamAura(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+    const t = this._spinAngle;
+    const proximity = this.portalProximity;
+
+    // 外圈柔和光晕（始终存在，接近传送阵时增强）
+    const auraR = 38 + Math.sin(t * 0.7) * 4;
+    const auraAlpha = 0.12 + proximity * 0.18;
+    const auraGrad = ctx.createRadialGradient(cx, cy - 12, 0, cx, cy - 12, auraR);
+    auraGrad.addColorStop(0,   `rgba(160,200,255,${auraAlpha.toFixed(2)})`);
+    auraGrad.addColorStop(0.5, `rgba(180,140,255,${(auraAlpha * 0.5).toFixed(2)})`);
+    auraGrad.addColorStop(1,   'rgba(100,80,255,0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy - 12, auraR, 0, Math.PI * 2);
+    ctx.fillStyle = auraGrad;
+    ctx.fill();
+
+    // 环绕光点（3个，不同颜色，椭圆轨道）
+    const orbitColors = ['rgba(200,180,255,', 'rgba(160,230,255,', 'rgba(255,200,220,'];
+    for (let i = 0; i < 3; i++) {
+      const angle = t * (0.8 + i * 0.3) + (i / 3) * Math.PI * 2;
+      const orbitR = 28 + i * 4;
+      const ox = cx + Math.cos(angle) * orbitR;
+      const oy = cy - 12 + Math.sin(angle) * orbitR * 0.42;
+      const pulse = 0.5 + Math.sin(t * 2.1 + i * 1.4) * 0.35;
+      const dotR = (1.8 + i * 0.5) * pulse;
+      const alpha = (0.55 + proximity * 0.3) * pulse;
+
+      ctx.beginPath();
+      ctx.arc(ox, oy, dotR + 3, 0, Math.PI * 2);
+      const glowGrad = ctx.createRadialGradient(ox, oy, 0, ox, oy, dotR + 3);
+      glowGrad.addColorStop(0, `${orbitColors[i]}${alpha.toFixed(2)})`);
+      glowGrad.addColorStop(1, `${orbitColors[i]}0)`);
+      ctx.fillStyle = glowGrad;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(ox, oy, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = `${orbitColors[i]}${Math.min(1, alpha * 1.8).toFixed(2)})`;
+      ctx.fill();
+    }
+
+    // 接近传送阵时：额外的紫色能量环
+    if (proximity > 0.15) {
+      const ringAlpha = (proximity - 0.15) / 0.85;
+      const ringR = 32 + Math.sin(t * 3) * 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy - 12, ringR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(180,100,255,${(ringAlpha * 0.6).toFixed(2)})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // 能量环上的光点
+      for (let i = 0; i < 6; i++) {
+        const a = t * 2 + (i / 6) * Math.PI * 2;
+        const ex = cx + Math.cos(a) * ringR;
+        const ey = cy - 12 + Math.sin(a) * ringR * 0.42;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(220,160,255,${(ringAlpha * 0.9).toFixed(2)})`;
+        ctx.fill();
+      }
     }
   }
 

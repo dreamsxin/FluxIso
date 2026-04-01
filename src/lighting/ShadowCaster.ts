@@ -137,14 +137,28 @@ export class ShadowCaster {
 
     // Shadow length per unit of object height (cot of elevation)
     const shadowLen = 1 / Math.tan(elev);
-    // Shadow direction: opposite to light source direction
-    const shadowDx = -Math.cos(light.angle) * shadowLen;
-    const shadowDy = -Math.sin(light.angle) * shadowLen;
+
+    // light.angle is in screen space. Convert the screen-space light direction
+    // to world-space (iso x/y) so the shadow offset is applied correctly before
+    // projecting tip points back to screen.
+    //
+    // Iso projection:  sx = (x - y) * tileW/2,  sy = (x + y) * tileH/2
+    // Inverse:         x = sx/(tileW) + sy/(tileH)
+    //                  y = sy/(tileH) - sx/(tileW)
+    //
+    // A unit screen vector (cos θ, sin θ) maps to world:
+    const screenDx = Math.cos(light.angle);
+    const screenDy = Math.sin(light.angle);
+    const worldDx =  screenDx / (tileW / 2) + screenDy / (tileH / 2);  // toward light in world
+    const worldDy = -screenDx / (tileW / 2) + screenDy / (tileH / 2);
+
+    // Shadow falls opposite to the light direction, scaled by shadow length
+    const shadowDx = -worldDx * shadowLen;
+    const shadowDy = -worldDy * shadowLen;
 
     // Alpha: stronger at low elevation (long shadows at dawn/dusk), softer at noon
-    // Use a curve that keeps shadows visible across the full day arc
     const elevNorm = elev / (Math.PI / 2); // 0=horizon, 1=zenith
-    const shadowAlphaFactor = 0.15 + 0.55 * (1 - elevNorm * elevNorm); // quadratic falloff
+    const shadowAlphaFactor = 0.15 + 0.55 * (1 - elevNorm * elevNorm);
     const alpha = Math.min(0.60, light.intensity * shadowAlphaFactor);
     if (alpha < 0.01) return;
 
