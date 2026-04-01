@@ -1,5 +1,6 @@
 import { IsoObject } from '../elements/IsoObject';
-import { unproject } from '../math/IsoProjection';
+import { unproject, project } from '../math/IsoProjection';
+import type { IsoView } from '../math/IsoProjection';
 
 export interface CameraBounds {
   minX: number;
@@ -92,14 +93,25 @@ export class Camera {
     tileH: number,
     originX: number,
     originY: number,
+    view?: IsoView,
   ): void {
+    const effTileH = view ? tileW * view.elevation : tileH;
+    // For rotated views, the camera offset must account for rotation
+    let offsetX: number, offsetY: number;
+    if (view && view.rotation !== 0) {
+      const rad = (view.rotation * Math.PI) / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const rx = this.x * cos - this.y * sin;
+      const ry = this.x * sin + this.y * cos;
+      offsetX = -(rx - ry) * (tileW / 2);
+      offsetY = -(rx + ry) * (effTileH / 2);
+    } else {
+      offsetX = -(this.x - this.y) * (tileW / 2);
+      offsetY = -(this.x + this.y) * (effTileH / 2);
+    }
     ctx.save();
-    // Translate to the engine's iso origin first
     ctx.translate(originX, originY);
     ctx.scale(this.zoom, this.zoom);
-    // Shift so the camera's world position is centred on the origin
-    const offsetX = -(this.x - this.y) * (tileW / 2);
-    const offsetY = -(this.x + this.y) * (tileH / 2);
     ctx.translate(offsetX, offsetY);
   }
 
@@ -112,51 +124,54 @@ export class Camera {
    * the current camera transform (zoom + pan).
    */
   worldToScreen(
-    wx: number,
-    wy: number,
-    wz: number,
-    tileW: number,
-    tileH: number,
-    originX: number,
-    originY: number,
+    wx: number, wy: number, wz: number,
+    tileW: number, tileH: number,
+    originX: number, originY: number,
+    view?: IsoView,
   ): { sx: number; sy: number } {
-    const camOffX = -(this.x - this.y) * (tileW / 2);
-    const camOffY = -(this.x + this.y) * (tileH / 2);
-    const isoX = (wx - wy) * (tileW / 2);
-    const isoY = (wx + wy) * (tileH / 2) - wz;
+    const p = project(wx, wy, wz, tileW, tileH, view);
+    const effTileH = view ? tileW * view.elevation : tileH;
+    let camOffX: number, camOffY: number;
+    if (view && view.rotation !== 0) {
+      const rad = (view.rotation * Math.PI) / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const rx = this.x * cos - this.y * sin;
+      const ry = this.x * sin + this.y * cos;
+      camOffX = -(rx - ry) * (tileW / 2);
+      camOffY = -(rx + ry) * (effTileH / 2);
+    } else {
+      camOffX = -(this.x - this.y) * (tileW / 2);
+      camOffY = -(this.x + this.y) * (effTileH / 2);
+    }
     return {
-      sx: originX + (isoX + camOffX) * this.zoom,
-      sy: originY + (isoY + camOffY) * this.zoom,
+      sx: originX + (p.sx + camOffX) * this.zoom,
+      sy: originY + (p.sy + camOffY) * this.zoom,
     };
   }
 
-  /**
-   * Convert a canvas pixel position to world coordinates, accounting for
-   * the current camera transform (zoom + pan).
-   *
-   * canvasW/canvasH are accepted for API symmetry (e.g. centred-origin
-   * callers) but the actual inverse only needs the origin offsets supplied
-   * to applyTransform.
-   */
   screenToWorld(
-    cx: number,
-    cy: number,
-    _canvasW: number,
-    _canvasH: number,
-    tileW: number,
-    tileH: number,
-    originX: number,
-    originY: number,
+    cx: number, cy: number,
+    _canvasW: number, _canvasH: number,
+    tileW: number, tileH: number,
+    originX: number, originY: number,
+    view?: IsoView,
   ): { x: number; y: number } {
-    // Undo the camera transform:
-    // 1. subtract origin
-    // 2. undo zoom
-    // 3. undo camera world offset
+    const effTileH = view ? tileW * view.elevation : tileH;
     const sx = (cx - originX) / this.zoom;
     const sy = (cy - originY) / this.zoom;
-    const camOffX = -(this.x - this.y) * (tileW / 2);
-    const camOffY = -(this.x + this.y) * (tileH / 2);
-    return unproject(sx - camOffX, sy - camOffY, tileW, tileH);
+    let camOffX: number, camOffY: number;
+    if (view && view.rotation !== 0) {
+      const rad = (view.rotation * Math.PI) / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const rx = this.x * cos - this.y * sin;
+      const ry = this.x * sin + this.y * cos;
+      camOffX = -(rx - ry) * (tileW / 2);
+      camOffY = -(rx + ry) * (effTileH / 2);
+    } else {
+      camOffX = -(this.x - this.y) * (tileW / 2);
+      camOffY = -(this.x + this.y) * (effTileH / 2);
+    }
+    return unproject(sx - camOffX, sy - camOffY, tileW, effTileH, view);
   }
 
   private _clamp(): void {

@@ -1,4 +1,4 @@
-import { IsoVec3 } from '../math/IsoProjection';
+import { IsoVec3, IsoView, DEFAULT_ISO_VIEW } from '../math/IsoProjection';
 import { OmniLight } from '../lighting/OmniLight';
 import { DirectionalLight } from '../lighting/DirectionalLight';
 import { AABB } from '../math/depthSort';
@@ -7,21 +7,19 @@ export interface DrawContext {
   ctx: CanvasRenderingContext2D;
   tileW: number;
   tileH: number;
-  /**
-   * The current drawing origin in pixels.
-   * When drawing inside the scene's camera transform, these are typically 0.
-   */
   originX: number;
   originY: number;
   omniLights: OmniLight[];
   dirLights: DirectionalLight[];
   /**
    * Scene-level ambient light as a pre-multiplied RGB triple [r, g, b] in 0–1.
-   * Injected by Scene.draw() from scene.ambientColor × scene.ambientIntensity.
-   * Floor and Wall use this as the minimum illumination floor, so the whole
-   * scene darkens/tints automatically when you change scene.ambientColor.
    */
   ambientRgb: [number, number, number];
+  /**
+   * Current isometric view parameters (rotation + elevation).
+   * Pass to project() for correct rendering under non-default views.
+   */
+  view: IsoView;
 }
 
 /**

@@ -89,7 +89,8 @@ export type { ValidationResult } from './core/Validator';
 
 // Math
 export { project, unproject, depthKey } from './math/IsoProjection';
-export type { IsoVec3, ScreenVec2 } from './math/IsoProjection';
+export type { IsoVec3, ScreenVec2, IsoView } from './math/IsoProjection';
+export { DEFAULT_ISO_VIEW } from './math/IsoProjection';
 export { topoSort } from './math/depthSort';
 export type { AABB, Sortable } from './math/depthSort';
 export { hexToRgb, hexToRgba, shiftColor, blendColor, blendColorRaw, lerpColor } from './math/color';

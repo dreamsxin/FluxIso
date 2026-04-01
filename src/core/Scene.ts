@@ -10,7 +10,8 @@ import { Wall } from '../elements/Wall';
 import { Character } from '../elements/Character';
 import { Cloud } from '../elements/props/Cloud';
 import { FloatingText, FloatingTextOptions } from '../elements/props/FloatingText';
-import { project } from '../math/IsoProjection';
+import { project, DEFAULT_ISO_VIEW } from '../math/IsoProjection';
+import type { IsoView } from '../math/IsoProjection';
 import { topoSort } from '../math/depthSort';
 import { TileCollider } from '../physics/TileCollider';
 import { hexToRgb, hexToRgba } from '../math/color';
@@ -67,6 +68,19 @@ export class Scene {
    * Default false — static scenes use snapshot-based dirty detection.
    */
   dynamicLighting = false;
+
+  /**
+   * Isometric view parameters: rotation (degrees) and elevation (0.2–1.0).
+   * Change these to rotate the world or tilt the camera.
+   * Use transitionView() for smooth animated transitions.
+   */
+  view: IsoView = { ...DEFAULT_ISO_VIEW };
+
+  // View transition state
+  private _viewFrom: IsoView | null = null;
+  private _viewTo:   IsoView | null = null;
+  private _viewT     = 0;   // 0→1 progress
+  private _viewDur   = 0;   // seconds
 
   constructor(opts: SceneOptions = {}) {
     this.tileW = opts.tileW ?? 64;
@@ -136,10 +150,42 @@ export class Scene {
 
   private _lastTs = 0;
 
+  /**
+   * Smoothly transition to a new isometric view over `duration` seconds.
+   * @param to       Target view (rotation in degrees, elevation 0.2–1.0).
+   * @param duration Transition duration in seconds. 0 = instant.
+   */
+  transitionView(to: Partial<IsoView>, duration = 0.6): void {
+    const target: IsoView = {
+      rotation:  to.rotation  ?? this.view.rotation,
+      elevation: to.elevation ?? this.view.elevation,
+    };
+    if (duration <= 0) { this.view = target; this._viewFrom = null; return; }
+    this._viewFrom = { ...this.view };
+    this._viewTo   = target;
+    this._viewT    = 0;
+    this._viewDur  = duration;
+    this._lightmapCache?.invalidate();
+  }
+
   update(ts?: number): void {
     const now = ts ?? performance.now();
     const dt  = this._lastTs === 0 ? 1 / 60 : Math.min((now - this._lastTs) / 1000, 0.1);
     this._lastTs = now;
+
+    // Advance view transition
+    if (this._viewFrom && this._viewTo) {
+      this._viewT = Math.min(1, this._viewT + dt / this._viewDur);
+      // easeInOut
+      const t = this._viewT < 0.5 ? 2 * this._viewT * this._viewT : 1 - Math.pow(-2 * this._viewT + 2, 2) / 2;
+      this.view = {
+        rotation:  this._viewFrom.rotation  + (this._viewTo.rotation  - this._viewFrom.rotation)  * t,
+        elevation: this._viewFrom.elevation + (this._viewTo.elevation - this._viewFrom.elevation) * t,
+      };
+      if (this._viewT >= 1) { this.view = { ...this._viewTo }; this._viewFrom = null; this._viewTo = null; }
+      this._lightmapCache?.invalidate();
+    }
+
     this.camera.update(dt);
     for (const obj of this.objects) {
       if (!obj.visible) continue;
@@ -198,8 +244,21 @@ export class Scene {
       offCtx.save();
       offCtx.translate(originX, originY);
       offCtx.scale(this.camera.zoom, this.camera.zoom);
-      const camOffX = -(this.camera.x - this.camera.y) * (this.tileW / 2);
-      const camOffY = -(this.camera.x + this.camera.y) * (this.tileH / 2);
+      // Camera offset accounting for view rotation
+      let camOffX: number, camOffY: number;
+      if (this.view.rotation !== 0) {
+        const rad = (this.view.rotation * Math.PI) / 180;
+        const cos = Math.cos(rad), sin = Math.sin(rad);
+        const rx = this.camera.x * cos - this.camera.y * sin;
+        const ry = this.camera.x * sin + this.camera.y * cos;
+        const effH = this.tileW * this.view.elevation;
+        camOffX = -(rx - ry) * (this.tileW / 2);
+        camOffY = -(rx + ry) * (effH / 2);
+      } else {
+        const effH = this.tileW * this.view.elevation;
+        camOffX = -(this.camera.x - this.camera.y) * (this.tileW / 2);
+        camOffY = -(this.camera.x + this.camera.y) * (effH / 2);
+      }
       offCtx.translate(camOffX, camOffY);
 
       const floorDc: DrawContext = {
@@ -211,6 +270,7 @@ export class Scene {
         omniLights,
         dirLights,
         ambientRgb,
+        view: this.view,
       };
       for (const floor of floorObjects) {
         floor.draw(floorDc);
@@ -235,7 +295,7 @@ export class Scene {
     cache.blit(ctx);
 
     // Apply camera transform for all non-floor objects
-    this.camera.applyTransform(ctx, canvasW, canvasH, this.tileW, this.tileH, originX, originY);
+    this.camera.applyTransform(ctx, canvasW, canvasH, this.tileW, this.tileH, originX, originY, this.view);
 
     const dc: DrawContext = {
       ctx,
@@ -246,6 +306,7 @@ export class Scene {
       omniLights,
       dirLights,
       ambientRgb,
+      view: this.view,
     };
 
     // Cast ground shadows from each OmniLight before drawing objects
@@ -270,7 +331,7 @@ export class Scene {
 
     // Light halos (in camera space)
     for (const light of omniLights) {
-      const lp = project(light.position.x, light.position.y, 0, this.tileW, this.tileH);
+      const lp = project(light.position.x, light.position.y, 0, this.tileW, this.tileH, this.view);
       const lx = lp.sx;
       const ly = lp.sy - light.position.z;
       this.drawLightHalo(ctx, lx, ly, light.color, light.intensity);
