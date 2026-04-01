@@ -97,7 +97,6 @@ export class Camera {
   ): void {
     const rot  = view?.rotation  ?? 0;
     const elev = view?.elevation ?? 0.5;
-    // Standard camera offset (no rotation — rotation is applied via canvas transform)
     const offsetX = -(this.x - this.y) * (tileW / 2);
     const offsetY = -(this.x + this.y) * (tileH / 2);
 
@@ -105,28 +104,22 @@ export class Camera {
     ctx.translate(originX, originY);
     ctx.scale(this.zoom, this.zoom);
 
-    if (rot !== 0 || elev !== 0.5) {
-      // Decompose the iso view into a 2×2 canvas transform matrix.
-      //
-      // Standard iso maps world (x,y) → screen (sx,sy):
-      //   sx = (x - y) * tileW/2
-      //   sy = (x + y) * tileH/2
-      //
-      // With rotation θ and elevation e (tileH = tileW * e):
-      //   rx = x*cosθ - y*sinθ,  ry = x*sinθ + y*cosθ
-      //   sx' = (rx - ry) * tileW/2
-      //   sy' = (rx + ry) * tileW*e/2
-      //
-      // Expanding in terms of original (sx, sy) where tileH = tileW*0.5:
-      //   sx = (x-y)*tileW/2,  sy = (x+y)*tileW*0.5/2
-      //   x-y = sx/(tileW/2),  x+y = sy/(tileW*0.5/2)
-      //
-      // The resulting 2×2 matrix M such that [sx',sy'] = M * [sx,sy]:
+    // elevation: scale Y axis relative to standard 0.5 ratio
+    if (elev !== 0.5) {
+      ctx.scale(1, elev / 0.5);
+    }
+
+    // rotation: apply 2×2 matrix that rotates the iso plane
+    // M = [[cos, sin/1], [-sin, cos]] acting on (sx, sy) where sx=(x-y)*tw/2, sy=(x+y)*th/2
+    // Derived: rotating world (x,y) by θ and re-projecting gives:
+    //   sx' = sx*cos + sy*sin*(tw/th)
+    //   sy' = -sx*sin*(th/tw) + sy*cos
+    // With standard tw/th = 2: sx' = sx*cos + sy*2*sin, sy' = -sx*sin/2 + sy*cos
+    if (rot !== 0) {
       const rad = (rot * Math.PI) / 180;
       const c = Math.cos(rad), s = Math.sin(rad);
-      const r = elev / 0.5; // elevation scale relative to standard
-      // M = [[c, s/r], [-s*r, c]]  (derived from the projection equations)
-      ctx.transform(c, -s * r, s / r, c, 0, 0);
+      const aspect = tileW / tileH; // = 2 for standard iso
+      ctx.transform(c, -s / aspect, s * aspect, c, 0, 0);
     }
 
     ctx.translate(offsetX, offsetY);
@@ -146,7 +139,6 @@ export class Camera {
     originX: number, originY: number,
     view?: IsoView,
   ): { sx: number; sy: number } {
-    // Standard projection (no view rotation — that's handled by canvas transform)
     const isoX = (wx - wy) * (tileW / 2);
     const isoY = (wx + wy) * (tileH / 2) - wz;
     const camOffX = -(this.x - this.y) * (tileW / 2);
@@ -154,20 +146,21 @@ export class Camera {
     let sx = isoX + camOffX;
     let sy = isoY + camOffY;
 
-    // Apply view matrix
-    if (view && (view.rotation !== 0 || view.elevation !== 0.5)) {
-      const rad = (view.rotation * Math.PI) / 180;
-      const c = Math.cos(rad), s = Math.sin(rad);
-      const r = view.elevation / 0.5;
-      const nx = c * sx + (s / r) * sy;
-      const ny = (-s * r) * sx + c * sy;
-      sx = nx; sy = ny;
+    if (view) {
+      // Apply elevation scale
+      if (view.elevation !== 0.5) sy *= view.elevation / 0.5;
+      // Apply rotation matrix
+      if (view.rotation !== 0) {
+        const rad = (view.rotation * Math.PI) / 180;
+        const c = Math.cos(rad), s = Math.sin(rad);
+        const aspect = tileW / tileH;
+        const nx = c * sx + s * aspect * sy;
+        const ny = (-s / aspect) * sx + c * sy;
+        sx = nx; sy = ny;
+      }
     }
 
-    return {
-      sx: originX + sx * this.zoom,
-      sy: originY + sy * this.zoom,
-    };
+    return { sx: originX + sx * this.zoom, sy: originY + sy * this.zoom };
   }
 
   screenToWorld(
@@ -180,15 +173,18 @@ export class Camera {
     let sx = (cx - originX) / this.zoom;
     let sy = (cy - originY) / this.zoom;
 
-    // Undo view matrix
-    if (view && (view.rotation !== 0 || view.elevation !== 0.5)) {
-      const rad = (view.rotation * Math.PI) / 180;
-      const c = Math.cos(rad), s = Math.sin(rad);
-      const r = view.elevation / 0.5;
-      // Inverse of [[c, s/r], [-s*r, c]] = [[c, -s/r], [s*r, c]] (det=1)
-      const nx = c * sx - (s / r) * sy;
-      const ny = (s * r) * sx + c * sy;
-      sx = nx; sy = ny;
+    if (view) {
+      // Undo rotation (inverse matrix)
+      if (view.rotation !== 0) {
+        const rad = (view.rotation * Math.PI) / 180;
+        const c = Math.cos(rad), s = Math.sin(rad);
+        const aspect = tileW / tileH;
+        const nx = c * sx - s * aspect * sy;
+        const ny = (s / aspect) * sx + c * sy;
+        sx = nx; sy = ny;
+      }
+      // Undo elevation scale
+      if (view.elevation !== 0.5) sy /= view.elevation / 0.5;
     }
 
     const camOffX = -(this.x - this.y) * (tileW / 2);

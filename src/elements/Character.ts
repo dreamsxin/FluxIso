@@ -289,7 +289,7 @@ export class Character extends Entity {
     const wy = gy + offY;
     const screenX = m.a * wx + m.c * wy + m.e;
     const screenY = m.b * wx + m.d * wy + m.f;
-    const zoomR = this.radius * 1.3 * (m.a || 1);
+    const zoomR = this.radius * 1.3 * Math.hypot(m.a, m.b);
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);

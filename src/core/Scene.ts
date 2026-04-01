@@ -245,14 +245,14 @@ export class Scene {
       offCtx.translate(originX, originY);
       offCtx.scale(this.camera.zoom, this.camera.zoom);
 
-      // Apply view rotation+elevation matrix (same as Camera.applyTransform)
       const rot  = this.view.rotation;
       const elev = this.view.elevation;
-      if (rot !== 0 || elev !== 0.5) {
+      if (elev !== 0.5) offCtx.scale(1, elev / 0.5);
+      if (rot !== 0) {
         const rad = (rot * Math.PI) / 180;
         const c = Math.cos(rad), s = Math.sin(rad);
-        const r = elev / 0.5;
-        offCtx.transform(c, -s * r, s / r, c, 0, 0);
+        const aspect = this.tileW / this.tileH;
+        offCtx.transform(c, -s / aspect, s * aspect, c, 0, 0);
       }
 
       const camOffX = -(this.camera.x - this.camera.y) * (this.tileW / 2);
