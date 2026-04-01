@@ -22,6 +22,7 @@ export class CubeHero extends Entity {
   private _ascendProgress = 0;
   private _ascendActive   = false;
   private _ascendDuration = 1.2; // 秒
+  private _descendMode    = false; // true=降落模式
 
   private _bobPhase   = 0;
   private _tiltX      = 0;
@@ -61,6 +62,13 @@ export class CubeHero extends Entity {
   triggerEntry(): void {
     this._entryActive   = true;
     this._entryProgress = 0;
+  }
+
+  /** 触发从光柱顶端降落的入场动画（配合目的地光柱） */
+  triggerDescend(): void {
+    this._entryActive   = true;
+    this._entryProgress = 0;
+    this._descendMode   = true;
   }
 
   get aabb(): AABB {
@@ -115,16 +123,29 @@ export class CubeHero extends Entity {
 
     // 入场动画（从高空落下 + 弹跳）
     if (this._entryActive) {
-      this._entryProgress = Math.min(1, this._entryProgress + dt * 1.8);
-      // easeOutBounce
+      this._entryProgress = Math.min(1, this._entryProgress + dt * (this._descendMode ? 1.2 : 1.8));
       const t = this._entryProgress;
-      const bounce = t < 0.36 ? 1 - (1 - t / 0.36) * (1 - t / 0.36)
-        : t < 0.72 ? 1 - 0.25 * Math.pow(1 - (t - 0.36) / 0.36, 2)
-        : 1 - 0.06 * Math.pow(1 - (t - 0.72) / 0.28, 2);
-      this.position.z = (1 - bounce) * 120; // 从 z=120 落到 z=0
+
+      if (this._descendMode) {
+        // 降落模式：从光柱顶端匀速落下，最后轻弹
+        const startZ = 320;
+        const bounce = t < 0.85
+          ? 1 - t / 0.85                                          // 线性下落
+          : 0.08 * Math.pow(1 - (t - 0.85) / 0.15, 2);          // 落地小弹跳
+        this.position.z = bounce * startZ;
+        this._spinAngle += dt * (4 - t * 3);                     // 旋转逐渐减慢
+      } else {
+        // 原有弹跳入场
+        const bounce = t < 0.36 ? 1 - (1 - t / 0.36) * (1 - t / 0.36)
+          : t < 0.72 ? 1 - 0.25 * Math.pow(1 - (t - 0.36) / 0.36, 2)
+          : 1 - 0.06 * Math.pow(1 - (t - 0.72) / 0.28, 2);
+        this.position.z = (1 - bounce) * 120;
+      }
+
       if (this._entryProgress >= 1) {
-        this._entryActive = false;
-        this.position.z = 0;
+        this._entryActive  = false;
+        this._descendMode  = false;
+        this.position.z    = 0;
       }
     }
   }

@@ -24,7 +24,7 @@ interface PortalParticle {
 }
 
 export class Portal extends Entity {
-  readonly triggerRadius = 1.2;
+  readonly triggerRadius = 2.0; // 与外圈八边形光圈范围匹配（tileW*1.05 ≈ 2.1 世界单位）
 
   private _phase = 0;
   private _activated = false;

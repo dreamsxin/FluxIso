@@ -12,6 +12,7 @@ import { CubeHero } from './CubeHero';
 import { buildPlainsScene, PLAINS_COLS, PLAINS_ROWS, PORTAL_X, PORTAL_Y } from './PlainsScene';
 import { buildLakeScene } from './LakeScene';
 import { DayNightCycle } from './DayNightCycle';
+import { Portal } from './Portal';
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 canvas.width  = Math.min(window.innerWidth,  980);
@@ -114,8 +115,18 @@ mgr.register('lake', () => ({
     sceneLabel.text   = '幻梦之湖';
     hintLabel.text    = '感受水之低语…';
     hintLabel.visible = true;
-    lakeHero.triggerEntry();
-    setTimeout(() => { hintLabel.visible = false; }, 4500);
+
+    // 在角色降落位置生成临时光柱，角色从光柱顶端落下
+    const beamDuration = 1.8;
+    const arrivalBeam = new Portal('arrival-beam', lakeHero.position.x, lakeHero.position.y);
+    lakeScene.addObject(arrivalBeam);
+    arrivalBeam.activateBeam(beamDuration);
+    lakeHero.triggerDescend();
+
+    setTimeout(() => {
+      lakeScene.removeById('arrival-beam');
+      hintLabel.visible = false;
+    }, (beamDuration + 0.8) * 1000);
   },
 }));
 
