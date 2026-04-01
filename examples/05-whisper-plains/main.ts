@@ -124,6 +124,7 @@ const mgr = new SceneManager(engine);
 
 let _portalTriggered = false, _portalHintAlpha = 0;
 let _lakePortalTriggered = false, _deepPortalTriggered = false;
+let _returningFromDeep = false; // 从深海传送回草原时为 true
 let _dustTimer = 0, _dreamTimer = 0, _rippleTimer = 0, _mistTimer = 0;
 
 mgr.register('plains', () => ({
@@ -132,6 +133,13 @@ mgr.register('plains', () => ({
     sceneLabel.text = '低语草原'; hintLabel.text = 'WASD / 点击 移动 · 走向传送阵';
     hintLabel.visible = true; portalHint.visible = false;
     _portalTriggered = false; _portalHintAlpha = 0;
+    // 如果是从深海回来，播放降落光柱
+    if (_returningFromDeep) {
+      _returningFromDeep = false;
+      const beam = new Portal('plains-arrival-beam', 3.5, 3.5);
+      plainsScene.addObject(beam); beam.activateBeam(1.8); hero.triggerDescend();
+      setTimeout(() => { plainsScene.removeById('plains-arrival-beam'); }, 2600);
+    }
   },
   onUpdate(dt, inp) {
     // 日夜
@@ -186,7 +194,10 @@ mgr.register('lake', () => ({
   onEnter() {
     sceneLabel.text = '幻梦之湖'; hintLabel.text = '感受水之低语… 寻找深海传送门'; hintLabel.visible = true;
     _lakePortalTriggered = false;
-    const beam = new Portal('arrival-beam', lakeHero.position.x, lakeHero.position.y);
+    // 降落点：场景中央偏左上，远离传送门（右下角 9,9）
+    const landX = 3.5, landY = 3.5;
+    lakeHero.position.x = landX; lakeHero.position.y = landY;
+    const beam = new Portal('arrival-beam', landX, landY);
     lakeScene.addObject(beam); beam.activateBeam(1.8); lakeHero.triggerDescend();
     setTimeout(() => { lakeScene.removeById('arrival-beam'); hintLabel.visible = false; }, 2600);
   },
@@ -216,7 +227,8 @@ mgr.register('deep', () => ({
   onEnter() {
     sceneLabel.text = '神秘深海'; hintLabel.text = '深海的秘密… 寻找回归之门'; hintLabel.visible = true;
     _deepPortalTriggered = false;
-    deepHero.position.x = DEEP_COLS / 2; deepHero.position.y = DEEP_ROWS / 2;
+    // 降落点：场景中央偏左上，远离传送门（右下角 10,10）
+    deepHero.position.x = 3.5; deepHero.position.y = 3.5;
     deepHero.triggerDescend();
     setTimeout(() => { hintLabel.visible = false; }, 4000);
   },
@@ -228,7 +240,12 @@ mgr.register('deep', () => ({
     const d = Math.hypot(deepHero.position.x - DEEP_PORTAL_X, deepHero.position.y - DEEP_PORTAL_Y);
     if (!_deepPortalTriggered && d < deepPortal.triggerRadius) {
       _deepPortalTriggered = true;
-      teleport(deepScene, deepHero, deepPortal, DEEP_PORTAL_X, DEEP_PORTAL_Y, 'lake', '#0a1a3a', '#0a1a3a', () => { lakeHero.position.x = LAKE_COLS / 2; lakeHero.position.y = LAKE_ROWS / 2; });
+      // 传送回草原，角色降落在草原起始点（远离草原传送门）
+      teleport(deepScene, deepHero, deepPortal, DEEP_PORTAL_X, DEEP_PORTAL_Y, 'plains', '#0a1a3a', '#88ccff', () => {
+        hero.position.x = 3.5; hero.position.y = 3.5;
+        _portalTriggered = false; _portalHintAlpha = 0;
+        _returningFromDeep = true;
+      });
     }
   },
   onDrawBackground: _drawDeepSky,
