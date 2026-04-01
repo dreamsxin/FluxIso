@@ -221,8 +221,8 @@ export class DeepSeaWeed extends IsoObject {
   }
 
   private _shiftColor(hex: string, amt: number): string {
-    const m = hex.match(/\d+/g) ?? ['0','0','0'];
-    const [r, g, b] = m.map(Number);
+    const n = parseInt(hex.replace('#', ''), 16);
+    const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
     const c = (v: number) => Math.max(0, Math.min(255, v + amt));
     return `rgb(${c(r)},${c(g)},${c(b)})`;
   }
@@ -318,8 +318,8 @@ export class Coral extends IsoObject {
   }
 
   private _lighten(hex: string, amt: number): string {
-    const m = hex.match(/\d+/g) ?? ['200','100','100'];
-    const [r, g, b] = m.map(Number);
+    const n = parseInt(hex.replace('#', ''), 16);
+    const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
     const c = (v: number) => Math.max(0, Math.min(255, v + amt));
     return `rgb(${c(r)},${c(g)},${c(b)})`;
   }
@@ -430,9 +430,8 @@ export class Jellyfish extends IsoObject {
   }
 
   private _rgba(hex: string, a: number): string {
-    const m = hex.match(/\d+/g) ?? ['180','100','255'];
-    const [r, g, b] = m.map(Number);
-    return `rgba(${r},${g},${b},${a.toFixed(2)})`;
+    const n = parseInt(hex.replace('#', ''), 16);
+    return `rgba(${(n >> 16) & 0xff},${(n >> 8) & 0xff},${n & 0xff},${a.toFixed(2)})`;
   }
 }
 
