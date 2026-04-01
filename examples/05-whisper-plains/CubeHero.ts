@@ -18,6 +18,11 @@ export class CubeHero extends Entity {
   /** 0–1，接近传送阵时由外部设置，影响钻石发光强度 */
   portalProximity = 0;
 
+  /** 飞升动画进度，0=未激活，>0=飞升中 */
+  private _ascendProgress = 0;
+  private _ascendActive   = false;
+  private _ascendDuration = 1.2; // 秒
+
   private _bobPhase   = 0;
   private _tiltX      = 0;
   private _tiltY      = 0;
@@ -37,6 +42,19 @@ export class CubeHero extends Entity {
 
   triggerTeleportFlash(): void {
     this._teleportFlash = 1;
+  }
+
+  /** 触发飞升动画，返回 Promise，动画结束后 resolve */
+  triggerAscend(): Promise<void> {
+    this._ascendActive   = true;
+    this._ascendProgress = 0;
+    return new Promise(resolve => {
+      const check = () => {
+        if (!this._ascendActive) resolve();
+        else requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    });
   }
 
   /** 触发从高空落下的入场动画 */
@@ -82,6 +100,19 @@ export class CubeHero extends Entity {
       this._teleportFlash = Math.max(0, this._teleportFlash - dt * 3);
     }
 
+    // 飞升动画：角色快速上升 + 缩小消失
+    if (this._ascendActive) {
+      this._ascendProgress = Math.min(1, this._ascendProgress + dt / this._ascendDuration);
+      // easeInQuad 加速上升
+      const t = this._ascendProgress;
+      const ease = t * t;
+      this.position.z = ease * 280;          // 飞升高度
+      this._spinAngle += dt * (3 + t * 8);   // 加速旋转
+      if (this._ascendProgress >= 1) {
+        this._ascendActive = false;
+      }
+    }
+
     // 入场动画（从高空落下 + 弹跳）
     if (this._entryActive) {
       this._entryProgress = Math.min(1, this._entryProgress + dt * 1.8);
@@ -117,6 +148,13 @@ export class CubeHero extends Entity {
 
     ctx.save();
     ctx.translate(cx, cy);
+
+    // 飞升时缩小 + 增亮
+    if (this._ascendActive) {
+      const t = this._ascendProgress;
+      const scale = 1 + t * 0.4 - t * t * 0.8; // 先略微放大再缩小
+      ctx.scale(scale, scale);
+    }
 
     // 倾斜变换
     ctx.transform(1, this._tiltY * 0.009, this._tiltX * 0.013, 1, 0, 0);

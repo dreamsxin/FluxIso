@@ -205,9 +205,16 @@ async function triggerTeleport(): Promise<void> {
   teleporting = true;
   _portalTriggered = true;
   portal.activate();
-  hero.triggerTeleportFlash();
+  portal.activateBeam(1.4);
   spawnTeleportBurst(plainsScene, PORTAL_X, PORTAL_Y);
-  await transition.playIn('fade', { color: '#ffffff', duration: 300 });
+
+  // 角色飞升（与光柱同步，1.2s）
+  const ascendPromise = hero.triggerAscend();
+  hero.triggerTeleportFlash();
+
+  // 等待飞升完成后再 fade
+  await ascendPromise;
+  await transition.playIn('fade', { color: '#ffffff', duration: 280 });
   await mgr.replace('lake');
   currentSceneName = 'lake';
   await transition.playOut('fade', { color: '#0a1a3a', duration: 650 });

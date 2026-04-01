@@ -31,8 +31,11 @@ export class Portal extends Entity {
   private _activationPulse = 0;
   private _lastTs = 0;
   private _particles: PortalParticle[] = [];
-  // 扩散光环
   private _shockwaves: Array<{ r: number; alpha: number }> = [];
+  // 大光柱
+  private _beamAlpha    = 0;
+  private _beamTimer    = 0;
+  private _beamDuration = 1.4;
 
   constructor(id: string, x: number, y: number) {
     super(id, x, y, 0);
@@ -59,8 +62,14 @@ export class Portal extends Entity {
   activate(): void {
     this._activated = true;
     this._activationPulse = 1;
-    // 触发扩散光环
     this._shockwaves.push({ r: 0, alpha: 0.9 });
+  }
+
+  /** 激活大光柱（传送时调用），持续 duration 秒后自动消退 */
+  activateBeam(duration = 1.4): void {
+    this._beamAlpha    = 1;
+    this._beamDuration = duration;
+    this._beamTimer    = 0;
   }
 
   get isActivated(): boolean { return this._activated; }
@@ -103,6 +112,15 @@ export class Portal extends Entity {
       sw.alpha -= dt * 1.8;
     }
     this._shockwaves = this._shockwaves.filter(sw => sw.alpha > 0);
+
+    // 大光柱消退
+    if (this._beamAlpha > 0) {
+      this._beamTimer += dt;
+      const fadeStart = this._beamDuration * 0.6;
+      if (this._beamTimer > fadeStart) {
+        this._beamAlpha = Math.max(0, 1 - (this._beamTimer - fadeStart) / (this._beamDuration * 0.4));
+      }
+    }
   }
 
   draw(dc: DrawContext): void {
@@ -126,6 +144,7 @@ export class Portal extends Entity {
     this._drawPillars(ctx, tileW, tileH, alpha);
     this._drawParticles(ctx, tileW, tileH, alpha);
     this._drawShockwaves(ctx, tileW, tileH);
+    if (this._beamAlpha > 0) this._drawAscendBeam(ctx, tileW, tileH, this._beamAlpha);
 
     ctx.restore();
   }
@@ -350,6 +369,76 @@ export class Portal extends Entity {
       ctx.stroke();
       ctx.restore();
     }
+  }
+
+  // ── 飞升大光柱 ────────────────────────────────────────────────────────────
+
+  private _drawAscendBeam(ctx: CanvasRenderingContext2D, tileW: number, tileH: number, alpha: number): void {
+    const beamW  = tileW * 0.55;
+    const beamH  = 420;          // 光柱高度（屏幕像素）
+    const scaleY = tileH / tileW;
+
+    // 主光柱：半透明渐变矩形
+    const grad = ctx.createLinearGradient(0, 0, 0, -beamH);
+    grad.addColorStop(0,   `rgba(200,160,255,${(alpha * 0.85).toFixed(2)})`);
+    grad.addColorStop(0.2, `rgba(180,120,255,${(alpha * 0.65).toFixed(2)})`);
+    grad.addColorStop(0.6, `rgba(140,100,255,${(alpha * 0.35).toFixed(2)})`);
+    grad.addColorStop(1,   'rgba(120,80,255,0)');
+
+    ctx.save();
+    ctx.scale(1, scaleY);
+    // 光柱形状：底部宽，顶部收窄
+    ctx.beginPath();
+    ctx.moveTo(-beamW * 0.5, 0);
+    ctx.lineTo( beamW * 0.5, 0);
+    ctx.lineTo( beamW * 0.18, -beamH);
+    ctx.lineTo(-beamW * 0.18, -beamH);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // 光柱内芯（更亮的细线）
+    const coreGrad = ctx.createLinearGradient(0, 0, 0, -beamH);
+    coreGrad.addColorStop(0,   `rgba(255,240,255,${(alpha * 0.9).toFixed(2)})`);
+    coreGrad.addColorStop(0.3, `rgba(220,180,255,${(alpha * 0.6).toFixed(2)})`);
+    coreGrad.addColorStop(0.7, `rgba(180,140,255,${(alpha * 0.25).toFixed(2)})`);
+    coreGrad.addColorStop(1,   'rgba(160,120,255,0)');
+    ctx.beginPath();
+    ctx.moveTo(-beamW * 0.12, 0);
+    ctx.lineTo( beamW * 0.12, 0);
+    ctx.lineTo( beamW * 0.04, -beamH);
+    ctx.lineTo(-beamW * 0.04, -beamH);
+    ctx.closePath();
+    ctx.fillStyle = coreGrad;
+    ctx.fill();
+
+    // 光柱边缘光晕（screen 混合）
+    ctx.globalCompositeOperation = 'screen';
+    const edgeGrad = ctx.createLinearGradient(0, 0, 0, -beamH * 0.7);
+    edgeGrad.addColorStop(0,   `rgba(180,100,255,${(alpha * 0.5).toFixed(2)})`);
+    edgeGrad.addColorStop(1,   'rgba(140,80,255,0)');
+    ctx.beginPath();
+    ctx.moveTo(-beamW * 0.9, 0);
+    ctx.lineTo( beamW * 0.9, 0);
+    ctx.lineTo( beamW * 0.25, -beamH * 0.7);
+    ctx.lineTo(-beamW * 0.25, -beamH * 0.7);
+    ctx.closePath();
+    ctx.fillStyle = edgeGrad;
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // 底部爆发光环
+    const burstR = beamW * 1.8;
+    const burstGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, burstR);
+    burstGrad.addColorStop(0,   `rgba(220,180,255,${(alpha * 0.6).toFixed(2)})`);
+    burstGrad.addColorStop(0.4, `rgba(160,100,255,${(alpha * 0.25).toFixed(2)})`);
+    burstGrad.addColorStop(1,   'rgba(120,80,255,0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, burstR, 0, Math.PI * 2);
+    ctx.fillStyle = burstGrad;
+    ctx.fill();
+
+    ctx.restore();
   }
 
   private _hexToRgba(hex: string, alpha: number): string {
