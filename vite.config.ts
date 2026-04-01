@@ -33,6 +33,7 @@ export default defineConfig({
             main:         resolve(__dirname, 'index.html'),
             editor:       resolve(__dirname, 'editor.html'),
             spriteEditor: resolve(__dirname, 'sprite-editor.html'),
+            examples:     resolve(__dirname, 'examples/index.html'),
             ex01:         resolve(__dirname, 'examples/01-minimal-scene/index.html'),
             ex02:         resolve(__dirname, 'examples/02-character-movement/index.html'),
             ex03:         resolve(__dirname, 'examples/03-combat-system/index.html'),
