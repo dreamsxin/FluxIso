@@ -186,6 +186,23 @@
         color: #f0c040;
       }
 
+      button#rainbow-btn {
+        background: #16161f;
+        border: 1px solid #2a2a3a;
+        color: #666;
+        font-size: 1rem;
+        padding: 3px 10px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+        user-select: none;
+      }
+      button#rainbow-btn:hover { border-color: #444; }
+      button#rainbow-btn.active {
+        background: #0a0a1a;
+        border-color: #8040c0;
+      }
+
       /* Keyboard shortcuts legend */
       .keys {
         font-size: 0.65rem;
@@ -219,12 +236,6 @@
           <span id="hud-path">path    idle</span>
           <span id="hud-light">light   x:8.2 y:5.0 z:120</span>
         </div>
-        <hr class="hud-divider" />
-        <div class="hud-section">
-          <span id="hud-crystal"  class="hud-prop">crystal ████████ 60/60</span>
-          <span id="hud-boulder"  class="hud-prop">boulder ████████ 100/100</span>
-          <span id="hud-chest"    class="hud-prop">chest   ████████ 40/40</span>
-        </div>
       </div>
     </div>
 
@@ -242,7 +253,7 @@
 
         <div class="keys">
           <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> move &nbsp;|&nbsp;
-          click floor to move
+          click floor to move &nbsp;|&nbsp; <kbd>R</kbd> reset
         </div>
       </div>
 
@@ -275,6 +286,7 @@
 
         <div class="mode-row">
           <button id="mode-btn">Orbit</button>
+          <button id="rainbow-btn" title="Rainbow mode (C)">🌈</button>
           <span style="font-size:0.68rem; color:#2a2a3a;">
             <kbd style="background:#16161f;border:1px solid #2a2a38;border-radius:3px;padding:0 4px;font-size:0.62rem;color:#3a3a50;font-family:monospace;">M</kbd>
             toggle &nbsp;|&nbsp; drag in manual
@@ -282,22 +294,36 @@
         </div>
       </div>
 
-      <!-- Minimap section -->
+      <!-- Minimap + Game section -->
       <div class="panel-section" style="grid-column: 1 / -1; border-top: 1px solid #1a1a24; padding-top: 10px;">
-        <div class="section-title">Minimap</div>
-        <div class="row">
-          <label>Show</label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input id="minimap-toggle" type="checkbox" checked style="accent-color:#5590cc;cursor:pointer;width:14px;height:14px;" />
-            <span style="font-size:0.7rem;color:#3a3a50;">Visible</span>
-          </label>
-          <label style="margin-left:auto;font-size:0.72rem;color:#4a4a5e;">Size</label>
-          <input id="minimap-size" type="range" min="100" max="220" value="150" step="10" style="width:90px;accent-color:#5590cc;cursor:pointer;" />
-          <label style="margin-left:16px;font-size:0.72rem;color:#4a4a5e;">Opacity</label>
-          <input id="minimap-alpha" type="range" min="0.1" max="1" value="0.7" step="0.05" style="width:90px;accent-color:#5590cc;cursor:pointer;" />
+        <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <div class="section-title">Minimap</div>
+            <div class="row" style="margin-top:8px;">
+              <label>Show</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input id="minimap-toggle" type="checkbox" checked style="accent-color:#5590cc;cursor:pointer;width:14px;height:14px;" />
+                <span style="font-size:0.7rem;color:#3a3a50;">Visible</span>
+              </label>
+              <label style="margin-left:auto;font-size:0.72rem;color:#4a4a5e;">Size</label>
+              <input id="minimap-size" type="range" min="100" max="220" value="150" step="10" style="width:80px;accent-color:#5590cc;cursor:pointer;" />
+              <label style="margin-left:12px;font-size:0.72rem;color:#4a4a5e;">Opacity</label>
+              <input id="minimap-alpha" type="range" min="0.1" max="1" value="0.7" step="0.05" style="width:80px;accent-color:#5590cc;cursor:pointer;" />
+            </div>
+          </div>
+          <div style="flex:0 0 auto;">
+            <div class="section-title">Game</div>
+            <div style="margin-top:8px;">
+              <button id="reset-btn" style="background:#16161f;border:1px solid #2a2a3a;color:#888;font-size:0.72rem;letter-spacing:0.08em;padding:5px 14px;border-radius:20px;cursor:pointer;">↺ Reset  (R)</button>
+            </div>
+          </div>
         </div>
-        <div class="keys" style="border:none;padding:0;margin-top:-4px;">
-          <kbd>Drag</kbd> to reposition minimap
+        <div class="keys" style="border:none;padding:0;margin-top:8px;">
+          <kbd>Drag</kbd> minimap &nbsp;|&nbsp;
+          <kbd>R</kbd> reset &nbsp;|&nbsp;
+          <kbd>M</kbd> light mode &nbsp;|&nbsp;
+          <kbd>C</kbd> rainbow &nbsp;|&nbsp;
+          <kbd>↑↓←→</kbd> move
         </div>
       </div>
 
