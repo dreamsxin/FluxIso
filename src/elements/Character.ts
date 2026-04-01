@@ -50,6 +50,9 @@ export class Character extends Entity {
     this._prevY = opts.y;
     this._lastFrameTime = 0;
 
+    // Character draws its own blob shadow in draw(); skip ShadowCaster
+    this.castsShadow = false;
+
     if (opts.spriteSheet) {
       this.setSpriteSheet(opts.spriteSheet);
     }
@@ -280,14 +283,23 @@ export class Character extends Entity {
     const offX = (dx / len) * this.radius * scale * 1.5;
     const offY = (dy / len) * this.radius * scale * 0.7;
 
+    // 用 getTransform 转换到真实屏幕坐标，避免 scale(1, 0.45) 压缩 translate 的 y
+    const m = ctx.getTransform();
+    const wx = gx + offX;
+    const wy = gy + offY;
+    const screenX = m.a * wx + m.c * wy + m.e;
+    const screenY = m.b * wx + m.d * wy + m.f;
+    const zoomR = this.radius * 1.3 * (m.a || 1);
+
     ctx.save();
-    ctx.translate(gx + offX, gy + offY);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.translate(screenX, screenY);
     ctx.scale(1, 0.45);
-    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, this.radius * 1.3);
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, zoomR);
     grad.addColorStop(0, 'rgba(0,0,0,0.55)');
     grad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.beginPath();
-    ctx.arc(0, 0, this.radius * 1.3, 0, Math.PI * 2);
+    ctx.arc(0, 0, zoomR, 0, Math.PI * 2);
     ctx.fillStyle = grad;
     ctx.fill();
     ctx.restore();

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>低语草原 — LuxIso Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    #canvas {
+      display: block;
+      cursor: crosshair;
+      image-rendering: pixelated;
+    }
+    #hint {
+      margin-top: 10px;
+      color: rgba(180,200,255,0.6);
+      font-size: 12px;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="hint">WASD / 方向键 移动 · 走入传送阵触发传送</div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

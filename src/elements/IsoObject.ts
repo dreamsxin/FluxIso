@@ -25,6 +25,21 @@ export abstract class IsoObject {
   id: string;
   position: IsoVec3;
 
+  /**
+   * When set to a positive number, ShadowCaster uses a circular footprint
+   * (radius in world units) instead of the rectangular AABB for shadow projection.
+   * Ideal for spheres, cylinders, and other round objects.
+   * Default undefined = use AABB rectangle.
+   */
+  shadowRadius?: number;
+
+  /**
+   * Set to false to opt out of the ShadowCaster system entirely.
+   * Use this when the object draws its own shadow in draw().
+   * Default true.
+   */
+  castsShadow: boolean = true;
+
   constructor(id: string, x: number, y: number, z: number) {
     this.id = id;
     this.position = { x, y, z };

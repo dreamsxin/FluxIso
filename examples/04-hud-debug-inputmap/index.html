@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LuxIso — 04 HUD + Debug + InputMap</title>
+  <style>
+    body { margin: 0; background: #1a1a2e; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; gap: 8px; }
+    canvas { display: block; cursor: crosshair; }
+    p { color: #aaa; font: 13px monospace; margin: 0; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <p>WASD / Arrow keys to move · F1 toggle debug · Click props to damage · Space to attack</p>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

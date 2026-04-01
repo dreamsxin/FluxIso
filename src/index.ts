@@ -13,6 +13,14 @@ export { InputManager } from './core/InputManager';
 export type { PointerState } from './core/InputManager';
 export { SceneManager } from './core/SceneManager';
 export type { ManagedScene } from './core/SceneManager';
+export { DebugRenderer } from './core/DebugRenderer';
+export type { DebugRendererOptions } from './core/DebugRenderer';
+export { HudLayer } from './core/HudLayer';
+export type { HudLabel, HudBar, HudButton, HudPanel, LabelOptions, BarOptions, ButtonOptions, PanelOptions } from './core/HudLayer';
+export { InputMap } from './core/InputMap';
+export { ObjectPool } from './core/ObjectPool';
+export { SceneTransition } from './core/SceneTransition';
+export type { TransitionEffect, TransitionOptions } from './core/SceneTransition';
 
 // Elements
 export { IsoObject } from './elements/IsoObject';

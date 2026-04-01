@@ -40,6 +40,8 @@ export class Chest extends Entity {
   constructor(id: string, x: number, y: number, color = '#a05c18') {
     super(id, x, y, 0);
     this._woodColor = color;
+    // Chest is roughly rectangular; use a slightly smaller shadow radius
+    this.shadowRadius = 0.32;
   }
 
   open():   void { this._lidOpen = true;  }

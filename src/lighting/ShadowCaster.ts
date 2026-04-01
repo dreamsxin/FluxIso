@@ -51,6 +51,9 @@ export class ShadowCaster {
     ctx.globalCompositeOperation = 'multiply';
 
     for (const obj of casters) {
+      // Skip objects that handle their own shadow
+      if (obj.castsShadow === false) continue;
+
       const { minX, minY, maxX, maxY, baseZ } = obj.aabb;
 
       // Estimate object height in world units from its screen-pixel baseZ.
@@ -63,13 +66,30 @@ export class ShadowCaster {
 
       if (cz >= lz) continue;  // object taller than light — no shadow
 
-      // 4 top corners of the AABB (world space, at height cz)
-      const topCorners: [number, number, number][] = [
-        [minX, minY, cz],
-        [maxX, minY, cz],
-        [maxX, maxY, cz],
-        [minX, maxY, cz],
-      ];
+      // Build the set of footprint points to project.
+      // If the object declares a shadowRadius, sample a circle of points
+      // (gives a round shadow for spheres/cylinders instead of a rectangle).
+      // Otherwise fall back to the 4 AABB corners.
+      let topCorners: [number, number, number][];
+
+      if (obj.shadowRadius && obj.shadowRadius > 0) {
+        const sr = obj.shadowRadius;
+        const ocx = (minX + maxX) / 2;
+        const ocy = (minY + maxY) / 2;
+        const CIRCLE_SAMPLES = 8;
+        topCorners = Array.from({ length: CIRCLE_SAMPLES }, (_, i) => {
+          const a = (i / CIRCLE_SAMPLES) * Math.PI * 2;
+          return [ocx + Math.cos(a) * sr, ocy + Math.sin(a) * sr, cz] as [number, number, number];
+        });
+      } else {
+        // 4 top corners of the AABB (world space, at height cz)
+        topCorners = [
+          [minX, minY, cz],
+          [maxX, minY, cz],
+          [maxX, maxY, cz],
+          [minX, maxY, cz],
+        ];
+      }
 
       // Project each top corner through the light onto z=0 (ground plane)
       const groundPts: [number, number][] = topCorners.map(([cx, cy, cornerZ]) => {
@@ -88,12 +108,27 @@ export class ShadowCaster {
       });
 
       // Also project the base footprint corners (z=0) for the shadow "base"
-      const basePts: [number, number][] = [
-        [minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY],
-      ].map(([bx, by]) => {
-        const p = project(bx, by, 0, tileW, tileH);
-        return [p.sx, p.sy] as [number, number];
-      });
+      let basePts: [number, number][];
+      if (obj.shadowRadius && obj.shadowRadius > 0) {
+        const sr = obj.shadowRadius;
+        const ocx = (minX + maxX) / 2;
+        const ocy = (minY + maxY) / 2;
+        const CIRCLE_SAMPLES = 8;
+        basePts = Array.from({ length: CIRCLE_SAMPLES }, (_, i) => {
+          const a = (i / CIRCLE_SAMPLES) * Math.PI * 2;
+          const bx = ocx + Math.cos(a) * sr;
+          const by = ocy + Math.sin(a) * sr;
+          const p = project(bx, by, 0, tileW, tileH);
+          return [p.sx, p.sy] as [number, number];
+        });
+      } else {
+        basePts = [
+          [minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY],
+        ].map(([bx, by]) => {
+          const p = project(bx, by, 0, tileW, tileH);
+          return [p.sx, p.sy] as [number, number];
+        });
+      }
 
       // Convex hull of base + projected top = full shadow polygon
       const allPts = [...basePts, ...screenPts];
