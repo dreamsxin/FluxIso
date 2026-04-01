@@ -359,6 +359,66 @@ minimapToggle.addEventListener('change', () => { minimapVisible = minimapToggle.
 minimapSizeSlider.addEventListener('input', () => { minimapSize = Number(minimapSizeSlider.value); });
 minimapAlphaSlider.addEventListener('input', () => { minimap.alpha = Number(minimapAlphaSlider.value); });
 
+// ── Camera view controls ──────────────────────────────────────────────────────
+
+const camRotSlider  = $<HTMLInputElement>('cam-rotation');
+const camRotVal     = $<HTMLSpanElement>('cam-rotation-val');
+const camElevSlider = $<HTMLInputElement>('cam-elevation');
+const camElevVal    = $<HTMLSpanElement>('cam-elevation-val');
+
+function syncCamSliders(): void {
+  camRotSlider.value  = String(Math.round(scene.view.rotation));
+  camRotVal.textContent = `${Math.round(scene.view.rotation)}°`;
+  camElevSlider.value = scene.view.elevation.toFixed(2);
+  camElevVal.textContent = scene.view.elevation.toFixed(2);
+}
+
+camRotSlider.addEventListener('input', () => {
+  const rot = Number(camRotSlider.value);
+  camRotVal.textContent = `${rot}°`;
+  scene.transitionView({ rotation: rot }, 0.25);
+  updateCamPresetHighlight();
+});
+
+camElevSlider.addEventListener('input', () => {
+  const elev = Number(camElevSlider.value);
+  camElevVal.textContent = elev.toFixed(2);
+  scene.transitionView({ elevation: elev }, 0.25);
+  updateCamPresetHighlight();
+});
+
+// Preset buttons
+const camPresets = document.querySelectorAll<HTMLButtonElement>('.cam-preset');
+camPresets.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const rot  = Number(btn.dataset.rot);
+    const elev = Number(btn.dataset.elev);
+    scene.transitionView({ rotation: rot, elevation: elev }, 0.5);
+    setTimeout(syncCamSliders, 520);
+    updateCamPresetHighlight(btn);
+  });
+});
+
+$<HTMLButtonElement>('cam-reset').addEventListener('click', () => {
+  scene.transitionView({ rotation: 0, elevation: 0.5 }, 0.5);
+  setTimeout(syncCamSliders, 520);
+  updateCamPresetHighlight();
+});
+
+function updateCamPresetHighlight(active?: HTMLButtonElement): void {
+  camPresets.forEach(b => b.classList.remove('active'));
+  if (active) { active.classList.add('active'); return; }
+  // Auto-match if current view matches a preset
+  camPresets.forEach(b => {
+    const rot  = Number(b.dataset.rot);
+    const elev = Number(b.dataset.elev);
+    if (Math.abs(scene.view.rotation - rot) < 1 && Math.abs(scene.view.elevation - elev) < 0.01) {
+      b.classList.add('active');
+    }
+  });
+}
+updateCamPresetHighlight();
+
 const ballElevSlider = $<HTMLInputElement>('ball-elev');
 const ballElevVal    = $<HTMLSpanElement>('ball-elev-val');
 ballElevSlider.addEventListener('input', () => {
