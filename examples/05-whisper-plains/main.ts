@@ -80,8 +80,7 @@ heroMv.onAttach(hero);
 plainsScene.camera.follow(hero);
 plainsScene.camera.lerpFactor = 0.06;
 
-const sunLight     = plainsScene.dirLights[0]  as DirectionalLight | undefined;
-const ambientLight = plainsScene.omniLights[0] as OmniLight        | undefined;
+const sunLight = plainsScene.dirLights[0] as DirectionalLight | undefined;
 
 // ── 湖水场景 ──────────────────────────────────────────────────────────────
 
@@ -246,13 +245,6 @@ engine.start(
         sunLight.angle     = (dp.angle * Math.PI) / 180;
         sunLight.elevation = (dp.elevation * Math.PI) / 180;
       }
-      const ap = dayNight.getAmbientParams();
-      if (ambientLight) {
-        ambientLight.color     = ap.color;
-        ambientLight.intensity = ap.intensity;
-      }
-
-      // 同步 scene ambient — Floor/Wall 自动响应，无需手动 floor 同步
       const sa = dayNight.getSceneAmbient();
       plainsScene.ambientColor     = sa.color;
       plainsScene.ambientIntensity = sa.intensity;

@@ -70,6 +70,10 @@ const HIT_SFX = '/sfx/hit.mp3';
 const scene = await engine.loadScene('/scenes/level1.json');
 engine.setScene(scene);
 
+// 设置场景基础环境光，确保白天草地足够亮
+scene.ambientColor     = '#fff8e8';
+scene.ambientIntensity = 0.55;
+
 const character = scene.getById('player') as Character;
 const omniLight = scene.omniLights[0] as OmniLight;
 
