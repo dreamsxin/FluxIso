@@ -142,6 +142,41 @@ export class DayNightCycle {
     };
   }
 
+  /**
+   * 返回 Scene 级别的 ambient 参数。
+   * 直接赋给 scene.ambientColor + scene.ambientIntensity，
+   * Floor / Wall 等所有对象自动响应，无需手动同步。
+   *
+   * 白天：暖白高亮，夜晚：深蓝低亮。
+   */
+  getSceneAmbient(): { color: string; intensity: number } {
+    const n = this.nightness;
+    // 白天暖白偏黄，夜晚深蓝
+    const r = Math.round(this._lerp(255, 20,  n));
+    const g = Math.round(this._lerp(248, 35,  n));
+    const b = Math.round(this._lerp(220, 80,  n));
+    return {
+      color:     `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`,
+      // 白天 0.55，夜晚 0.06 — 让夜晚草地真正变暗
+      intensity: this._lerp(0.55, 0.06, n),
+    };
+  }
+
+  /**
+   * 返回地面渲染参数，供 Floor.ambientLight 和 Floor.nightTintAlpha 使用。
+   * 白天 ambientLight 较高（草地明亮），夜晚降低并叠加蓝色夜色。
+   */
+  getFloorParams(): { ambientLight: number; nightTintAlpha: number; nightTint: string } {
+    const n = this.nightness;
+    return {
+      // 白天 0.55，夜晚 0.08 — 让夜晚草地真正变暗
+      ambientLight:     this._lerp(0.55, 0.08, n),
+      // 夜晚叠加深蓝色调（最大 0.55）
+      nightTintAlpha:   this._lerp(0,    0.55, n),
+      nightTint:        '#0a1428',
+    };
+  }
+
   // ── 私有 ──────────────────────────────────────────────────────────────────
 
   private _lerp(a: number, b: number, t: number): number {

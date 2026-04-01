@@ -67,7 +67,7 @@ export class Wall extends IsoObject {
   }
 
   draw(dc: DrawContext): void {
-    const { ctx, tileW, tileH, originX, originY, omniLights, dirLights } = dc;
+    const { ctx, tileW, tileH, originX, originY, omniLights, dirLights, ambientRgb } = dc;
     const { x, y } = this.position;
 
     const isXWall = y === this.endY;
@@ -81,7 +81,10 @@ export class Wall extends IsoObject {
     const wallMidSy = originY + msy;
 
     // ── Accumulate RGB from all lights ──
-    let rTotal = 0, gTotal = 0, bTotal = 0;
+    // Start from scene ambient so walls also respond to day/night
+    let rTotal = ambientRgb[0];
+    let gTotal = ambientRgb[1];
+    let bTotal = ambientRgb[2];
 
     // OmniLights — distance-based, no face-angle contribution
     for (const l of omniLights) {
@@ -137,15 +140,14 @@ export class Wall extends IsoObject {
     const x1 = originX + p1.sx;
     const y1 = originY + p1.sy;
 
-    // Base wall color tinted by accumulated RGB light
+    // Base wall color tinted by accumulated RGB light (ambient already included)
     const baseR = isXWall ? 48 : 60;
     const baseG = isXWall ? 43 : 54;
     const baseB = isXWall ? 58 : 72;
-    const ambient = 0.18;
 
-    const r = Math.min(255, Math.round(baseR * ambient + rIllum * (255 - baseR * ambient)));
-    const g = Math.min(255, Math.round(baseG * ambient + gIllum * (255 - baseG * ambient)));
-    const b = Math.min(255, Math.round(baseB * ambient + bIllum * (255 - baseB * ambient)));
+    const r = Math.min(255, Math.round(baseR * rIllum + rIllum * (255 - baseR)));
+    const g = Math.min(255, Math.round(baseG * gIllum + gIllum * (255 - baseG)));
+    const b = Math.min(255, Math.round(baseB * bIllum + bIllum * (255 - baseB)));
 
     // Fill parallelogram
     ctx.save();

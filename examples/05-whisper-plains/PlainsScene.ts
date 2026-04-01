@@ -66,37 +66,19 @@ export function buildPlainsScene(): { scene: Scene; portal: Portal; collider: Ti
 
   // ── 光照 ──────────────────────────────────────────────────────────────────
   scene.addLight(new DirectionalLight({
-    angle: 215, elevation: 52, color: '#fff6d8', intensity: 1.2,
-  }));
-  // 全场覆盖的主环境光（超大 radius 确保边缘不暗）
-  scene.addLight(new OmniLight({
-    x: PLAINS_COLS / 2, y: PLAINS_ROWS / 2, z: 200,
-    color: '#e8f4d0', intensity: 0.85, radius: 2400,
-  }));
-  // 四角补光，消除边缘暗角
-  scene.addLight(new OmniLight({
-    x: 1, y: 1, z: 150, color: '#d0eec0', intensity: 0.5, radius: 900,
-  }));
-  scene.addLight(new OmniLight({
-    x: PLAINS_COLS - 1, y: 1, z: 150, color: '#d0eec0', intensity: 0.5, radius: 900,
-  }));
-  scene.addLight(new OmniLight({
-    x: 1, y: PLAINS_ROWS - 1, z: 150, color: '#d0eec0', intensity: 0.5, radius: 900,
-  }));
-  scene.addLight(new OmniLight({
-    x: PLAINS_COLS - 1, y: PLAINS_ROWS - 1, z: 150, color: '#d0eec0', intensity: 0.5, radius: 900,
-  }));
-  // 梦幻紫蓝补光（场景中央偏右，营造魔法氛围）
-  scene.addLight(new OmniLight({
-    id: 'dream-light',
-    x: 10, y: 6, z: 180,
-    color: '#c0a8ff', intensity: 0.28, radius: 1100,
+    angle: 215, elevation: 52, color: '#fff6d8', intensity: 1.0,
   }));
   // 传送阵紫色补光
   scene.addLight(new OmniLight({
     id: 'portal-light',
     x: PORTAL_X, y: PORTAL_Y, z: 55,
     color: '#a060ff', intensity: 0.5, radius: 320,
+  }));
+  // 梦幻紫蓝补光（场景中央偏右）
+  scene.addLight(new OmniLight({
+    id: 'dream-light',
+    x: 10, y: 6, z: 180,
+    color: '#c0a8ff', intensity: 0.22, radius: 1100,
   }));
 
   // ── 树木 ──────────────────────────────────────────────────────────────────

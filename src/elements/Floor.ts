@@ -23,6 +23,14 @@ export interface FloorOptions {
   altTileImage?: string;
 }
 
+/**
+ * Floor — isometric tiled ground plane.
+ *
+ * Lighting is fully automatic: the floor reads omniLights, dirLights, and
+ * dc.ambientRgb from the DrawContext injected by Scene.draw().
+ * To drive day/night, set scene.ambientColor + scene.ambientIntensity each
+ * frame — no manual floor property sync required.
+ */
 export class Floor extends IsoObject {
   cols: number;
   rows: number;
@@ -52,7 +60,7 @@ export class Floor extends IsoObject {
   }
 
   draw(dc: DrawContext): void {
-    const { ctx, tileW, tileH, originX, originY, omniLights, dirLights } = dc;
+    const { ctx, tileW, tileH, originX, originY, omniLights, dirLights, ambientRgb } = dc;
 
     // Pre-compute omni light screen positions once
     const omniScreenPos = omniLights.map((l) => {
@@ -71,9 +79,12 @@ export class Floor extends IsoObject {
         const tileCx = originX + csx;
         const tileCy = originY + csy;
 
-        // Accumulate RGB illumination (multi-light color mixing)
-        let rIllum = 0, gIllum = 0, bIllum = 0;
+        // Start accumulation from scene ambient (injected by Scene)
+        let rIllum = ambientRgb[0];
+        let gIllum = ambientRgb[1];
+        let bIllum = ambientRgb[2];
 
+        // OmniLights (global ones skip distance calc inside illuminateAt)
         for (const { lsx, lsy, light } of omniScreenPos) {
           const factor = light.illuminateAt(tileCx, tileCy, lsx, lsy);
           if (factor <= 0) continue;
@@ -83,10 +94,9 @@ export class Floor extends IsoObject {
           bIllum += (lb / 255) * factor;
         }
 
-        // Directional light: floor normal points straight up (0,0,1)
-        // dot(normal, lightDir) = sin(elevation) — independent of angle
+        // Directional light: floor normal points straight up → dot = sin(elevation)
         for (const dl of dirLights) {
-          const factor = Math.max(0.15, Math.sin(dl.elevation)) * dl.intensity;
+          const factor = Math.sin(dl.elevation) * dl.intensity;
           if (factor <= 0) continue;
           const [lr, lg, lb] = hexToRgb(dl.color);
           rIllum += (lr / 255) * factor;
@@ -106,7 +116,7 @@ export class Floor extends IsoObject {
         const isEven = (col + row) % 2 === 0;
         const tileImg = isEven ? img : (altImg ?? img);
 
-        this.drawTile(ctx, tileX, tileY, tileW, tileH, col, row, isEven, tileImg, rIllum, gIllum, bIllum);
+        this.drawTile(ctx, tileX, tileY, tileW, tileH, isEven, tileImg, rIllum, gIllum, bIllum);
       }
     }
   }
@@ -115,7 +125,6 @@ export class Floor extends IsoObject {
     ctx: CanvasRenderingContext2D,
     cx: number, cy: number,
     tileW: number, tileH: number,
-    _col: number, _row: number,
     isEven: boolean,
     img: HTMLImageElement | undefined,
     rIllum: number, gIllum: number, bIllum: number,
@@ -123,7 +132,7 @@ export class Floor extends IsoObject {
     const hw = tileW / 2;
     const hh = tileH / 2;
 
-    // Build the diamond clipping path
+    // Diamond clip path
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(cx,      cy - hh);
@@ -134,59 +143,44 @@ export class Floor extends IsoObject {
     ctx.clip();
 
     if (img) {
-      // Draw texture clipped to diamond
       ctx.drawImage(img, cx - hw, cy - hh, tileW, tileH);
 
-      // Lighting multiply layer
+      // Darken by inverse of illumination
       const alpha = 1 - Math.min(1, (rIllum + gIllum + bIllum) / 3 + 0.15);
       if (alpha > 0.01) {
         ctx.fillStyle = `rgba(0,0,0,${alpha.toFixed(3)})`;
         ctx.fill();
       }
 
-      // Color tint from colored lights (additive screen blend approximation)
+      // Additive color tint from lights
       if (rIllum + gIllum + bIllum > 0.05) {
         ctx.globalCompositeOperation = 'screen';
-        const r = Math.round(rIllum * 40);
-        const g = Math.round(gIllum * 40);
-        const b = Math.round(bIllum * 40);
-        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillStyle = `rgb(${Math.round(rIllum * 40)},${Math.round(gIllum * 40)},${Math.round(bIllum * 40)})`;
         ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
       }
     } else {
-      // Procedural color mode
-      const base = isEven ? 42 : (this.altColor ? 0 : 36);
       let r: number, g: number, b: number;
-
       if (this.altColor && !isEven) {
         [r, g, b] = hexToRgb(this.altColor);
       } else {
         [r, g, b] = hexToRgb(this.color);
       }
 
-      // Apply lighting: scale base color by illum, then add light color tint
-      const ambient = 0.62;
+      // illumTotal drives the brightness scale; ambient is already baked into rIllum
       const illumTotal = Math.min(1, (rIllum + gIllum + bIllum) / 3);
-      const scale = ambient + illumTotal * (1 - ambient);
 
-      const fr = Math.min(255, Math.round(r * scale + rIllum * 35));
-      const fg = Math.min(255, Math.round(g * scale + gIllum * 35));
-      const fb = Math.min(255, Math.round(b * scale + bIllum * 35));
+      const fr = Math.min(255, Math.round(r * illumTotal + rIllum * 30));
+      const fg = Math.min(255, Math.round(g * illumTotal + gIllum * 30));
+      const fb = Math.min(255, Math.round(b * illumTotal + bIllum * 30));
 
-      // If no lights at all, use original procedural scheme
-      if (rIllum + gIllum + bIllum < 0.01) {
-        const lit = Math.round(base + illumTotal * 80);
-        ctx.fillStyle = `rgb(${lit},${Math.round(lit * 0.85)},${Math.round(lit * 1.15)})`;
-      } else {
-        ctx.fillStyle = `rgb(${fr},${fg},${fb})`;
-      }
+      ctx.fillStyle = `rgb(${fr},${fg},${fb})`;
       ctx.fill();
     }
 
     ctx.restore();
 
-    // Tile border (drawn after restore, no clipping needed)
+    // Tile border
     ctx.beginPath();
     ctx.moveTo(cx,      cy - hh);
     ctx.lineTo(cx + hw, cy);
@@ -198,5 +192,3 @@ export class Floor extends IsoObject {
     ctx.stroke();
   }
 }
-
-// ── helpers removed — imported from src/math/color.ts ──────────────────────

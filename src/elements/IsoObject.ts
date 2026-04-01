@@ -15,6 +15,13 @@ export interface DrawContext {
   originY: number;
   omniLights: OmniLight[];
   dirLights: DirectionalLight[];
+  /**
+   * Scene-level ambient light as a pre-multiplied RGB triple [r, g, b] in 0–1.
+   * Injected by Scene.draw() from scene.ambientColor × scene.ambientIntensity.
+   * Floor and Wall use this as the minimum illumination floor, so the whole
+   * scene darkens/tints automatically when you change scene.ambientColor.
+   */
+  ambientRgb: [number, number, number];
 }
 
 /**

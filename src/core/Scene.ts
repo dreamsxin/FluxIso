@@ -13,7 +13,7 @@ import { FloatingText, FloatingTextOptions } from '../elements/props/FloatingTex
 import { project } from '../math/IsoProjection';
 import { topoSort } from '../math/depthSort';
 import { TileCollider } from '../physics/TileCollider';
-import { hexToRgba } from '../math/color';
+import { hexToRgb, hexToRgba } from '../math/color';
 
 export interface SceneOptions {
   tileW?: number;
@@ -43,6 +43,21 @@ export class Scene {
   readonly tileH: number;
   readonly cols: number;
   readonly rows: number;
+
+  /**
+   * Scene-level ambient light color (CSS hex string, e.g. '#ffffff').
+   * Combined with ambientIntensity and injected into every DrawContext as
+   * ambientRgb — Floor, Wall, and custom objects all respond automatically.
+   * Change this each frame from your day/night system; no manual floor sync needed.
+   */
+  ambientColor = '#ffffff';
+
+  /**
+   * Scene-level ambient intensity (0–1).
+   * Multiplied with ambientColor to produce the ambientRgb in DrawContext.
+   * 0 = pitch black ambient, 1 = full ambient color.
+   */
+  ambientIntensity = 0.15;
 
   constructor(opts: SceneOptions = {}) {
     this.tileW = opts.tileW ?? 64;
@@ -150,13 +165,22 @@ export class Scene {
     const omniLights = this.omniLights;
     const dirLights  = this.dirLights;
 
+    // Compute scene ambient RGB (color × intensity)
+    const [ar, ag, ab] = hexToRgb(this.ambientColor);
+    const ai = Math.max(0, Math.min(1, this.ambientIntensity));
+    const ambientRgb: [number, number, number] = [
+      (ar / 255) * ai,
+      (ag / 255) * ai,
+      (ab / 255) * ai,
+    ];
+
     // Separate floor from other objects for lightmap caching
     const floorObjects  = this.objects.filter((o): o is Floor => o instanceof Floor);
     const sceneObjects  = this.objects.filter((o) => !(o instanceof Floor));
 
-    // ── Bake floor lightmap if lights changed ──────────────────────────────
+    // ── Bake floor lightmap if lights or ambient changed ───────────────────
     const cache = this._lightmapCache;
-    if (cache.isDirty(omniLights, dirLights, this.camera.x, this.camera.y, this.camera.zoom)) {
+    if (cache.isDirty(omniLights, dirLights, this.camera.x, this.camera.y, this.camera.zoom, ambientRgb)) {
       cache.begin();
 
       // Draw floor into the offscreen canvas using a temporary 2D context.
@@ -178,6 +202,7 @@ export class Scene {
         originY: 0,
         omniLights,
         dirLights,
+        ambientRgb,
       };
       for (const floor of floorObjects) {
         floor.draw(floorDc);
@@ -203,6 +228,7 @@ export class Scene {
       originY: 0,
       omniLights,
       dirLights,
+      ambientRgb,
     };
 
     // Cast ground shadows from each OmniLight before drawing objects

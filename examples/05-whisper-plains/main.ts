@@ -64,6 +64,13 @@ let _portalHintAlpha = 0;
 
 const { scene: plainsScene, portal, collider: plainsCollider } = buildPlainsScene();
 
+// 立即应用初始 scene ambient（避免第一帧用默认值）
+{
+  const sa = dayNight.getSceneAmbient();
+  plainsScene.ambientColor     = sa.color;
+  plainsScene.ambientIntensity = sa.intensity;
+}
+
 const hero = new CubeHero('hero', 3.5, 3.5);
 plainsScene.addObject(hero);
 
@@ -244,6 +251,11 @@ engine.start(
         ambientLight.color     = ap.color;
         ambientLight.intensity = ap.intensity;
       }
+
+      // 同步 scene ambient — Floor/Wall 自动响应，无需手动 floor 同步
+      const sa = dayNight.getSceneAmbient();
+      plainsScene.ambientColor     = sa.color;
+      plainsScene.ambientIntensity = sa.intensity;
 
       const n = dayNight.nightness;
       const isDusk  = n > 0.3 && n < 0.7;
