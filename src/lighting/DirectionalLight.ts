@@ -1,6 +1,7 @@
 import { BaseLight } from './BaseLight';
 
 export interface DirectionalLightOptions {
+  id?: string;
   /** Angle in degrees (0 = right, 90 = down in screen space) */
   angle?: number;
   /** Elevation in degrees above the ground plane (0–90) */
@@ -18,6 +19,7 @@ export class DirectionalLight extends BaseLight {
 
   constructor(opts: DirectionalLightOptions = {}) {
     super(opts.color ?? '#ffffff', opts.intensity ?? 0.4);
+    this.id = opts.id;
     this.angle = ((opts.angle ?? 45) * Math.PI) / 180;
     this.elevation = ((opts.elevation ?? 45) * Math.PI) / 180;
   }

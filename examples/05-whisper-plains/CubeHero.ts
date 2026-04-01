@@ -14,13 +14,19 @@ export class CubeHero extends Entity {
   velX = 0;
   velY = 0;
 
+  /** 0–1，接近传送阵时由外部设置，影响钻石发光强度 */
+  portalProximity = 0;
+
   private _bobPhase   = 0;
   private _tiltX      = 0;
   private _tiltY      = 0;
-  private _spinAngle  = 0;   // 慢速自转
-  private _glintAngle = 0;   // 折射光点旋转
+  private _spinAngle  = 0;
+  private _glintAngle = 0;
   private _lastTs     = 0;
   private _teleportFlash = 0;
+  /** 入场动画：从高空落下，0=开始，1=完成 */
+  private _entryProgress = 0;
+  private _entryActive   = false;
 
   constructor(id: string, x: number, y: number) {
     super(id, x, y, 0);
@@ -30,6 +36,12 @@ export class CubeHero extends Entity {
 
   triggerTeleportFlash(): void {
     this._teleportFlash = 1;
+  }
+
+  /** 触发从高空落下的入场动画 */
+  triggerEntry(): void {
+    this._entryActive   = true;
+    this._entryProgress = 0;
   }
 
   get aabb(): AABB {
@@ -60,12 +72,28 @@ export class CubeHero extends Entity {
     this._tiltX += (targetTiltX - this._tiltX) * Math.min(1, dt * 9);
     this._tiltY += (targetTiltY - this._tiltY) * Math.min(1, dt * 9);
 
-    // 慢速自转 + 折射光旋转
-    this._spinAngle  += dt * 0.6;
-    this._glintAngle += dt * 1.8;
+    // 慢速自转 + 折射光旋转（接近传送阵时加速）
+    const spinBoost = 1 + this.portalProximity * 2.5;
+    this._spinAngle  += dt * 0.6 * spinBoost;
+    this._glintAngle += dt * 1.8 * spinBoost;
 
     if (this._teleportFlash > 0) {
       this._teleportFlash = Math.max(0, this._teleportFlash - dt * 3);
+    }
+
+    // 入场动画（从高空落下 + 弹跳）
+    if (this._entryActive) {
+      this._entryProgress = Math.min(1, this._entryProgress + dt * 1.8);
+      // easeOutBounce
+      const t = this._entryProgress;
+      const bounce = t < 0.36 ? 1 - (1 - t / 0.36) * (1 - t / 0.36)
+        : t < 0.72 ? 1 - 0.25 * Math.pow(1 - (t - 0.36) / 0.36, 2)
+        : 1 - 0.06 * Math.pow(1 - (t - 0.72) / 0.28, 2);
+      this.position.z = (1 - bounce) * 120; // 从 z=120 落到 z=0
+      if (this._entryProgress >= 1) {
+        this._entryActive = false;
+        this.position.z = 0;
+      }
     }
   }
 
@@ -249,6 +277,24 @@ export class CubeHero extends Entity {
     ctx.moveTo(0, tableY - cr * 0.5); ctx.lineTo(0, tableY + cr * 0.5);
     ctx.stroke();
     ctx.restore();
+
+    // 接近传送阵时的紫色光晕叠加
+    if (this.portalProximity > 0) {
+      ctx.save();
+      ctx.globalAlpha = this.portalProximity * 0.5;
+      ctx.globalCompositeOperation = 'screen';
+      const portalGlow = ctx.createRadialGradient(0, -10, 0, 0, -10, W * 1.4);
+      portalGlow.addColorStop(0, '#c080ff');
+      portalGlow.addColorStop(0.5, 'rgba(160,80,255,0.4)');
+      portalGlow.addColorStop(1, 'rgba(100,60,255,0)');
+      ctx.beginPath();
+      ctx.arc(0, -10, W * 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = portalGlow;
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
   }
 
   // ── 外圈折射光点 ──────────────────────────────────────────────────────────

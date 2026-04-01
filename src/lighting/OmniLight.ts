@@ -2,6 +2,7 @@ import { IsoVec3 } from '../math/IsoProjection';
 import { BaseLight } from './BaseLight';
 
 export interface OmniLightOptions {
+  id?: string;
   x: number;
   y: number;
   z: number;
@@ -18,6 +19,7 @@ export class OmniLight extends BaseLight {
 
   constructor(opts: OmniLightOptions) {
     super(opts.color ?? '#ffffff', opts.intensity ?? 1);
+    this.id = opts.id;
     this.position = { x: opts.x, y: opts.y, z: opts.z };
     this.radius = opts.radius ?? 320;
   }

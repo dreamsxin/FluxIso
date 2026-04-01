@@ -103,6 +103,11 @@ export class Scene {
     return this.lights.filter((l): l is DirectionalLight => l instanceof DirectionalLight);
   }
 
+  /** Find a light by id. */
+  getLightById(id: string): BaseLight | undefined {
+    return this.lights.find(l => l.id === id);
+  }
+
   // ── Per-frame update ───────────────────────────────────────────────────────
 
   private _lastTs = 0;
@@ -113,6 +118,7 @@ export class Scene {
     this._lastTs = now;
     this.camera.update(dt);
     for (const obj of this.objects) {
+      if (!obj.visible) continue;
       const updatable = obj as unknown as { update?: (ts?: number, collider?: TileCollider | null) => void };
       if (typeof updatable.update === 'function') {
         updatable.update(ts, this.collider);
@@ -201,13 +207,11 @@ export class Scene {
 
     // Cast ground shadows from each OmniLight before drawing objects
     for (const light of omniLights) {
-      ShadowCaster.draw(ctx, light, sceneObjects, this.tileW, this.tileH);
+      ShadowCaster.draw(ctx, light, sceneObjects.filter(o => o.visible), this.tileW, this.tileH);
     }
 
     // ── Frustum culling ────────────────────────────────────────────────────
-    // Compute visible world bounds from camera + canvas size.
-    // Objects whose AABB centre is far outside the view are skipped.
-    const visibleObjects = this._frustumCull(sceneObjects, canvasW, canvasH, originX, originY);
+    const visibleObjects = this._frustumCull(sceneObjects.filter(o => o.visible), canvasW, canvasH, originX, originY);
 
     // ── Dirty-flag topoSort ────────────────────────────────────────────────
     // Re-sort only when object positions have changed.

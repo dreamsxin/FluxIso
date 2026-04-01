@@ -32,12 +32,19 @@ export interface TweenTarget {
 }
 
 export interface TweenOptions {
-  /** Properties to animate. */
+  /** Properties to animate on owner.position. */
   targets: TweenTarget[];
   /** Duration in seconds. */
   duration: number;
   /** Easing function. Default linear. */
   easing?: EasingFn;
+  /**
+   * Called every frame with the current eased value (0–1).
+   * Use this to animate anything beyond position (colors, opacity, scale, etc.).
+   * @example
+   *   onUpdate: (v) => { myObj.alpha = v; }
+   */
+  onUpdate?: (easedValue: number) => void;
   /** Called when the tween completes. */
   onComplete?: () => void;
   /** If true, ping-pong between from and to. Default false. */
@@ -114,6 +121,8 @@ export class TweenComponent implements Component {
     for (const t of this._opts.targets) {
       pos[t.prop] = t.from + (t.to - t.from) * eased;
     }
+    // Fire onUpdate with current eased value
+    this._opts.onUpdate?.(eased);
 
     if (raw >= 1) {
       const repeat = this._opts.repeat ?? 0;

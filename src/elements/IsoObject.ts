@@ -41,6 +41,12 @@ export abstract class IsoObject {
    */
   castsShadow: boolean = false;
 
+  /**
+   * When false, the object is skipped during draw() and update().
+   * Default true.
+   */
+  visible: boolean = true;
+
   constructor(id: string, x: number, y: number, z: number) {
     this.id = id;
     this.position = { x, y, z };
