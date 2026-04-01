@@ -12,12 +12,13 @@ import { AudioManager } from './audio/AudioManager';
 import { ParticleSystem } from './animation/ParticleSystem';
 import { Minimap } from './core/Minimap';
 import { MovementComponent } from './ecs/components/MovementComponent';
+import { InputManager } from './core/InputManager';
 
 // ─── Canvas & Engine ──────────────────────────────────────────────────────────
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 
-const COLS = 10;
+const COLS = 16;
 const ROWS = 10;
 const TILE_W = 64;
 const TILE_H = 32;
@@ -31,8 +32,31 @@ const engine = new Engine({ canvas });
 engine.originX = canvasW / 2;
 engine.originY = ROWS * (TILE_H / 2) + 20;
 
-const ORIGIN_X = engine.originX;
-const ORIGIN_Y = engine.originY;
+const input = new InputManager(canvas);
+
+// ─── Responsive Resize ────────────────────────────────────────────────────────
+
+window.addEventListener('resize', () => {
+  const parent = canvas.parentElement;
+  if (parent) {
+    const w = parent.clientWidth;
+    const h = parent.clientHeight;
+    if (w !== canvas.width || h !== canvas.height) {
+      const oldW = canvas.width;
+      const oldH = canvas.height;
+      canvas.width = w;
+      canvas.height = h;
+      engine.originX = w / 2;
+      engine.originY = ROWS * (TILE_H / 2) + 20;
+
+      // Keep minimap relative to bottom-right if it was there
+      minimapX += (w - oldW);
+      minimapY += (h - oldH);
+      minimapX = clamp(minimapX, 0, w - minimapSize);
+      minimapY = clamp(minimapY, 0, h - minimapSize);
+    }
+  }
+});
 
 // ─── Audio ────────────────────────────────────────────────────────────────────
 
@@ -68,42 +92,39 @@ function spawnFx(x: number, y: number, preset: FxPreset, color?: string, count?:
 
 // ─── Low Poly props with HealthComponent ─────────────────────────────────────
 
-const crystal = new Crystal('crystal-1', 2, 3, '#8060e0');
-crystal.addComponent(new HealthComponent({
-  max: 60,
-  onChange: () => spawnFx(crystal.position.x, crystal.position.y, 'spark', '#8060e0', 8),
-  onDeath: () => {
+const crystal = scene.getById('crystal-1') as Crystal;
+const boulder = scene.getById('boulder-1') as Boulder;
+const chest   = scene.getById('chest-1') as Chest;
+
+const crystalHp = crystal.getComponent<HealthComponent>('health');
+if (crystalHp) {
+  crystalHp.onChange = () => spawnFx(crystal.position.x, crystal.position.y, 'spark', '#8060e0', 8);
+  crystalHp.onDeath = () => {
     spawnFx(crystal.position.x, crystal.position.y, 'crystal', '#8060e0', 20);
     scene.removeById('crystal-1');
-  },
-}));
+  };
+}
 
-const boulder = new Boulder('boulder-1', 7, 2, '#7a7a8a');
-boulder.addComponent(new HealthComponent({
-  max: 100,
-  onChange: () => spawnFx(boulder.position.x, boulder.position.y, 'dust', undefined, 6),
-  onDeath: () => {
+const boulderHp = boulder.getComponent<HealthComponent>('health');
+if (boulderHp) {
+  boulderHp.onChange = () => spawnFx(boulder.position.x, boulder.position.y, 'dust', undefined, 6);
+  boulderHp.onDeath = () => {
     spawnFx(boulder.position.x, boulder.position.y, 'dust', undefined, 16);
     scene.removeById('boulder-1');
-  },
-}));
+  };
+}
 
-const chest = new Chest('chest-1', 7, 7);
-chest.addComponent(new HealthComponent({
-  max: 40,
-  onChange: (hp, max) => {
+const chestHp = chest.getComponent<HealthComponent>('health');
+if (chestHp) {
+  chestHp.onChange = (hp, max) => {
     if (hp < max) chest.open();
     spawnFx(chest.position.x, chest.position.y, 'spark', '#ffd040', 6);
-  },
-  onDeath: () => {
+  };
+  chestHp.onDeath = () => {
     chest.open();
     spawnFx(chest.position.x, chest.position.y, 'coin', undefined, 18);
-  },
-}));
-
-scene.addObject(crystal);
-scene.addObject(boulder);
-scene.addObject(chest);
+  };
+}
 
 // ─── Clouds ───────────────────────────────────────────────────────────────────
 
@@ -131,9 +152,11 @@ playerMv.onAttach(character);
 
 // ─── Minimap ──────────────────────────────────────────────────────────────────
 
-const minimap = new Minimap(scene, { cols: COLS, rows: ROWS });
+const minimap = new Minimap(scene, { cols: COLS, rows: ROWS, style: { alpha: 0.7 } });
 let minimapVisible = true;
 let minimapSize    = 150;
+let minimapX       = canvas.width - minimapSize - 14;
+let minimapY       = canvas.height - minimapSize - 14;
 
 // ─── Light orbit state ────────────────────────────────────────────────────────
 
@@ -156,12 +179,16 @@ function $<T extends HTMLElement>(id: string): T {
 
 const minimapToggle    = $<HTMLInputElement>('minimap-toggle');
 const minimapSizeSlider = $<HTMLInputElement>('minimap-size');
+const minimapAlphaSlider = $<HTMLInputElement>('minimap-alpha');
 
 minimapToggle.addEventListener('change', () => {
   minimapVisible = minimapToggle.checked;
 });
 minimapSizeSlider.addEventListener('input', () => {
   minimapSize = Number(minimapSizeSlider.value);
+});
+minimapAlphaSlider.addEventListener('input', () => {
+  minimap.alpha = Number(minimapAlphaSlider.value);
 });
 
 const ballElevSlider = $<HTMLInputElement>('ball-elev');
@@ -215,7 +242,7 @@ updateModeBtn();
 // ─── Drag & click ─────────────────────────────────────────────────────────────
 
 const HIT_RADIUS = 30;
-type DragTarget = 'ball' | 'light' | null;
+type DragTarget = 'ball' | 'light' | 'minimap' | null;
 let dragging: DragTarget = null;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
@@ -223,7 +250,7 @@ let dragOffsetY = 0;
 function getBallScreenPos(): { bx: number; by: number } {
   const { sx, sy } = scene.camera.worldToScreen(
     character.position.x, character.position.y, character.position.z,
-    TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+    TILE_W, TILE_H, engine.originX, engine.originY,
   );
   return { bx: sx, by: sy };
 }
@@ -231,7 +258,7 @@ function getBallScreenPos(): { bx: number; by: number } {
 function getLightScreenPos(): { lx: number; ly: number } {
   const { sx, sy } = scene.camera.worldToScreen(
     omniLight.position.x, omniLight.position.y, omniLight.position.z,
-    TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+    TILE_W, TILE_H, engine.originX, engine.originY,
   );
   return { lx: sx, ly: sy };
 }
@@ -240,7 +267,7 @@ function getLightScreenPos(): { lx: number; ly: number } {
 function getEntityScreenPos(e: Entity): { ex: number; ey: number } {
   const { sx, sy } = scene.camera.worldToScreen(
     e.position.x, e.position.y, 0,
-    TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+    TILE_W, TILE_H, engine.originX, engine.originY,
   );
   return { ex: sx, ey: sy };
 }
@@ -250,16 +277,6 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 function clampWorld(x: number, y: number): { x: number; y: number } {
   return { x: clamp(x, 0.5, COLS - 0.5), y: clamp(y, 0.5, ROWS - 0.5) };
-}
-function getCanvasPos(e: MouseEvent | TouchEvent): { cx: number; cy: number } {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const src = e instanceof MouseEvent ? e : e.touches[0];
-  return {
-    cx: (src.clientX - rect.left) * scaleX,
-    cy: (src.clientY - rect.top) * scaleY,
-  };
 }
 
 const PROP_HIT_R = 28;
@@ -273,8 +290,15 @@ function hitTestProps(cx: number, cy: number): Entity | null {
   return null;
 }
 
-function onPointerDown(e: MouseEvent | TouchEvent): void {
-  const { cx, cy } = getCanvasPos(e);
+function handlePointerDown(cx: number, cy: number): void {
+  // Minimap hit
+  if (minimapVisible && minimap.isHit(cx, cy, minimapX, minimapY, minimapSize, minimapSize)) {
+    dragging = 'minimap';
+    dragOffsetX = cx - minimapX;
+    dragOffsetY = cy - minimapY;
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
 
   // Light hit (manual mode only)
   if (lightMode === 'manual') {
@@ -312,12 +336,23 @@ function onPointerDown(e: MouseEvent | TouchEvent): void {
       });
       audio.playSfx(HIT_SFX, { volume: vol });
       hp.takeDamage(15);
+
+      // Spawn damage number
+      scene.spawnFloatingText({
+        x: prop.position.x,
+        y: prop.position.y,
+        z: 32,
+        text: '-15',
+        color: '#ff4040',
+        duration: 800,
+        fontSize: 20
+      });
     }
     return;
   }
 
   // Floor click → A* pathfinding (zoom + pan aware)
-  const world   = scene.camera.screenToWorld(cx, cy, canvasW, canvasH, TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y);
+  const world   = scene.camera.screenToWorld(cx, cy, canvasW, canvasH, TILE_W, TILE_H, engine.originX, engine.originY);
   const clamped = clampWorld(world.x, world.y);
   const reached = playerMv.pathTo(clamped.x, clamped.y, character.position.z);
   if (!reached) {
@@ -326,13 +361,20 @@ function onPointerDown(e: MouseEvent | TouchEvent): void {
   }
 }
 
-function onPointerMove(e: MouseEvent | TouchEvent): void {
-  const { cx, cy } = getCanvasPos(e);
+function handlePointerMove(cx: number, cy: number): void {
+  if (dragging === 'minimap') {
+    minimapX = cx - dragOffsetX;
+    minimapY = cy - dragOffsetY;
+    // Clamp to canvas bounds
+    minimapX = clamp(minimapX, 0, canvas.width - minimapSize);
+    minimapY = clamp(minimapY, 0, canvas.height - minimapSize);
+    return;
+  }
 
   if (dragging === 'ball') {
     const world = scene.camera.screenToWorld(
       cx - dragOffsetX, cy - dragOffsetY + character.position.z,
-      canvasW, canvasH, TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+      canvasW, canvasH, TILE_W, TILE_H, engine.originX, engine.originY,
     );
     const w = clampWorld(world.x, world.y);
     character.position.x = w.x;
@@ -343,7 +385,7 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
   if (dragging === 'light') {
     const world = scene.camera.screenToWorld(
       cx - dragOffsetX, cy - dragOffsetY + omniLight.position.z,
-      canvasW, canvasH, TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+      canvasW, canvasH, TILE_W, TILE_H, engine.originX, engine.originY,
     );
     const w = clampWorld(world.x, world.y);
     omniLight.position.x = w.x;
@@ -355,43 +397,21 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
   const { bx, by } = getBallScreenPos();
   const onBall = Math.hypot(cx - bx, cy - by) < HIT_RADIUS;
   const onProp = hitTestProps(cx, cy) !== null;
+  const onMinimap = minimapVisible && minimap.isHit(cx, cy, minimapX, minimapY, minimapSize, minimapSize);
   let onLight = false;
   if (lightMode === 'manual') {
     const { lx, ly } = getLightScreenPos();
     onLight = Math.hypot(cx - lx, cy - ly) < HIT_RADIUS;
   }
-  canvas.style.cursor = onBall || onLight ? 'grab' : onProp ? 'pointer' : 'crosshair';
+  canvas.style.cursor = onBall || onLight || onMinimap ? 'grab' : onProp ? 'pointer' : 'crosshair';
 }
 
-function onPointerUp(): void {
+function handlePointerUp(): void {
   dragging = null;
   canvas.style.cursor = 'crosshair';
 }
 
-canvas.addEventListener('mousedown', onPointerDown);
-canvas.addEventListener('mousemove', onPointerMove);
-canvas.addEventListener('mouseup', onPointerUp);
-canvas.addEventListener('mouseleave', onPointerUp);
-canvas.addEventListener('touchstart', onPointerDown, { passive: true });
-canvas.addEventListener('touchmove', onPointerMove, { passive: true });
-canvas.addEventListener('touchend', onPointerUp);
-
-// ─── Keyboard shortcuts ───────────────────────────────────────────────────────
-
 const KEY_STEP = 0.5;
-window.addEventListener('keydown', (e) => {
-  if (e.target instanceof HTMLInputElement) return;
-  switch (e.key) {
-    case 'm': case 'M':
-      lightMode = lightMode === 'orbit' ? 'manual' : 'orbit';
-      updateModeBtn();
-      break;
-    case 'ArrowUp':    e.preventDefault(); character.position.y = clamp(character.position.y - KEY_STEP, 0.5, ROWS - 0.5); break;
-    case 'ArrowDown':  e.preventDefault(); character.position.y = clamp(character.position.y + KEY_STEP, 0.5, ROWS - 0.5); break;
-    case 'ArrowLeft':  e.preventDefault(); character.position.x = clamp(character.position.x - KEY_STEP, 0.5, COLS - 0.5); break;
-    case 'ArrowRight': e.preventDefault(); character.position.x = clamp(character.position.x + KEY_STEP, 0.5, COLS - 0.5); break;
-  }
-});
 
 // ─── Unreachable flash ────────────────────────────────────────────────────────
 
@@ -468,7 +488,7 @@ engine.start(
       for (const wp of wps) {
         const { sx, sy } = scene.camera.worldToScreen(
           wp.x, wp.y, character.position.z,
-          TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+          TILE_W, TILE_H, engine.originX, engine.originY,
         );
         ctx.lineTo(sx, sy);
       }
@@ -479,7 +499,7 @@ engine.start(
       for (const wp of wps) {
         const { sx, sy } = scene.camera.worldToScreen(
           wp.x, wp.y, character.position.z,
-          TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+          TILE_W, TILE_H, engine.originX, engine.originY,
         );
         ctx.beginPath();
         ctx.arc(sx, sy, 3, 0, Math.PI * 2);
@@ -497,17 +517,37 @@ engine.start(
       }
     }
 
-    // Minimap — bottom-right corner of canvas
+    // Minimap — draggable
     if (minimapVisible) {
-      const pad = 14;
-      const sz  = minimapSize;
-      minimap.draw(ctx, canvasW - sz - pad, canvasH - sz - pad, sz, sz);
+      minimap.draw(engine.ctx, minimapX, minimapY, minimapSize, minimapSize);
     }
 
     updateHud();
   },
-  // preFrame — pathfinding update + background glow
+  // preFrame — input + pathfinding update + background glow
   (ts) => {
+    // Keyboard
+    if (!(document.activeElement instanceof HTMLInputElement)) {
+      if (input.wasPressed('m') || input.wasPressed('M')) {
+        lightMode = lightMode === 'orbit' ? 'manual' : 'orbit';
+        updateModeBtn();
+      }
+      if (input.isDown('ArrowUp'))    character.position.y = clamp(character.position.y - KEY_STEP * 0.1, 0.5, ROWS - 0.5);
+      if (input.isDown('ArrowDown'))  character.position.y = clamp(character.position.y + KEY_STEP * 0.1, 0.5, ROWS - 0.5);
+      if (input.isDown('ArrowLeft'))  character.position.x = clamp(character.position.x - KEY_STEP * 0.1, 0.5, COLS - 0.5);
+      if (input.isDown('ArrowRight')) character.position.x = clamp(character.position.x + KEY_STEP * 0.1, 0.5, COLS - 0.5);
+    }
+
+    // Pointer
+    const { x: cx, y: cy, pressed, released, down } = input.pointer;
+    if (pressed) {
+      handlePointerDown(cx, cy);
+    } else if (released) {
+      handlePointerUp();
+    } else if (down || true) { // Always handle move for hover effects
+      handlePointerMove(cx, cy);
+    }
+
     playerMv.update(ts);
 
     if (lightMode === 'orbit') {
@@ -517,7 +557,7 @@ engine.start(
     }
     const { sx: lsx, sy: lsy } = scene.camera.worldToScreen(
       omniLight.position.x, omniLight.position.y, omniLight.position.z,
-      TILE_W, TILE_H, ORIGIN_X, ORIGIN_Y,
+      TILE_W, TILE_H, engine.originX, engine.originY,
     );
     const ctx = engine.ctx;
     const r = (omniLight.radius ?? 320) * scene.camera.zoom * 1.2;
@@ -526,5 +566,7 @@ engine.start(
     bgGlow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = bgGlow;
     ctx.fillRect(0, 0, canvasW, canvasH);
+
+    input.flush();
   },
 );

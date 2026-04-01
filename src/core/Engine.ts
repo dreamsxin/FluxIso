@@ -5,6 +5,10 @@ import { OmniLight } from '../lighting/OmniLight';
 import { DirectionalLight } from '../lighting/DirectionalLight';
 import { Character } from '../elements/Character';
 import { Cloud } from '../elements/props/Cloud';
+import { Crystal } from '../elements/props/Crystal';
+import { Boulder } from '../elements/props/Boulder';
+import { Chest } from '../elements/props/Chest';
+import { HealthComponent } from '../ecs/components/HealthComponent';
 import { TileCollider } from '../physics/TileCollider';
 
 export interface EngineOptions {
@@ -62,8 +66,22 @@ interface SceneJson {
     color?: string;
     seed?: number;
   }>;
+  props?: Array<{
+    id: string;
+    type: 'crystal' | 'boulder' | 'chest';
+    x: number;
+    y: number;
+    color?: string;
+    radius?: number;
+    heightPx?: number;
+    health?: number;
+  }>;
 }
 
+/**
+ * Engine — the central controller of the LuxIso isometric engine.
+ * Handles the canvas setup, scene loading, and the main render loop.
+ */
 export class Engine {
   readonly canvas: HTMLCanvasElement;
   readonly ctx: CanvasRenderingContext2D;
@@ -175,6 +193,27 @@ export class Engine {
       scene.addObject(cloud);
     }
 
+    for (const p of json.props ?? []) {
+      let prop;
+      switch (p.type) {
+        case 'crystal':
+          prop = new Crystal(p.id, p.x, p.y, p.color, p.heightPx);
+          break;
+        case 'boulder':
+          prop = new Boulder(p.id, p.x, p.y, p.color, p.radius);
+          break;
+        case 'chest':
+          prop = new Chest(p.id, p.x, p.y, p.color);
+          break;
+      }
+      if (prop) {
+        if (p.health) {
+          prop.addComponent(new HealthComponent({ max: p.health }));
+        }
+        scene.addObject(prop);
+      }
+    }
+
     // Build collision layer
     const cols = json.cols ?? json.floor?.cols ?? 10;
     const rows = json.rows ?? json.floor?.rows ?? 10;
@@ -196,6 +235,33 @@ export class Engine {
 
   get scene(): Scene | null {
     return this._scene;
+  }
+
+  /**
+   * Resize the canvas and update internal origins.
+   * If width/height are omitted, the canvas will fill its parent container.
+   */
+  resize(width?: number, height?: number): void {
+    const { canvas } = this;
+    if (width !== undefined && height !== undefined) {
+      canvas.width  = width;
+      canvas.height = height;
+    } else {
+      const parent = canvas.parentElement;
+      if (parent) {
+        canvas.width  = parent.clientWidth;
+        canvas.height = parent.clientHeight;
+      }
+    }
+
+    // Default origin to center; user can override after resize()
+    this.originX = canvas.width / 2;
+    this.originY = canvas.height / 2;
+
+    // Invalidate scene sorting if active
+    if (this._scene) {
+      // (We could trigger a redraw or sort here if needed)
+    }
   }
 
   // ── Render loop ────────────────────────────────────────────────────────────

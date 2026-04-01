@@ -20,6 +20,8 @@ export interface MinimapStyle {
   border?: string;
   /** Corner radius in px. Default 6. */
   radius?: number;
+  /** Transparency (0-1). Default 1.0. */
+  alpha?: number;
 }
 
 /**
@@ -59,11 +61,16 @@ export class Minimap {
       objectColor: opts.style?.objectColor ?? '#cc8855',
       border:      opts.style?.border      ?? 'rgba(255,255,255,0.25)',
       radius:      opts.style?.radius      ?? 6,
+      alpha:       opts.style?.alpha       ?? 1.0,
     };
   }
 
   /** Update which scene is observed (e.g. after a scene transition). */
   setScene(scene: Scene): void { this._scene = scene; }
+
+  /** Transparency (0-1). */
+  get alpha(): number { return this._style.alpha; }
+  set alpha(v: number) { this._style.alpha = v; }
 
   /**
    * Draw the minimap at (x, y) on the main canvas, sized w × h pixels.
@@ -73,21 +80,30 @@ export class Minimap {
     this._ensureOffscreen(w, h);
     this._render(w, h);
     if (this._offscreen) {
-      // Rounded-rect clip on main canvas
       ctx.save();
+      ctx.globalAlpha = this._style.alpha;
+      
+      // Rounded-rect clip on main canvas
       this._roundRect(ctx, x, y, w, h, this._style.radius);
       ctx.clip();
       ctx.drawImage(this._offscreen, x, y);
-      ctx.restore();
 
       // Border
-      ctx.save();
       ctx.strokeStyle = this._style.border;
       ctx.lineWidth   = 1.5;
       this._roundRect(ctx, x, y, w, h, this._style.radius);
       ctx.stroke();
+      
       ctx.restore();
     }
+  }
+
+  /**
+   * Returns true if the given screen coordinate (px, py) is inside the minimap
+   * boundary at (mx, my, mw, mh).
+   */
+  isHit(px: number, py: number, mx: number, my: number, mw: number, mh: number): boolean {
+    return px >= mx && px <= mx + mw && py >= my && py <= my + mh;
   }
 
   // ── Internal ───────────────────────────────────────────────────────────────

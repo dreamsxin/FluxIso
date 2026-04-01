@@ -9,6 +9,7 @@ import { Floor } from '../elements/Floor';
 import { Wall } from '../elements/Wall';
 import { Character } from '../elements/Character';
 import { Cloud } from '../elements/props/Cloud';
+import { FloatingText, FloatingTextOptions } from '../elements/props/FloatingText';
 import { project } from '../math/IsoProjection';
 import { topoSort } from '../math/depthSort';
 import { TileCollider } from '../physics/TileCollider';
@@ -21,6 +22,10 @@ export interface SceneOptions {
   rows?: number;
 }
 
+/**
+ * Scene — a container for all game objects, lights, and the camera.
+ * Handles depth sorting, frustum culling, and rendering management.
+ */
 export class Scene {
   readonly camera: Camera;
   private objects: IsoObject[] = [];
@@ -64,6 +69,26 @@ export class Scene {
     return this.objects.find((o) => o.id === id);
   }
 
+  /**
+   * Get all objects in the scene that are instances of a given class.
+   * @example
+   *   const crystals = scene.getAll(Crystal);
+   */
+  getAll<T extends IsoObject>(ctor: new (...args: any[]) => T): T[] {
+    return this.objects.filter((o): o is T => o instanceof ctor);
+  }
+
+  /**
+   * Helper to spawn a floating text element in the scene.
+   * Useful for damage numbers, status effects, etc.
+   */
+  spawnFloatingText(opts: Omit<FloatingTextOptions, 'id'>): FloatingText {
+    const id = `ft-${Math.random().toString(36).substr(2, 9)}`;
+    const ft = new FloatingText({ id, ...opts });
+    this.addObject(ft);
+    return ft;
+  }
+
   // ── Lights ─────────────────────────────────────────────────────────────────
 
   addLight(light: BaseLight): void {
@@ -92,6 +117,13 @@ export class Scene {
       if (typeof updatable.update === 'function') {
         updatable.update(ts, this.collider);
       }
+    }
+
+    // Auto-reap expired floating text
+    const expired = this.objects.filter((o): o is FloatingText => o instanceof FloatingText && o.isExpired);
+    if (expired.length > 0) {
+      this.objects = this.objects.filter((o) => !(o instanceof FloatingText && o.isExpired));
+      this._sortDirty = true;
     }
   }
 

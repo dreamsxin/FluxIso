@@ -1,11 +1,13 @@
 import { project } from '../math/IsoProjection';
 import { AABB } from '../math/depthSort';
-import { IsoObject, DrawContext } from './IsoObject';
+import { DrawContext } from './IsoObject';
 import { SpriteSheet } from '../animation/SpriteSheet';
 import { AnimationController } from '../animation/AnimationController';
 import { TileCollider } from '../physics/TileCollider';
 import { Pathfinder, IsoVec2 } from '../physics/Pathfinder';
 import { shiftColor } from '../math/color';
+import { Entity } from '../ecs/Entity';
+import { AnimationComponent } from '../ecs/components/AnimationComponent';
 
 export interface CharacterOptions {
   id: string;
@@ -17,11 +19,15 @@ export interface CharacterOptions {
   color?: string;
   /** Optional sprite sheet for animated rendering. */
   spriteSheet?: SpriteSheet;
-  /** Movement speed in world units per frame (default 0.04). */
+  /** Movement speed in world units per second (default 2.4). */
   speed?: number;
 }
 
-export class Character extends IsoObject {
+/**
+ * Character — a specialized Entity for controllable or NPC characters.
+ * Supports pathfinding, collision, and 8-direction sprite animation.
+ */
+export class Character extends Entity {
   radius: number;
   color: string;
   speed: number;
@@ -32,27 +38,38 @@ export class Character extends IsoObject {
   private _prevX: number;
   private _prevY: number;
 
-  private anim: AnimationController | null = null;
+  private _anim: AnimationComponent | null = null;
   private _lastFrameTime = 0;
 
   constructor(opts: CharacterOptions) {
     super(opts.id, opts.x, opts.y, opts.z ?? 0);
     this.radius = opts.radius ?? 22;
     this.color = opts.color ?? '#5590cc';
-    this.speed = opts.speed ?? 0.04;
+    this.speed = opts.speed ?? 2.4;
     this._prevX = opts.x;
     this._prevY = opts.y;
+    this._lastFrameTime = 0;
 
     if (opts.spriteSheet) {
-      this.anim = new AnimationController(opts.spriteSheet, 'idle');
+      this.setSpriteSheet(opts.spriteSheet);
     }
+  }
+
+  /** Current animation controller (read-only). */
+  get anim(): AnimationController | null {
+    return this._anim?.controller ?? null;
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
 
   /** Attach a sprite sheet and start animation. */
   setSpriteSheet(sheet: SpriteSheet, initialClip = 'idle'): void {
-    this.anim = new AnimationController(sheet, initialClip);
+    this.removeComponent('animation');
+    this._anim = this.addComponent(new AnimationComponent({
+      spriteSheet: sheet,
+      initialClip,
+      autoUpdateDirection: true,
+    }));
   }
 
   /**
@@ -60,9 +77,9 @@ export class Character extends IsoObject {
    * No-op if no sprite sheet is attached or clip doesn't exist.
    */
   playAnimation(name: string): void {
-    if (!this.anim) return;
-    if (!this.anim.spriteSheet.hasClip(name)) return;
-    this.anim.play(name);
+    if (!this._anim) return;
+    if (!this._anim.controller.spriteSheet.hasClip(name)) return;
+    this._anim.play(name);
   }
 
   /** Begin smooth movement toward world position (x, y, z). No pathfinding. */
@@ -127,8 +144,10 @@ export class Character extends IsoObject {
   // ── Per-frame update ──────────────────────────────────────────────────────
 
   update(ts?: number, collider?: TileCollider | null): void {
+    super.update(ts); // drive components
+
     const now = ts ?? performance.now();
-    const dt = Math.min((now - this._lastFrameTime) / 1000, 0.1); // seconds, capped
+    const dt = this._lastFrameTime === 0 ? 0.016 : Math.min((now - this._lastFrameTime) / 1000, 0.1);
     this._lastFrameTime = now;
 
     this._prevX = this.position.x;
@@ -139,8 +158,9 @@ export class Character extends IsoObject {
       const dy = this._target.y - this.position.y;
       const dz = this._target.z - this.position.z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const step = this.speed * dt;
 
-      if (dist < this.speed) {
+      if (dist < step) {
         // Arrived at current waypoint
         const r = 0.4;
         if (!collider || collider.canOccupy(
@@ -156,8 +176,8 @@ export class Character extends IsoObject {
         const next = this._waypoints.shift();
         this._target = next ? { x: next.x, y: next.y, z: this._target.z } : null;
       } else {
-        const stepDx = (dx / dist) * this.speed;
-        const stepDy = (dy / dist) * this.speed;
+        const stepDx = (dx / dist) * step;
+        const stepDy = (dy / dist) * step;
 
         if (collider) {
           const resolved = collider.resolveMove(
@@ -175,27 +195,24 @@ export class Character extends IsoObject {
           this.position.x += stepDx;
           this.position.y += stepDy;
         }
-        this.position.z += (dz / dist) * this.speed;
+        this.position.z += (dz / dist) * step;
       }
     }
 
-    // Drive animation controller
-    if (this.anim) {
+    // Drive animation state (walk/idle)
+    if (this._anim) {
       const moveDx = this.position.x - this._prevX;
       const moveDy = this.position.y - this._prevY;
       const moving = Math.hypot(moveDx, moveDy) > 0.0005;
 
+      const ctrl = this._anim.controller;
       if (moving) {
-        this.anim.direction = AnimationController.directionFrom(moveDx, moveDy);
-        if (this.anim.currentClip.name !== 'walk' &&
-            this.anim.spriteSheet.hasClip('walk')) {
-          this.anim.play('walk');
+        if (ctrl.currentClip.name !== 'walk' && ctrl.spriteSheet.hasClip('walk')) {
+          ctrl.play('walk');
         }
-      } else if (this.anim.currentClip.name === 'walk') {
-        if (this.anim.spriteSheet.hasClip('idle')) this.anim.play('idle');
+      } else if (ctrl.currentClip.name === 'walk') {
+        if (ctrl.spriteSheet.hasClip('idle')) ctrl.play('idle');
       }
-
-      this.anim.update(dt);
     }
   }
 

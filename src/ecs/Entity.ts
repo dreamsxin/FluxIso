@@ -15,6 +15,10 @@ import { Component } from './Component';
  *   crate.addComponent(new HealthComponent(50));
  *   crate.addComponent(new AIComponent(patrolBehavior));
  */
+/**
+ * Entity — an IsoObject extended with a component map for composable behaviors.
+ * Use this as a base for interactive objects like characters, props, and triggers.
+ */
 export abstract class Entity extends IsoObject {
   private _components = new Map<string, Component>();
 

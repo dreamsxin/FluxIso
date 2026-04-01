@@ -29,6 +29,7 @@ export interface SceneJsonLike {
   walls?: unknown[];
   lights?: unknown[];
   characters?: unknown[];
+  props?: unknown[];
 }
 
 export function validateSceneJson(json: unknown): ValidationResult {
@@ -131,6 +132,25 @@ export function validateSceneJson(json: unknown): ValidationResult {
         const x = Number(ch.x), y = Number(ch.y);
         if (x < 0 || x > cols || y < 0 || y > rows) {
           warnings.push(`characters[${i}] position (${x}, ${y}) is outside scene bounds (${cols}×${rows})`);
+        }
+      });
+    }
+  }
+
+  // Props
+  if (s.props !== undefined) {
+    if (!Array.isArray(s.props)) {
+      errors.push('props must be an array');
+    } else {
+      s.props.forEach((p, i) => {
+        const prop = p as Record<string, unknown>;
+        if (!prop.id) errors.push(`props[${i}].id is required`);
+        if (typeof prop.x !== 'number') errors.push(`props[${i}].x must be a number`);
+        if (typeof prop.y !== 'number') errors.push(`props[${i}].y must be a number`);
+        if (typeof prop.type !== 'string') errors.push(`props[${i}].type must be a string`);
+        const validTypes = ['crystal', 'boulder', 'chest'];
+        if (!validTypes.includes(prop.type as string)) {
+          errors.push(`props[${i}].type must be one of ${validTypes.join(', ')}, got ${prop.type}`);
         }
       });
     }

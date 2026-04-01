@@ -9,6 +9,10 @@ export type { SceneOptions } from './core/Scene';
 export { Camera } from './core/Camera';
 export type { CameraBounds, CameraOptions } from './core/Camera';
 export { LightmapCache } from './core/LightmapCache';
+export { InputManager } from './core/InputManager';
+export type { PointerState } from './core/InputManager';
+export { SceneManager } from './core/SceneManager';
+export type { ManagedScene } from './core/SceneManager';
 
 // Elements
 export { IsoObject } from './elements/IsoObject';
@@ -64,6 +68,8 @@ export { TimerComponent } from './ecs/components/TimerComponent';
 export type { TimerOptions } from './ecs/components/TimerComponent';
 export { TweenComponent, Easing } from './ecs/components/TweenComponent';
 export type { TweenOptions, TweenTarget, EasingFn } from './ecs/components/TweenComponent';
+export { TweenSequence } from './ecs/components/TweenSequence';
+export type { TweenSequenceOptions } from './ecs/components/TweenSequence';
 export { TriggerZoneComponent } from './ecs/components/TriggerZoneComponent';
 export type { TriggerZoneOptions } from './ecs/components/TriggerZoneComponent';
 

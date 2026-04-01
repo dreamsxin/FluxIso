@@ -70,7 +70,7 @@ export class TweenComponent implements Component {
   private _iteration = 0;
   private _forward   = true;
   private _owner:    IsoObject | null = null;
-  private _lastTs    = 0;
+  private _lastTs    = -1;
 
   constructor(opts: TweenOptions) {
     this._opts  = opts;
@@ -92,9 +92,12 @@ export class TweenComponent implements Component {
     if (!this._owner || !this._running || this._done) return;
 
     const now = ts ?? performance.now();
-    const dt  = this._lastTs === 0 ? 0 : Math.min((now - this._lastTs) / 1000, 0.5);
+    if (this._lastTs === -1) {
+      this._lastTs = now;
+      return;
+    }
+    const dt = Math.min((now - this._lastTs) / 1000, 0.5);
     this._lastTs = now;
-    if (dt === 0) return;
 
     // Handle delay
     if (this._delay > 0) {

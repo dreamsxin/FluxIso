@@ -1,38 +1,38 @@
 {
   "name": "Level 1",
-  "cols": 10,
+  "cols": 16,
   "rows": 10,
   "tileW": 64,
   "tileH": 32,
   "floor": {
     "id": "mainFloor",
-    "cols": 10,
+    "cols": 16,
     "rows": 10,
     "walkable": [
-      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
-      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
-      [true,  true,  false, false, true,  true,  true,  true,  true,  true],
-      [true,  true,  false, false, true,  true,  true,  true,  true,  true],
-      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
-      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
-      [true,  true,  true,  true,  true,  false, false, false, true,  true],
-      [true,  true,  true,  true,  true,  false, false, false, true,  true],
-      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
-      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true]
+      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
+      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
+      [true,  true,  false, false, true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
+      [true,  true,  false, false, true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
+      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
+      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
+      [true,  true,  true,  true,  true,  false, false, false, true,  true,  true,  true,  true,  true,  true,  true],
+      [true,  true,  true,  true,  true,  false, false, false, true,  true,  true,  true,  true,  true,  true,  true],
+      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true],
+      [true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true]
     ]
   },
   "walls": [
     {
       "id": "wall-north",
       "x": 0, "y": 0,
-      "endX": 5, "endY": 0,
+      "endX": 10, "endY": 0,
       "height": 80,
       "openings": []
     },
     {
       "id": "wall-north-window",
-      "x": 5, "y": 0,
-      "endX": 10, "endY": 0,
+      "x": 10, "y": 0,
+      "endX": 16, "endY": 0,
       "height": 80,
       "openings": [
         { "type": "window", "offsetX": 0.3, "width": 0.4, "height": 0.45, "offsetY": 0.3 }
@@ -78,6 +78,28 @@
       "x": 5, "y": 5, "z": 48,
       "radius": 26,
       "color": "#5590cc"
+    }
+  ],
+  "props": [
+    {
+      "id": "crystal-1",
+      "type": "crystal",
+      "x": 2, "y": 3,
+      "color": "#8060e0",
+      "health": 60
+    },
+    {
+      "id": "boulder-1",
+      "type": "boulder",
+      "x": 7, "y": 2,
+      "color": "#7a7a8a",
+      "health": 100
+    },
+    {
+      "id": "chest-1",
+      "type": "chest",
+      "x": 7, "y": 7,
+      "health": 40
     }
   ]
 }

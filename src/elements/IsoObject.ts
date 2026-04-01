@@ -7,12 +7,20 @@ export interface DrawContext {
   ctx: CanvasRenderingContext2D;
   tileW: number;
   tileH: number;
+  /**
+   * The current drawing origin in pixels.
+   * When drawing inside the scene's camera transform, these are typically 0.
+   */
   originX: number;
   originY: number;
   omniLights: OmniLight[];
   dirLights: DirectionalLight[];
 }
 
+/**
+ * IsoObject — base class for all entities rendered in the isometric scene.
+ * Provides a position and requires an AABB for depth sorting.
+ */
 export abstract class IsoObject {
   id: string;
   position: IsoVec3;
