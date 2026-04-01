@@ -14,6 +14,10 @@ import { project } from '../../src/math/IsoProjection';
 import { Scene } from '../../src/core/Scene';
 import { DirectionalLight } from '../../src/lighting/DirectionalLight';
 import { OmniLight } from '../../src/lighting/OmniLight';
+import { Portal } from './Portal';
+
+export const LAKE_PORTAL_X = 9;
+export const LAKE_PORTAL_Y = 9;
 
 // ── 波浪湖面 ───────────────────────────────────────────────────────────────
 
@@ -545,7 +549,7 @@ export class LotusFlower extends IsoObject {
 
 // ── 构建湖水场景 ───────────────────────────────────────────────────────────
 
-export function buildLakeScene(cols: number, rows: number): { scene: Scene; lake: WaveLake } {
+export function buildLakeScene(cols: number, rows: number): { scene: Scene; lake: WaveLake; portal: Portal } {
   const scene = new Scene({ tileW: 64, tileH: 32, cols, rows });
 
   const lake = new WaveLake('lake', cols, rows);
@@ -589,5 +593,10 @@ export function buildLakeScene(cols: number, rows: number): { scene: Scene; lake
     scene.addObject(new LotusFlower(`lotus-${i}`, lx as number, ly as number, i * 0.6));
   }
 
-  return { scene, lake };
+  // 深海传送门
+  const portal = new Portal('lake-portal', LAKE_PORTAL_X, LAKE_PORTAL_Y);
+  scene.addObject(portal);
+  scene.addLight(new OmniLight({ id: 'portal-glow', x: LAKE_PORTAL_X, y: LAKE_PORTAL_Y, z: 50, color: '#a060ff', intensity: 0.5, radius: 280 }));
+
+  return { scene, lake, portal };
 }

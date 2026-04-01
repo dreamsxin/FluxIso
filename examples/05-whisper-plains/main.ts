@@ -10,7 +10,8 @@ import {
 } from '../../src/index';
 import { CubeHero } from './CubeHero';
 import { buildPlainsScene, PLAINS_COLS, PLAINS_ROWS, PORTAL_X, PORTAL_Y } from './PlainsScene';
-import { buildLakeScene } from './LakeScene';
+import { buildLakeScene, LAKE_PORTAL_X, LAKE_PORTAL_Y } from './LakeScene';
+import { buildDeepSeaScene, DEEP_COLS, DEEP_ROWS, DEEP_PORTAL_X, DEEP_PORTAL_Y } from './DeepSeaScene';
 import { DayNightCycle } from './DayNightCycle';
 import { Portal } from './Portal';
 
@@ -55,7 +56,7 @@ dayNight.setPhase(0.25); // 从正午开始
 
 // ── 场景状态 ──────────────────────────────────────────────────────────────
 
-type SceneName = 'plains' | 'lake';
+type SceneName = 'plains' | 'lake' | 'deep';
 let currentSceneName: SceneName = 'plains';
 let teleporting = false;
 let _portalTriggered = false;
@@ -86,12 +87,21 @@ const sunLight = plainsScene.dirLights[0] as DirectionalLight | undefined;
 // ── 湖水场景 ──────────────────────────────────────────────────────────────
 
 const LAKE_COLS = 13, LAKE_ROWS = 13;
-const { scene: lakeScene, lake: waveLake } = buildLakeScene(LAKE_COLS, LAKE_ROWS);
+const { scene: lakeScene, lake: waveLake, portal: lakePortal } = buildLakeScene(LAKE_COLS, LAKE_ROWS);
 
 const lakeHero = new CubeHero('hero-lake', LAKE_COLS / 2, LAKE_ROWS / 2);
 lakeScene.addObject(lakeHero);
 lakeScene.camera.follow(lakeHero);
 lakeScene.camera.lerpFactor = 0.05;
+
+// ── 深海场景 ──────────────────────────────────────────────────────────────
+
+const { scene: deepScene, portal: deepPortal } = buildDeepSeaScene();
+
+const deepHero = new CubeHero('hero-deep', DEEP_COLS / 2, DEEP_ROWS / 2);
+deepScene.addObject(deepHero);
+deepScene.camera.follow(deepHero);
+deepScene.camera.lerpFactor = 0.05;
 
 // ── SceneManager ──────────────────────────────────────────────────────────
 
@@ -113,10 +123,10 @@ mgr.register('lake', () => ({
   scene: lakeScene,
   onEnter() {
     sceneLabel.text   = '幻梦之湖';
-    hintLabel.text    = '感受水之低语…';
+    hintLabel.text    = '感受水之低语… 寻找深海传送门';
     hintLabel.visible = true;
+    _lakePortalTriggered = false;
 
-    // 在角色降落位置生成临时光柱，角色从光柱顶端落下
     const beamDuration = 1.8;
     const arrivalBeam = new Portal('arrival-beam', lakeHero.position.x, lakeHero.position.y);
     lakeScene.addObject(arrivalBeam);
@@ -127,6 +137,20 @@ mgr.register('lake', () => ({
       lakeScene.removeById('arrival-beam');
       hintLabel.visible = false;
     }, (beamDuration + 0.8) * 1000);
+  },
+}));
+
+mgr.register('deep', () => ({
+  scene: deepScene,
+  onEnter() {
+    sceneLabel.text   = '神秘深海';
+    hintLabel.text    = '深海的秘密… 寻找回归之门';
+    hintLabel.visible = true;
+    _deepPortalTriggered = false;
+    deepHero.position.x = DEEP_COLS / 2;
+    deepHero.position.y = DEEP_ROWS / 2;
+    deepHero.triggerDescend();
+    setTimeout(() => { hintLabel.visible = false; }, 4000);
   },
 }));
 
@@ -218,14 +242,43 @@ async function triggerTeleport(): Promise<void> {
   portal.activate();
   portal.activateBeam(1.4);
   spawnTeleportBurst(plainsScene, PORTAL_X, PORTAL_Y);
-
-  // 角色飞升（与光柱同步，1.2s）
   const ascendPromise = hero.triggerAscend();
   hero.triggerTeleportFlash();
-
-  // 等待飞升完成后再 fade
   await ascendPromise;
   await transition.playIn('fade', { color: '#ffffff', duration: 280 });
+  await mgr.replace('lake');
+  currentSceneName = 'lake';
+  await transition.playOut('fade', { color: '#0a1a3a', duration: 650 });
+  teleporting = false;
+}
+
+async function triggerLakeToDeep(): Promise<void> {
+  teleporting = true;
+  _lakePortalTriggered = true;
+  lakePortal.activate();
+  lakePortal.activateBeam(1.4);
+  spawnTeleportBurst(lakeScene, LAKE_PORTAL_X, LAKE_PORTAL_Y);
+  const ascendPromise = lakeHero.triggerAscend();
+  lakeHero.triggerTeleportFlash();
+  await ascendPromise;
+  await transition.playIn('fade', { color: '#001830', duration: 400 });
+  await mgr.replace('deep');
+  currentSceneName = 'deep';
+  await transition.playOut('fade', { color: '#000a18', duration: 800 });
+  teleporting = false;
+}
+
+async function triggerDeepToLake(): Promise<void> {
+  teleporting = true;
+  _deepPortalTriggered = true;
+  deepPortal.activate();
+  spawnTeleportBurst(deepScene, DEEP_PORTAL_X, DEEP_PORTAL_Y);
+  const ascendPromise = deepHero.triggerAscend();
+  deepHero.triggerTeleportFlash();
+  await ascendPromise;
+  await transition.playIn('fade', { color: '#0a1a3a', duration: 400 });
+  lakeHero.position.x = LAKE_COLS / 2;
+  lakeHero.position.y = LAKE_ROWS / 2;
   await mgr.replace('lake');
   currentSceneName = 'lake';
   await transition.playOut('fade', { color: '#0a1a3a', duration: 650 });
@@ -243,6 +296,14 @@ let _lakeClickTarget: { x: number; y: number } | null = null;
 let _lakeClickMarkerAlpha = 0;
 let _lakeClickMarkerX = 0;
 let _lakeClickMarkerY = 0;
+
+let _deepClickTarget: { x: number; y: number } | null = null;
+let _deepClickMarkerAlpha = 0;
+let _deepClickMarkerX = 0;
+let _deepClickMarkerY = 0;
+
+let _lakePortalTriggered = false;
+let _deepPortalTriggered = false;
 
 let rippleTimer = 0, dustTimer = 0, mistTimer = 0, dreamTimer = 0;
 const RIPPLE_INTERVAL = 0.32, DUST_INTERVAL = 0.7, MIST_INTERVAL = 1.0, DREAM_INTERVAL = 0.5;
@@ -272,6 +333,15 @@ engine.start(
         engine.originX, engine.originY,
       );
       _drawClickMarker(engine.ctx, screen.sx, screen.sy, _lakeClickMarkerAlpha, ts);
+    }
+    // 深海点击标记
+    if (_deepClickMarkerAlpha > 0.01 && currentSceneName === 'deep') {
+      const screen = deepScene.camera.worldToScreen(
+        _deepClickMarkerX, _deepClickMarkerY, 0,
+        deepScene.tileW, deepScene.tileH,
+        engine.originX, engine.originY,
+      );
+      _drawClickMarker(engine.ctx, screen.sx, screen.sy, _deepClickMarkerAlpha, ts);
     }
     hud.draw(engine.ctx, canvas.width, canvas.height);
     transition.draw(canvas.width, canvas.height, ts);
@@ -466,7 +536,6 @@ engine.start(
 
       const moving = Math.hypot(lakeHero.velX, lakeHero.velY) > 0.002;
       if (moving) {
-        // 水纹：直接加到 WaveLake
         rippleTimer += dt;
         if (rippleTimer >= RIPPLE_INTERVAL) {
           rippleTimer = 0;
@@ -477,6 +546,67 @@ engine.start(
 
       mistTimer += dt;
       if (mistTimer >= MIST_INTERVAL) { mistTimer = 0; spawnWaterMist(lakeScene); }
+
+      // 湖水传送门检测
+      const lakeDist = Math.hypot(lakeHero.position.x - LAKE_PORTAL_X, lakeHero.position.y - LAKE_PORTAL_Y);
+      if (!_lakePortalTriggered && lakeDist < lakePortal.triggerRadius) triggerLakeToDeep();
+
+    } else if (currentSceneName === 'deep') {
+      const kbAxis = map.axis('right', 'left', 'down', 'up');
+      const hasKbDeep = kbAxis.x !== 0 || kbAxis.y !== 0;
+
+      if (input.pointer.pressed) {
+        const world = deepScene.camera.screenToWorld(
+          input.pointer.x, input.pointer.y,
+          canvas.width, canvas.height,
+          deepScene.tileW, deepScene.tileH,
+          engine.originX, engine.originY,
+        );
+        const tx = Math.max(0.5, Math.min(DEEP_COLS - 0.5, world.x));
+        const ty = Math.max(0.5, Math.min(DEEP_ROWS - 0.5, world.y));
+        _deepClickTarget = { x: tx, y: ty };
+        _deepClickMarkerX = tx;
+        _deepClickMarkerY = ty;
+        _deepClickMarkerAlpha = 1;
+      }
+      if (hasKbDeep) _deepClickTarget = null;
+
+      let deepMoveX = 0, deepMoveY = 0;
+      if (hasKbDeep) {
+        const len = Math.hypot(kbAxis.x, kbAxis.y) || 1;
+        deepMoveX = kbAxis.x / len * SPEED;
+        deepMoveY = kbAxis.y / len * SPEED;
+      } else if (_deepClickTarget) {
+        const dx = _deepClickTarget.x - deepHero.position.x;
+        const dy = _deepClickTarget.y - deepHero.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < SPEED * 1.2) {
+          deepHero.position.x = _deepClickTarget.x;
+          deepHero.position.y = _deepClickTarget.y;
+          _deepClickTarget = null;
+          deepHero.velX = 0; deepHero.velY = 0;
+        } else {
+          deepMoveX = (dx / dist) * SPEED;
+          deepMoveY = (dy / dist) * SPEED;
+        }
+      }
+
+      if (deepMoveX !== 0 || deepMoveY !== 0) {
+        const nx = Math.max(0.5, Math.min(DEEP_COLS - 0.5, deepHero.position.x + deepMoveX));
+        const ny = Math.max(0.5, Math.min(DEEP_ROWS - 0.5, deepHero.position.y + deepMoveY));
+        deepHero.velX = nx - deepHero.position.x;
+        deepHero.velY = ny - deepHero.position.y;
+        deepHero.position.x = nx;
+        deepHero.position.y = ny;
+      } else {
+        deepHero.velX = 0; deepHero.velY = 0;
+      }
+
+      if (_deepClickMarkerAlpha > 0) _deepClickMarkerAlpha = Math.max(0, _deepClickMarkerAlpha - dt * 1.8);
+
+      // 深海传送门检测
+      const deepDist = Math.hypot(deepHero.position.x - DEEP_PORTAL_X, deepHero.position.y - DEEP_PORTAL_Y);
+      if (!_deepPortalTriggered && deepDist < deepPortal.triggerRadius) triggerDeepToLake();
     }
 
     input.flush();
@@ -486,6 +616,26 @@ engine.start(
 // ── 天空绘制 ─────────────────────────────────────────────────────────────
 
 function drawSky(ctx: CanvasRenderingContext2D, w: number, h: number, scene: SceneName, ts: number): void {
+  if (scene === 'deep') {
+    // 深海：极深的蓝黑渐变，无天空
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0,   '#000810');
+    grad.addColorStop(0.4, '#001020');
+    grad.addColorStop(1,   '#001830');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    // 深海光晕（从下方透上来的幽光）
+    const t = ts * 0.0005;
+    const glowY = h * 0.7;
+    const glow = ctx.createRadialGradient(w * 0.5, glowY, 0, w * 0.5, glowY, w * 0.6);
+    glow.addColorStop(0,   `rgba(0,180,160,${(0.06 + Math.sin(t) * 0.02).toFixed(3)})`);
+    glow.addColorStop(0.5, `rgba(0,120,140,${(0.03 + Math.sin(t * 1.3) * 0.01).toFixed(3)})`);
+    glow.addColorStop(1,   'rgba(0,80,100,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+    return;
+  }
+
   if (scene === 'plains') {
     const c = dayNight.getColors();
 
