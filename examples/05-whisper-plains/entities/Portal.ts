@@ -37,6 +37,9 @@ export class Portal extends Entity {
   private _beamTimer    = 0;
   private _beamDuration = 1.4;
 
+  /** 光柱实际屏幕高度（px），供 CubeHero.triggerDescend() 同步使用 */
+  static readonly BEAM_HEIGHT_PX = 210; // beamH(420) * scaleY(0.5)
+
   constructor(id: string, x: number, y: number) {
     super(id, x, y, 0);
     this.castsShadow = false;

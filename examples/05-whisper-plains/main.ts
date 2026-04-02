@@ -138,7 +138,7 @@ mgr.register('plains', () => ({
     if (_returningFromDeep) {
       _returningFromDeep = false;
       const beam = new Portal('plains-arrival-beam', 3.5, 3.5);
-      plainsScene.addObject(beam); beam.activateBeam(1.8); hero.triggerDescend();
+      plainsScene.addObject(beam); beam.activateBeam(1.8); hero.triggerDescend(Portal.BEAM_HEIGHT_PX);
       setTimeout(() => { plainsScene.removeById('plains-arrival-beam'); }, 2600);
     }
   },
@@ -199,7 +199,7 @@ mgr.register('lake', () => ({
     const landX = 3.5, landY = 3.5;
     lakeHero.position.x = landX; lakeHero.position.y = landY;
     const beam = new Portal('arrival-beam', landX, landY);
-    lakeScene.addObject(beam); beam.activateBeam(1.8); lakeHero.triggerDescend();
+    lakeScene.addObject(beam); beam.activateBeam(1.8); lakeHero.triggerDescend(Portal.BEAM_HEIGHT_PX);
     setTimeout(() => { lakeScene.removeById('arrival-beam'); hintLabel.visible = false; }, 2600);
   },
   onUpdate(dt, inp) {
@@ -230,7 +230,7 @@ mgr.register('deep', () => ({
     _deepPortalTriggered = false;
     deepMover.reset();
     deepHero.position.x = 3.5; deepHero.position.y = 3.5;
-    deepHero.triggerDescend();
+    deepHero.triggerDescend(Portal.BEAM_HEIGHT_PX);
     // 降落光柱
     const deepBeam = new Portal('deep-arrival-beam', 3.5, 3.5);
     deepScene.addObject(deepBeam); deepBeam.activateBeam(1.8);

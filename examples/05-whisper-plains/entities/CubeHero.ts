@@ -23,6 +23,7 @@ export class CubeHero extends Entity {
   private _ascendActive   = false;
   private _ascendDuration = 1.2; // 秒
   private _descendMode    = false; // true=降落模式
+  private _descendStartZ  = 210;   // 降落起始 z（与光柱高度匹配）
 
   private _bobPhase   = 0;
   private _tiltX      = 0;
@@ -64,11 +65,14 @@ export class CubeHero extends Entity {
     this._entryProgress = 0;
   }
 
-  /** 触发从光柱顶端降落的入场动画（配合目的地光柱） */
-  triggerDescend(): void {
+  /** 触发从光柱顶端降落的入场动画（配合目的地光柱）
+   * @param beamZ 光柱顶端的 z 值（屏幕像素），默认 210（与 Portal.beamH * scaleY 匹配）
+   */
+  triggerDescend(beamZ = 210): void {
     this._entryActive   = true;
     this._entryProgress = 0;
     this._descendMode   = true;
+    this._descendStartZ = beamZ;
   }
 
   get aabb(): AABB {
@@ -128,7 +132,7 @@ export class CubeHero extends Entity {
 
       if (this._descendMode) {
         // 降落模式：从光柱顶端匀速落下，最后轻弹
-        const startZ = 320;
+        const startZ = this._descendStartZ;
         const bounce = t < 0.85
           ? 1 - t / 0.85                                          // 线性下落
           : 0.08 * Math.pow(1 - (t - 0.85) / 0.15, 2);          // 落地小弹跳
