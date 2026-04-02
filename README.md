@@ -278,6 +278,7 @@ scene.addLight(light: BaseLight): void
 scene.removeById(id: string): void
 scene.getById(id: string): IsoObject | undefined
 scene.getAll<T>(ctor): T[]                      // get all objects of a given class
+scene.allObjects: readonly IsoObject[]          // read-only snapshot of all objects
 scene.spawnFloatingText(opts): FloatingText     // convenience: create + add FloatingText
 scene.omniLights: OmniLight[]
 scene.dirLights: DirectionalLight[]
@@ -392,6 +393,17 @@ entity.addComponent(new TweenSequence([
 ], { repeat: -1 }));
 ```
 
+### `TimerComponent`
+
+```ts
+new TimerComponent({ duration, repeat?, onTick?, onComplete?, autoStart? })
+// duration: seconds; repeat: loop; onTick: fires each cycle; onComplete: fires when non-repeating timer finishes
+timer.pause(): void; timer.resume(): void; timer.restart(): void; timer.start(): void; timer.reset(): void
+timer.elapsed: number   // seconds elapsed in current cycle
+timer.fraction: number  // 0–1 progress through current cycle
+timer.isDone: boolean; timer.isRunning: boolean
+```
+
 ### `TriggerZoneComponent`
 
 ```ts
@@ -400,6 +412,8 @@ trigger.radius: number
 trigger.targets: IsoObject[]
 trigger.contains(id: string): boolean
 trigger.insideIds: ReadonlySet<string>
+trigger.setOnEnter(cb: (id: string) => void): void   // update callback after construction
+trigger.setOnExit(cb: (id: string) => void): void
 // Emits EventBus: 'triggerEnter' / 'triggerExit'
 ```
 
@@ -498,12 +512,37 @@ DirectionalAnimator.buildSheet(url, frameW, frameH, actions, scale)
 DirectionalAnimator.auditSheet(sheet, action)   // { present, missing }
 ```
 
+### `HudLayer`
+
+```ts
+const hud = new HudLayer()
+hud.addLabel({ id, x, y, text?, color?, fontSize?, font?, visible?, shadow? }): HudLabel
+hud.addBar({ id, x, y, w, h, value?, color?, bgColor?, borderColor?, label?, labelColor?, fontSize? }): HudBar
+hud.addButton({ id, x, y, w, h, label?, color?, bgColor?, hoverColor?, fontSize?, onClick? }): HudButton
+hud.addPanel({ id, x, y, w, h, bgColor?, borderColor?, radius? }): HudPanel
+hud.get<T>(id: string): T | undefined
+hud.remove(id: string): void
+hud.clear(): void
+hud.draw(ctx, canvasW?, canvasH?): void       // call in postFrame; resets transform to screen space
+hud.handleClick(x, y): boolean               // returns true if a button was hit
+hud.handleMove(x, y): void                   // update button hover states
+
+// Mutate elements directly after creation:
+const bar = hud.addBar({ id: 'hp', ... });
+bar.value = player.hp / player.maxHp;        // update fill fraction each frame
+const label = hud.addLabel({ id: 'score', ... });
+label.text = `Score: ${score}`;
+label.visible = false;                       // hide/show
+```
+
 ### `Minimap`
 
 ```ts
 new Minimap(scene, { cols, rows, style? })
 minimap.draw(ctx, x, y, w, h)   // call in postFrame
 minimap.setScene(scene)
+minimap.alpha: number            // 0–1 transparency
+minimap.isHit(px, py, mx, my, mw, mh): boolean  // hit-test the minimap rect
 
 // Style options (all optional):
 {

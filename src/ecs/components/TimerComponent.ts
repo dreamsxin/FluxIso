@@ -15,8 +15,10 @@ export interface TimerOptions {
   duration: number;
   /** If true, the timer resets and fires repeatedly. Default false. */
   repeat?: boolean;
-  /** Called each time the timer completes. */
-  onTick: () => void;
+  /** Called each time the timer completes one cycle. */
+  onTick?: () => void;
+  /** Called when a non-repeating timer finishes (alias for onTick on one-shot timers). */
+  onComplete?: () => void;
   /** If false, the timer starts paused. Default true. */
   autoStart?: boolean;
 }
@@ -31,13 +33,15 @@ export class TimerComponent implements Component {
   private _running: boolean;
   private _done     = false;
   private _lastTs   = 0;
-  private _onTick:  () => void;
+  private _onTick:  (() => void) | undefined;
+  private _onComplete: (() => void) | undefined;
 
   constructor(opts: TimerOptions) {
-    this.duration  = opts.duration;
-    this.repeat    = opts.repeat    ?? false;
-    this._onTick   = opts.onTick;
-    this._running  = opts.autoStart ?? true;
+    this.duration    = opts.duration;
+    this.repeat      = opts.repeat    ?? false;
+    this._onTick     = opts.onTick;
+    this._onComplete = opts.onComplete;
+    this._running    = opts.autoStart ?? true;
   }
 
   get elapsed():  number  { return this._elapsed; }
@@ -59,13 +63,14 @@ export class TimerComponent implements Component {
 
     this._elapsed += dt;
     if (this._elapsed >= this.duration) {
-      this._onTick();
+      this._onTick?.();
       if (this.repeat) {
         this._elapsed -= this.duration;
       } else {
         this._elapsed = this.duration;
         this._done    = true;
         this._running = false;
+        this._onComplete?.();
       }
     }
   }

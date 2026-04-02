@@ -116,6 +116,11 @@ export class Scene {
     return this.objects.filter((o): o is T => o instanceof ctor);
   }
 
+  /** Iterate over all objects currently in the scene (read-only snapshot). */
+  get allObjects(): readonly IsoObject[] {
+    return this.objects;
+  }
+
   /**
    * Helper to spawn a floating text element in the scene.
    * Useful for damage numbers, status effects, etc.

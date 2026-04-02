@@ -67,6 +67,12 @@ export class TriggerZoneComponent implements Component {
   /** Returns true if the given object is currently inside the zone. */
   contains(id: string): boolean { return this._inside.has(id); }
 
+  /** Update the enter callback after construction. */
+  setOnEnter(cb: (id: string) => void): void { this._onEnter = cb; }
+
+  /** Update the exit callback after construction. */
+  setOnExit(cb: (id: string) => void): void { this._onExit = cb; }
+
   update(_ts?: number): void {
     if (!this._owner) return;
 

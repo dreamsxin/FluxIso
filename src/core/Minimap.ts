@@ -173,11 +173,7 @@ export class Minimap {
   }
 
   private _getObjects(): IsoObject[] {
-    // Access scene objects via getById not available for iteration;
-    // use a duck-type snapshot by observing known ids from public interface.
-    // We access the private objects array via type assertion — acceptable for
-    // an internal render utility in the same package.
-    return (this._scene as unknown as { objects: IsoObject[] }).objects ?? [];
+    return [...this._scene.allObjects];
   }
 
   private _roundRect(
