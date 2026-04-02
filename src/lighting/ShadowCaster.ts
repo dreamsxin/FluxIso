@@ -38,12 +38,12 @@ export class ShadowCaster {
     for (const obj of casters) {
       if (obj.castsShadow === false) continue;
 
-      const { minX, minY, maxX, maxY } = obj.aabb;
-      const objHeightPx = tileH * 1.1;
-      const objHeightWorld = objHeightPx / (tileH / 2);
-      const cz = objHeightWorld;
+      const { minX, minY, maxX, maxY, baseZ, maxZ } = obj.aabb;
+      // Use actual object height from aabb.maxZ if available, else fall back to a default
+      const objTopZ = maxZ ?? (baseZ + (tileH * 1.1) / (tileH / 2));
+      const cz = objTopZ - baseZ; // height above ground in world units
 
-      if (cz >= lz) continue;
+      if (cz <= 0 || baseZ >= lz) continue;
 
       let topCorners: [number, number, number][];
       if (obj.shadowRadius && obj.shadowRadius > 0) {
@@ -52,17 +52,17 @@ export class ShadowCaster {
         const ocy = (minY + maxY) / 2;
         topCorners = Array.from({ length: 8 }, (_, i) => {
           const a = (i / 8) * Math.PI * 2;
-          return [ocx + Math.cos(a) * sr, ocy + Math.sin(a) * sr, cz] as [number, number, number];
+          return [ocx + Math.cos(a) * sr, ocy + Math.sin(a) * sr, objTopZ] as [number, number, number];
         });
       } else {
         topCorners = [
-          [minX, minY, cz], [maxX, minY, cz],
-          [maxX, maxY, cz], [minX, maxY, cz],
+          [minX, minY, objTopZ], [maxX, minY, objTopZ],
+          [maxX, maxY, objTopZ], [minX, maxY, objTopZ],
         ];
       }
 
       const groundPts: [number, number][] = topCorners.map(([cx, cy, cornerZ]) => {
-        const t = lz / (lz - cornerZ);
+        const t = lz / (lz - (cornerZ - baseZ));
         return [lx + t * (cx - lx), ly + t * (cy - ly)];
       });
 
@@ -169,8 +169,10 @@ export class ShadowCaster {
     for (const obj of casters) {
       if (obj.castsShadow === false) continue;
 
-      const { minX, minY, maxX, maxY } = obj.aabb;
-      const objHeightWorld = (tileH * 1.1) / (tileH / 2);
+      const { minX, minY, maxX, maxY, baseZ, maxZ } = obj.aabb;
+      // Use actual object height from aabb.maxZ if available
+      const objTopZ = maxZ ?? (baseZ + (tileH * 1.1) / (tileH / 2));
+      const objHeightWorld = objTopZ - baseZ;
 
       // Footprint corners at ground level
       let footprint: [number, number][];

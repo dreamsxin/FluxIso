@@ -139,11 +139,11 @@ export class Scene {
   }
 
   get omniLights(): OmniLight[] {
-    return this.lights.filter((l): l is OmniLight => l instanceof OmniLight);
+    return this.lights.filter((l): l is OmniLight => l instanceof OmniLight && l.enabled !== false);
   }
 
   get dirLights(): DirectionalLight[] {
-    return this.lights.filter((l): l is DirectionalLight => l instanceof DirectionalLight);
+    return this.lights.filter((l): l is DirectionalLight => l instanceof DirectionalLight && l.enabled !== false);
   }
 
   /** Find a light by id. */

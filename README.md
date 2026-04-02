@@ -6,8 +6,8 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 
 - **Isometric math** — `project()` / `unproject()` / `depthKey()` / `drawIsoCube()`; internal (X, Y, Z) space → screen
 - **Topological depth sort** — 3-D AABB Kahn sort with containment detection; `maxZ` field for vertical extent; no Z-fighting
-- **OmniLight** — RGB point light, per-channel accumulation, distance falloff, `illuminateAt()`
-- **DirectionalLight** — face-normal dot product; angle/elevation; per-channel color mix
+- **OmniLight** — RGB point light, per-channel accumulation, distance falloff, `illuminateAt()`; linear or quadratic falloff; `isGlobal` for ambient sky light; `enabled` toggle
+- **DirectionalLight** — face-normal dot product; angle/elevation; per-channel color mix; `enabled` toggle
 - **Lightmap cache** — `OffscreenCanvas` floor cache; auto-invalidates on light/camera change
 - **Shadow casting** — `ShadowCaster` projects object silhouettes onto z=0 plane; circular footprint via `shadowRadius`; opt-in via `castsShadow = true`
 - **Floor tile cache** — per-tile illumination color cached by lighting key; skips recomputation on static scenes; `invalidateCache()` for manual reset

@@ -120,14 +120,13 @@ export class Wall extends IsoObject {
     gTotal = Math.min(1, gTotal * faceBias);
     bTotal = Math.min(1, bTotal * faceBias);
 
-    this.drawFace(ctx, tileW, tileH, originX, originY, isXWall, rTotal, gTotal, bTotal);
+    this.drawFace(ctx, tileW, tileH, originX, originY, rTotal, gTotal, bTotal);
   }
 
   private drawFace(
     ctx: CanvasRenderingContext2D,
     tileW: number, tileH: number,
     originX: number, originY: number,
-    isXWall: boolean,
     rIllum: number, gIllum: number, bIllum: number,
   ): void {
     const { x, y } = this.position;
@@ -140,14 +139,11 @@ export class Wall extends IsoObject {
     const x1 = originX + p1.sx;
     const y1 = originY + p1.sy;
 
-    // Base wall color tinted by accumulated RGB light (ambient already included)
-    const baseR = isXWall ? 48 : 60;
-    const baseG = isXWall ? 43 : 54;
-    const baseB = isXWall ? 58 : 72;
-
-    const r = Math.min(255, Math.round(baseR * rIllum + rIllum * (255 - baseR)));
-    const g = Math.min(255, Math.round(baseG * gIllum + gIllum * (255 - baseG)));
-    const b = Math.min(255, Math.round(baseB * bIllum + bIllum * (255 - baseB)));
+    // Use the wall's color property as the base, multiplied by accumulated illumination
+    const [baseR, baseG, baseB] = hexToRgb(this.color);
+    const r = Math.min(255, Math.round(baseR * rIllum));
+    const g = Math.min(255, Math.round(baseG * gIllum));
+    const b = Math.min(255, Math.round(baseB * bIllum));
 
     // Fill parallelogram
     ctx.save();
