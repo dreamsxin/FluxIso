@@ -27,6 +27,7 @@ export class FloatingText extends IsoObject {
   
   private _elapsed = 0;
   private _alpha = 1;
+  private _lastTs = 0;
 
   constructor(opts: FloatingTextOptions) {
     super(opts.id, opts.x, opts.y, opts.z);
@@ -52,14 +53,12 @@ export class FloatingText extends IsoObject {
   }
 
   update(ts?: number): void {
-    // Use a fixed dt if ts is not provided, or track last ts
-    const dt = 0.016; // roughly 60fps
+    const now = ts ?? performance.now();
+    const dt = this._lastTs === 0 ? 0.016 : Math.min((now - this._lastTs) / 1000, 0.1);
+    this._lastTs = now;
+
     this._elapsed += dt * 1000;
-    
-    // Float up
     this.position.z += this.speed * dt;
-    
-    // Fade out
     this._alpha = Math.max(0, 1 - this._elapsed / this.duration);
   }
 

@@ -281,6 +281,7 @@ scene.getAll<T>(ctor): T[]                      // get all objects of a given cl
 scene.spawnFloatingText(opts): FloatingText     // convenience: create + add FloatingText
 scene.omniLights: OmniLight[]
 scene.dirLights: DirectionalLight[]
+scene.getLightById(id: string): BaseLight | undefined
 scene.camera: Camera
 scene.collider: TileCollider | null
 scene.view: IsoView                             // { rotation: degrees, elevation: 0.2–1.0 }

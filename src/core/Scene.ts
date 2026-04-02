@@ -121,7 +121,7 @@ export class Scene {
    * Useful for damage numbers, status effects, etc.
    */
   spawnFloatingText(opts: Omit<FloatingTextOptions, 'id'>): FloatingText {
-    const id = `ft-${Math.random().toString(36).substr(2, 9)}`;
+    const id = `ft-${Math.random().toString(36).substring(2, 11)}`;
     const ft = new FloatingText({ id, ...opts });
     this.addObject(ft);
     return ft;
