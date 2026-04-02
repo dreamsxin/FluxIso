@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LuxIso — 08 Volcano Lava Zone</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d0503;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #aaa;
+      gap: 14px;
+      padding: 20px 12px;
+    }
+    h1 { font-size: 0.85rem; font-weight: 400; letter-spacing: 0.2em; text-transform: uppercase; color: '#6a2a0a'; }
+    canvas { display: block; border-radius: 4px; box-shadow: 0 0 80px rgba(255,80,10,0.2); cursor: default; }
+    .panel {
+      display: flex; gap: 20px; align-items: center; flex-wrap: wrap; justify-content: center;
+      background: #0d0503; border: 1px solid #3a1a08; border-radius: 8px;
+      padding: 10px 18px; font-size: 0.72rem; color: #6a2a0a;
+    }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .row label { width: 100px; color: #6a2a0a; }
+    input[type=range] { width: 110px; accent-color: #ff4400; cursor: pointer; }
+    .val { font-family: monospace; width: 36px; text-align: right; color: #5a1a04; }
+    .hint { font-size: 0.65rem; color: #3a1a08; letter-spacing: 0.06em; }
+  </style>
+</head>
+<body>
+  <h1>LuxIso — 🌋 Volcano Lava Zone</h1>
+  <canvas id="canvas"></canvas>
+  <div class="panel">
+    <div class="row">
+      <label>熔岩波速</label>
+      <input id="lava-speed" type="range" min="0.5" max="8" value="3" step="0.1" />
+      <span class="val" id="lava-speed-val">3.0</span>
+    </div>
+    <div class="row">
+      <label>烟雾密度</label>
+      <input id="smoke-density" type="range" min="0.1" max="2" value="1" step="0.1" />
+      <span class="val" id="smoke-density-val">1.0</span>
+    </div>
+    <span class="hint">WASD / ↑↓←→ 移动 · 站在熔岩上会受到灼烧伤害 · 裂缝喷发时生成临时平台</span>
+  </div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

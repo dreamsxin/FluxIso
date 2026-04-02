@@ -41,6 +41,7 @@ export default defineConfig({
             ex05:         resolve(__dirname, 'examples/05-whisper-plains/index.html'),
             ex06:         resolve(__dirname, 'examples/06-voxel-lake/index.html'),
             ex07:         resolve(__dirname, 'examples/07-desert-ruins/index.html'),
+            ex08:         resolve(__dirname, 'examples/08-volcano/index.html'),
           },
         },
       },
