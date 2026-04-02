@@ -169,10 +169,13 @@ export class CubeHero extends Entity {
     const gy = originY + gsy;
 
     // 先画地面阴影（响应太阳方向）
-    this._drawShadowBlob(ctx, cx, cy, gx, gy, dirLights, tileW, tileH);
+    // cy - 26 = 钻石腰棱的实际屏幕 y（亭底对齐地面）
+    this._drawShadowBlob(ctx, cx, cy - 26, gx, gy, dirLights, tileW, tileH);
 
     ctx.save();
-    ctx.translate(cx, cy);
+    // 上移钻石，使亭底（culet）对齐地面，而不是腰棱对齐地面
+    // HP=26 是 _drawDiamond 里的亭部高度
+    ctx.translate(cx, cy - 26);
 
     // 飞升时缩小 + 增亮
     if (this._ascendActive) {
@@ -203,7 +206,8 @@ export class CubeHero extends Entity {
     ctx.restore();
 
     // 梦幻光晕：角色周围漂浮的彩色光圈（在相机变换空间里画）
-    this._drawDreamAura(ctx, cx, cy);
+    // cy - 26 对应钻石腰棱的实际屏幕位置（亭底对齐地面后）
+    this._drawDreamAura(ctx, cx, cy - 26);
   }
 
   // ── 地面投影阴影（响应太阳方向） ────────────────────────────────────────
