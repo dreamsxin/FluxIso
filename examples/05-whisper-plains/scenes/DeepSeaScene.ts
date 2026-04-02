@@ -9,12 +9,12 @@
  * - 发光水母（半透明伞形）
  * - 深海传送门（返回湖水）
  */
-import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
-import { AABB } from '../../src/math/depthSort';
-import { project } from '../../src/math/IsoProjection';
-import { Scene } from '../../src/core/Scene';
-import { OmniLight } from '../../src/lighting/OmniLight';
-import { Floor } from '../../src/elements/Floor';
+import { IsoObject, DrawContext } from '../../../src/elements/IsoObject';
+import { AABB } from '../../../src/math/depthSort';
+import { project } from '../../../src/math/IsoProjection';
+import { Scene } from '../../../src/core/Scene';
+import { OmniLight } from '../../../src/lighting/OmniLight';
+import { Floor } from '../../../src/elements/Floor';
 
 export const DEEP_COLS = 14;
 export const DEEP_ROWS = 14;

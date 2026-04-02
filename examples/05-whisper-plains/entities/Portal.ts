@@ -7,10 +7,10 @@
  * - 旋转菱形粒子 + 上升光尘
  * - 激活时：亮度爆发 + 粒子加速 + 光环扩散
  */
-import { Entity } from '../../src/ecs/Entity';
-import { DrawContext } from '../../src/elements/IsoObject';
-import { AABB } from '../../src/math/depthSort';
-import { project } from '../../src/math/IsoProjection';
+import { Entity } from '../../../src/ecs/Entity';
+import { DrawContext } from '../../../src/elements/IsoObject';
+import { AABB } from '../../../src/math/depthSort';
+import { project } from '../../../src/math/IsoProjection';
 
 interface PortalParticle {
   angle: number;

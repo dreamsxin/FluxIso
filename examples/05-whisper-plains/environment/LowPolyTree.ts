@@ -4,9 +4,9 @@
  * LowPolyFlower— 低多边形花朵（茎 + 多瓣 + 花粉光点）
  * LowPolyRock  — 低多边形石块（草原装饰）
  */
-import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
-import { AABB } from '../../src/math/depthSort';
-import { project } from '../../src/math/IsoProjection';
+import { IsoObject, DrawContext } from '../../../src/elements/IsoObject';
+import { AABB } from '../../../src/math/depthSort';
+import { project } from '../../../src/math/IsoProjection';
 
 // ── 低多边形树 ─────────────────────────────────────────────────────────────
 

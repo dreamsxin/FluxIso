@@ -11,13 +11,13 @@ import {
   ParticleSystem, MovementComponent, ClickMover,
   OmniLight, DirectionalLight, Scene,
 } from '../../src/index';
-import { CubeHero } from './CubeHero';
-import { buildPlainsScene, PLAINS_COLS, PLAINS_ROWS, PORTAL_X, PORTAL_Y } from './PlainsScene';
-import { buildLakeScene, LAKE_PORTAL_X, LAKE_PORTAL_Y } from './LakeScene';
-import { buildDeepSeaScene, DEEP_COLS, DEEP_ROWS, DEEP_PORTAL_X, DEEP_PORTAL_Y } from './DeepSeaScene';
-import { DayNightCycle } from './DayNightCycle';
-import { Portal } from './Portal';
-import { WaveLake } from './LakeScene';
+import { CubeHero } from './entities/CubeHero';
+import { buildPlainsScene, PLAINS_COLS, PLAINS_ROWS, PORTAL_X, PORTAL_Y } from './scenes/PlainsScene';
+import { buildLakeScene, LAKE_PORTAL_X, LAKE_PORTAL_Y } from './scenes/LakeScene';
+import { buildDeepSeaScene, DEEP_COLS, DEEP_ROWS, DEEP_PORTAL_X, DEEP_PORTAL_Y } from './scenes/DeepSeaScene';
+import { DayNightCycle } from './environment/DayNightCycle';
+import { Portal } from './entities/Portal';
+import { WaveLake } from './scenes/LakeScene';
 
 // ── 引擎 & 输入 ───────────────────────────────────────────────────────────
 

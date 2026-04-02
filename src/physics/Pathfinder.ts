@@ -12,7 +12,6 @@ interface Node {
   /** Heap index — kept in sync by BinaryHeap for O(1) decrease-key. */
   _heapIdx: number;
 }
-
 // ── Binary min-heap keyed on Node.f ─────────────────────────────────────────
 // Standard array-backed heap. push O(log n), pop O(log n), update O(log n).
 
@@ -78,6 +77,60 @@ class BinaryHeap {
 
 const key = (col: number, row: number) => `${col},${row}`;
 
+// ── Path result cache ─────────────────────────────────────────────────────────
+// LRU cache keyed by "sc,sr→gc,gr". Invalidated when the collider changes.
+// Capacity is intentionally small — pathfinding is typically called for a
+// handful of agents, and stale entries waste memory.
+
+const CACHE_CAPACITY = 64;
+
+interface CacheEntry {
+  result: IsoVec2[] | null;
+  lruOrder: number;
+}
+
+let _cacheCollider: TileCollider | null = null;
+let _cacheVersion  = 0;   // bumped on collider swap
+let _lruClock      = 0;
+const _cache       = new Map<string, CacheEntry & { version: number }>();
+
+function _cacheGet(collider: TileCollider, cacheKey: string): IsoVec2[] | null | undefined {
+  if (collider !== _cacheCollider) return undefined; // miss — different collider
+  const entry = _cache.get(cacheKey);
+  if (!entry || entry.version !== _cacheVersion) return undefined;
+  entry.lruOrder = ++_lruClock;
+  return entry.result;
+}
+
+function _cacheSet(collider: TileCollider, cacheKey: string, result: IsoVec2[] | null): void {
+  if (collider !== _cacheCollider) {
+    // New collider — flush everything
+    _cache.clear();
+    _cacheCollider = collider;
+    _cacheVersion++;
+  }
+  if (_cache.size >= CACHE_CAPACITY) {
+    // Evict LRU entry
+    let oldest = Infinity, oldestKey = '';
+    for (const [k, v] of _cache) {
+      if (v.lruOrder < oldest) { oldest = v.lruOrder; oldestKey = k; }
+    }
+    if (oldestKey) _cache.delete(oldestKey);
+  }
+  _cache.set(cacheKey, { result, lruOrder: ++_lruClock, version: _cacheVersion });
+}
+
+/**
+ * Invalidate the path cache for a specific collider.
+ * Call this whenever you modify walkability (e.g. a door opens/closes).
+ */
+function invalidateCache(collider?: TileCollider): void {
+  if (!collider || collider === _cacheCollider) {
+    _cacheVersion++;
+    _cache.clear();
+  }
+}
+
 /**
  * A* pathfinder over a TileCollider grid.
  *
@@ -90,6 +143,9 @@ const key = (col: number, row: number) => `${col},${row}`;
  * - Open list uses a binary min-heap for O(log n) push/pop.
  * - Path is post-processed with Bresenham LoS string-pulling to straighten
  *   zigzag routes across open areas.
+ * - Results are cached per (collider, start-tile, goal-tile). The cache is
+ *   automatically flushed when a different collider is passed. Call
+ *   `Pathfinder.invalidateCache()` after modifying walkability at runtime.
  *
  * @example
  *   const path = Pathfinder.find(collider, { x: 1, y: 1 }, { x: 7, y: 5 });
@@ -99,6 +155,7 @@ export class Pathfinder {
   /**
    * Find a path from `start` to `goal` on the given collider grid.
    * Returns tile-centre world coordinates, or `null` if unreachable.
+   * Results are cached — repeated calls with the same inputs are O(1).
    */
   static find(
     collider: TileCollider,
@@ -110,6 +167,31 @@ export class Pathfinder {
     const gc = Math.floor(goal.x);
     const gr = Math.floor(goal.y);
 
+    const cacheKey = `${sc},${sr}→${gc},${gr}`;
+    const cached = _cacheGet(collider, cacheKey);
+    if (cached !== undefined) return cached;
+
+    const result = Pathfinder._search(collider, sc, sr, gc, gr);
+    _cacheSet(collider, cacheKey, result);
+    return result;
+  }
+
+  /**
+   * Invalidate the path result cache.
+   * Call after modifying collider walkability at runtime (e.g. opening a door).
+   * If `collider` is omitted, all cached results are cleared.
+   */
+  static invalidateCache(collider?: TileCollider): void {
+    invalidateCache(collider);
+  }
+
+  // ── Internal A* search ───────────────────────────────────────────────────
+
+  private static _search(
+    collider: TileCollider,
+    sc: number, sr: number,
+    gc: number, gr: number,
+  ): IsoVec2[] | null {
     if (!collider.isWalkable(gc, gr)) return null;
     if (sc === gc && sr === gr) return [{ x: gc + 0.5, y: gr + 0.5 }];
 

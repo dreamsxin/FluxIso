@@ -4,7 +4,7 @@
  */
 import {
   Engine, Scene, OmniLight, DirectionalLight,
-  InputManager, IsoObject, DrawContext,
+  InputManager, InputMap, ClickMover, IsoObject, DrawContext,
 } from '../../src/index';
 import { AABB } from '../../src/math/depthSort';
 import { project } from '../../src/math/IsoProjection';
@@ -67,17 +67,35 @@ const cracks = crackDefs.map(([id, x, y, seed]) => {
 
 // ── 角色（简单立方体英雄） ────────────────────────────────────────────────────
 
+// 计算 RockLayer 在某格的地面高度（像素，与 project() z 参数同单位）
+function rockHeight(col: number, row: number): number {
+  return Math.max(0, (
+    Math.sin(col * 0.8 + row * 0.5) * 0.35 +
+    Math.cos(col * 0.4 - row * 0.7) * 0.25 +
+    Math.sin(col * 1.2 + row * 1.0) * 0.1
+  ) * 0.8) + 0.05;
+}
+
 class Hero extends IsoObject {
   velX = 0; velY = 0;
   hp = 100;
   private _bobPhase = 0;
   private _lastTs = 0;
   private _burnGlow = 0;
+  // 当前站立的地面 z（随位置实时更新）
+  private _groundZ = 0;
 
   constructor() { super('hero', 2, 2, 0); }
 
   get aabb(): AABB {
-    return { minX: this.position.x - 0.4, minY: this.position.y - 0.4, maxX: this.position.x + 0.4, maxY: this.position.y + 0.4, baseZ: this.position.z };
+    const s = 0.4;
+    const { x, y, z } = this.position;
+    return {
+      minX: x - s, minY: y - s,
+      maxX: x + s, maxY: y + s,
+      baseZ: z,
+      maxZ: z + 2,  // 世界单位，立方体高度约 2 格
+    };
   }
 
   setBurn(on: boolean): void {
@@ -88,63 +106,72 @@ class Hero extends IsoObject {
     const now = ts ?? performance.now();
     const dt  = this._lastTs === 0 ? 0.016 : Math.min((now - this._lastTs) / 1000, 0.1);
     this._lastTs = now;
+
+    this.position.x = Math.max(0.5, Math.min(COLS - 0.5, this.position.x + this.velX));
+    this.position.y = Math.max(0.5, Math.min(ROWS - 0.5, this.position.y + this.velY));
+
+    // 跟随地面高度
+    this._groundZ = rockHeight(Math.floor(this.position.x), Math.floor(this.position.y));
+
     const moving = Math.hypot(this.velX, this.velY) > 0.01;
     this._bobPhase += moving ? dt * 5 : dt * 1.2;
-    this.position.z = Math.sin(this._bobPhase) * (moving ? 3 : 1.5);
-    this.position.x = Math.max(0.5, Math.min(COLS - 0.5, this.position.x + this.velX * dt));
-    this.position.y = Math.max(0.5, Math.min(ROWS - 0.5, this.position.y + this.velY * dt));
+    // z = 地面高度 + 轻微上下浮动
+    this.position.z = this._groundZ + Math.sin(this._bobPhase) * (moving ? 0.15 : 0.08);
   }
 
   draw(dc: DrawContext): void {
     const { ctx, tileW, tileH, originX, originY } = dc;
     const { x, y, z } = this.position;
-    const { sx, sy } = project(x, y, z, tileW, tileH);
-    const cx = originX + sx, cy = originY + sy;
-    const s = 0.45;
+    const s = 0.4;  // XY 半边长（世界单位）
+    const h = 2.0;  // 立方体高度（世界单位，与 VolcanoCone layerH 同单位）
 
-    // 立方体
-    const top   = project(x - s, y - s, z + s * 2, tileW, tileH);
-    const tr    = project(x + s, y - s, z + s * 2, tileW, tileH);
-    const br    = project(x + s, y + s, z + s * 2, tileW, tileH);
-    const bl    = project(x - s, y + s, z + s * 2, tileW, tileH);
-    const blB   = project(x - s, y + s, z,         tileW, tileH);
-    const brB   = project(x + s, y + s, z,         tileW, tileH);
-    const trB   = project(x + s, y - s, z,         tileW, tileH);
-    const tlB   = project(x - s, y - s, z,         tileW, tileH);
+    const tl  = project(x - s, y - s, z + h, tileW, tileH);
+    const tr  = project(x + s, y - s, z + h, tileW, tileH);
+    const br  = project(x + s, y + s, z + h, tileW, tileH);
+    const bl  = project(x - s, y + s, z + h, tileW, tileH);
+    const tlB = project(x - s, y - s, z,     tileW, tileH);
+    const trB = project(x + s, y - s, z,     tileW, tileH);
+    const brB = project(x + s, y + s, z,     tileW, tileH);
+    const blB = project(x - s, y + s, z,     tileW, tileH);
     const ox = originX, oy = originY;
 
+    // 左侧面（较暗）
     ctx.beginPath();
-    ctx.moveTo(ox + top.sx, oy + top.sy);
+    ctx.moveTo(ox + tl.sx,  oy + tl.sy);
     ctx.lineTo(ox + bl.sx,  oy + bl.sy);
     ctx.lineTo(ox + blB.sx, oy + blB.sy);
     ctx.lineTo(ox + tlB.sx, oy + tlB.sy);
     ctx.closePath();
-    ctx.fillStyle = '#4a8aff';
+    ctx.fillStyle = '#2255cc';
     ctx.fill();
 
+    // 右侧面（中亮）
     ctx.beginPath();
     ctx.moveTo(ox + tr.sx,  oy + tr.sy);
     ctx.lineTo(ox + br.sx,  oy + br.sy);
     ctx.lineTo(ox + brB.sx, oy + brB.sy);
     ctx.lineTo(ox + trB.sx, oy + trB.sy);
     ctx.closePath();
-    ctx.fillStyle = '#6aaaff';
+    ctx.fillStyle = '#4488ff';
     ctx.fill();
 
+    // 顶面（最亮）
     ctx.beginPath();
-    ctx.moveTo(ox + top.sx, oy + top.sy);
-    ctx.lineTo(ox + tr.sx,  oy + tr.sy);
-    ctx.lineTo(ox + br.sx,  oy + br.sy);
-    ctx.lineTo(ox + bl.sx,  oy + bl.sy);
+    ctx.moveTo(ox + tl.sx, oy + tl.sy);
+    ctx.lineTo(ox + tr.sx, oy + tr.sy);
+    ctx.lineTo(ox + br.sx, oy + br.sy);
+    ctx.lineTo(ox + bl.sx, oy + bl.sy);
     ctx.closePath();
-    ctx.fillStyle = '#80c0ff';
+    ctx.fillStyle = '#66aaff';
     ctx.fill();
 
     // 灼烧光晕
     if (this._burnGlow > 0.05) {
+      const { sx, sy } = project(x, y, z + h * 0.5, tileW, tileH);
+      const cx = ox + sx, cy = oy + sy;
       const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, tileW * 0.6);
-      glow.addColorStop(0,   `rgba(255,120,20,${(this._burnGlow * 0.6).toFixed(2)})`);
-      glow.addColorStop(1,   'rgba(255,60,0,0)');
+      glow.addColorStop(0, `rgba(255,120,20,${(this._burnGlow * 0.6).toFixed(2)})`);
+      glow.addColorStop(1, 'rgba(255,60,0,0)');
       ctx.globalCompositeOperation = 'screen';
       ctx.beginPath();
       ctx.arc(cx, cy, tileW * 0.6, 0, Math.PI * 2);
@@ -170,7 +197,7 @@ const platforms: Platform[] = [];
 class PlatformObj extends IsoObject {
   platforms: Platform[];
   constructor(p: Platform[]) { super('platforms', 0, 0, 0); this.platforms = p; this.castsShadow = false; }
-  get aabb(): AABB { return { minX: 0, minY: 0, maxX: COLS, maxY: ROWS, baseZ: 0 }; }
+  get aabb(): AABB { return { minX: 0, minY: 0, maxX: COLS, maxY: ROWS, baseZ: 0, maxZ: 0.7 }; }
   draw(dc: DrawContext): void {
     const { ctx, tileW, tileH, originX, originY } = dc;
     for (const p of this.platforms) {
@@ -227,7 +254,13 @@ scene.addObject(platformObj);
 // ── 输入 ──────────────────────────────────────────────────────────────────────
 
 const input = new InputManager(canvas);
-const SPEED = 4;
+const map   = new InputMap(input);
+map.define('up',    ['ArrowUp',    'KeyW']);
+map.define('down',  ['ArrowDown',  'KeyS']);
+map.define('left',  ['ArrowLeft',  'KeyA']);
+map.define('right', ['ArrowRight', 'KeyD']);
+
+const mover = new ClickMover({ cols: COLS, rows: ROWS, speed: 0.08 });
 
 // ── 状态 ──────────────────────────────────────────────────────────────────────
 
@@ -254,12 +287,19 @@ engine.start(
     const dt  = lastTs === 0 ? 0.016 : Math.min((now - lastTs) / 1000, 0.1);
     lastTs = now;
 
-    // 输入移动
-    hero.velX = 0; hero.velY = 0;
-    if (input.isDown('KeyW') || input.isDown('ArrowUp'))    hero.velY = -SPEED;
-    if (input.isDown('KeyS') || input.isDown('ArrowDown'))  hero.velY =  SPEED;
-    if (input.isDown('KeyA') || input.isDown('ArrowLeft'))  hero.velX = -SPEED;
-    if (input.isDown('KeyD') || input.isDown('ArrowRight')) hero.velX =  SPEED;
+    // 输入移动（键盘 + 鼠标点击）
+    mover.update(
+      dt, input, map, scene.camera,
+      scene.tileW, scene.tileH,
+      engine.originX, engine.originY,
+      canvas.width, canvas.height,
+      hero.position.x, hero.position.y,
+    );
+    hero.velX = mover.velX;
+    hero.velY = mover.velY;
+
+    // 绘制点击标记
+    mover.drawMarker(engine.ctx, scene.camera, scene.tileW, scene.tileH, engine.originX, engine.originY, ts);
 
     // 裂缝喷发 → 生成平台
     for (const crack of cracks) {

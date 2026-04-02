@@ -3,54 +3,7 @@
  */
 import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
 import { AABB } from '../../src/math/depthSort';
-import { project } from '../../src/math/IsoProjection';
-
-// ── 工具 ──────────────────────────────────────────────────────────────────────
-
-function drawIsoCube(
-  ctx: CanvasRenderingContext2D,
-  ox: number, oy: number,
-  tileW: number, tileH: number,
-  wx: number, wy: number,
-  wz: number, w: number, d: number, h: number,
-  topColor: string, leftColor: string, rightColor: string,
-): void {
-  const tl  = project(wx,     wy,     wz + h, tileW, tileH);
-  const tr  = project(wx + w, wy,     wz + h, tileW, tileH);
-  const br  = project(wx + w, wy + d, wz + h, tileW, tileH);
-  const bl  = project(wx,     wy + d, wz + h, tileW, tileH);
-  const blB = project(wx,     wy + d, wz,     tileW, tileH);
-  const brB = project(wx + w, wy + d, wz,     tileW, tileH);
-  const trB = project(wx + w, wy,     wz,     tileW, tileH);
-  const tlB = project(wx,     wy,     wz,     tileW, tileH);
-
-  ctx.beginPath();
-  ctx.moveTo(ox + tl.sx, oy + tl.sy);
-  ctx.lineTo(ox + bl.sx, oy + bl.sy);
-  ctx.lineTo(ox + blB.sx, oy + blB.sy);
-  ctx.lineTo(ox + tlB.sx, oy + tlB.sy);
-  ctx.closePath();
-  ctx.fillStyle = leftColor;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.moveTo(ox + tr.sx, oy + tr.sy);
-  ctx.lineTo(ox + br.sx, oy + br.sy);
-  ctx.lineTo(ox + brB.sx, oy + brB.sy);
-  ctx.lineTo(ox + trB.sx, oy + trB.sy);
-  ctx.closePath();
-  ctx.fillStyle = rightColor;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.moveTo(ox + tl.sx, oy + tl.sy);
-  ctx.lineTo(ox + tr.sx, oy + tr.sy);
-  ctx.lineTo(ox + br.sx, oy + br.sy);
-  ctx.lineTo(ox + bl.sx, oy + bl.sy);
-  ctx.closePath();
-  ctx.fillStyle = topColor;
-  ctx.fill();
-}
+import { project, drawIsoCube } from '../../src/math/IsoProjection';
 
 // ── 岩层地面 ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +19,7 @@ export class RockLayer extends IsoObject {
   }
 
   get aabb(): AABB {
-    return { minX: 0, minY: 0, maxX: this.cols, maxY: this.rows, baseZ: -4 };
+    return { minX: 0, minY: 0, maxX: this.cols, maxY: this.rows, baseZ: 0, maxZ: 0.9 };
   }
 
   private _height(col: number, row: number): number {

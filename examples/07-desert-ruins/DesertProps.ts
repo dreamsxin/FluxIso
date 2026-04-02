@@ -3,64 +3,11 @@
  */
 import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
 import { AABB } from '../../src/math/depthSort';
-import { project } from '../../src/math/IsoProjection';
+import { project, drawIsoCube } from '../../src/math/IsoProjection';
+import { shiftColor } from '../../src/math/color';
 
-// ── 工具 ──────────────────────────────────────────────────────────────────────
-
-function shiftHex(hex: string, amt: number): string {
-  const n = parseInt(hex.replace('#', ''), 16);
-  const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
-  const c = (v: number) => Math.max(0, Math.min(255, v + amt));
-  return `rgb(${c(r)},${c(g)},${c(b)})`;
-}
-
-function drawIsoCube(
-  ctx: CanvasRenderingContext2D,
-  ox: number, oy: number,
-  tileW: number, tileH: number,
-  wx: number, wy: number,
-  wz: number, w: number, d: number, h: number,
-  topColor: string, leftColor: string, rightColor: string,
-): void {
-  const tl = project(wx,     wy,     wz + h, tileW, tileH);
-  const tr = project(wx + w, wy,     wz + h, tileW, tileH);
-  const br = project(wx + w, wy + d, wz + h, tileW, tileH);
-  const bl = project(wx,     wy + d, wz + h, tileW, tileH);
-  const blB = project(wx,     wy + d, wz,     tileW, tileH);
-  const brB = project(wx + w, wy + d, wz,     tileW, tileH);
-  const trB = project(wx + w, wy,     wz,     tileW, tileH);
-  const tlB = project(wx,     wy,     wz,     tileW, tileH);
-
-  // 左侧面
-  ctx.beginPath();
-  ctx.moveTo(ox + tl.sx, oy + tl.sy);
-  ctx.lineTo(ox + bl.sx, oy + bl.sy);
-  ctx.lineTo(ox + blB.sx, oy + blB.sy);
-  ctx.lineTo(ox + tlB.sx, oy + tlB.sy);
-  ctx.closePath();
-  ctx.fillStyle = leftColor;
-  ctx.fill();
-
-  // 右侧面
-  ctx.beginPath();
-  ctx.moveTo(ox + tr.sx, oy + tr.sy);
-  ctx.lineTo(ox + br.sx, oy + br.sy);
-  ctx.lineTo(ox + brB.sx, oy + brB.sy);
-  ctx.lineTo(ox + trB.sx, oy + trB.sy);
-  ctx.closePath();
-  ctx.fillStyle = rightColor;
-  ctx.fill();
-
-  // 顶面
-  ctx.beginPath();
-  ctx.moveTo(ox + tl.sx, oy + tl.sy);
-  ctx.lineTo(ox + tr.sx, oy + tr.sy);
-  ctx.lineTo(ox + br.sx, oy + br.sy);
-  ctx.lineTo(ox + bl.sx, oy + bl.sy);
-  ctx.closePath();
-  ctx.fillStyle = topColor;
-  ctx.fill();
-}
+// shiftHex → use framework shiftColor
+const shiftHex = shiftColor;
 
 // ── 金字塔 ────────────────────────────────────────────────────────────────────
 

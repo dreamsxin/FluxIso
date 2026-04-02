@@ -39,7 +39,7 @@ export class LavaRiver extends IsoObject {
   }
 
   get aabb(): AABB {
-    return { minX: 0, minY: 0, maxX: 14, maxY: 14, baseZ: -2 };
+    return { minX: 0, minY: 0, maxX: 14, maxY: 14, baseZ: 0, maxZ: 0.6 };
   }
 
   isLava(wx: number, wy: number): boolean {

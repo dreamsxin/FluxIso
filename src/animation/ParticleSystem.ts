@@ -562,6 +562,105 @@ export class ParticleSystem extends IsoObject {
         spriteLoop: false,
       };
     },
+
+    /**
+     * Ambient drifting particles — slow-moving, looping, no gravity.
+     * Ideal for dust motes, sand, snow, embers floating in the air.
+     * Spawn the system at (0,0) and set a large aabb to cover the scene.
+     *
+     * @param opts.color   Particle color hex. Default '#e8c870' (sand/dust).
+     * @param opts.count   Max live particles. Default 60.
+     * @param opts.speed   Drift speed [min, max]. Default [0.1, 0.5].
+     * @param opts.size    Particle size px [min, max]. Default [2, 5].
+     * @param opts.alpha   Max alpha. Default 0.35.
+     * @param opts.blend   Composite op. Default 'screen'.
+     * @param opts.shape   Particle shape. Default 'square' (diamond when rotated).
+     */
+    ambientDrift(opts: {
+      color?: string;
+      count?: number;
+      speed?: [number, number];
+      size?: [number, number];
+      alpha?: number;
+      blend?: ParticleBlend;
+      shape?: 'circle' | 'square';
+    } = {}): EmitterConfig {
+      return {
+        maxParticles: opts.count ?? 60,
+        rate: opts.count ?? 60,   // continuous — always keep pool full
+        shape: 'circle',
+        spawnRadius: 0,           // caller positions the system; spread via speed
+        lifetime: [3, 8],
+        speed: opts.speed ?? [0.1, 0.5],
+        angle: [0, Math.PI * 2],
+        vz: [0, 0],               // no vertical drift by default
+        gravity: 0,               // no gravity — particles float
+        size: opts.size ?? [2, 5],
+        sizeFinal: 1,
+        colorStart: opts.color ?? '#e8c870',
+        colorEnd:   opts.color ?? '#e8c870',
+        alphaStart: opts.alpha ?? 0.35,
+        alphaEnd: 0,
+        blend: opts.blend ?? 'screen',
+        rotSpeed: [-1.5, 1.5],
+        particleShape: opts.shape ?? 'square',
+      };
+    },
+
+    /**
+     * Rising smoke plume — continuous upward smoke from a fixed point.
+     * @param opts.color  Smoke color. Default '#303030'.
+     * @param opts.count  Max particles. Default 50.
+     */
+    smokePlume(opts: { color?: string; count?: number } = {}): EmitterConfig {
+      return {
+        maxParticles: opts.count ?? 50,
+        rate: 15,
+        shape: 'circle',
+        spawnRadius: 0.2,
+        lifetime: [2, 4],
+        speed: [0.1, 0.3],
+        angle: [0, Math.PI * 2],
+        vz: [8, 20],
+        gravity: 0,
+        size: [6, 16],
+        sizeFinal: 2,
+        colorStart: opts.color ?? '#303030',
+        colorEnd: '#808080',
+        alphaStart: 0.5,
+        alphaEnd: 0,
+        blend: 'source-over',
+        rotSpeed: [-1, 1],
+        particleShape: 'circle',
+      };
+    },
+
+    /**
+     * Lava sparks — burst of hot sparks with gravity, for crack/fissure effects.
+     * @param opts.color  Spark color. Default '#ff8800'.
+     * @param opts.count  Particles per burst. Default 30.
+     */
+    lavaSparks(opts: { color?: string; count?: number } = {}): EmitterConfig {
+      return {
+        maxParticles: opts.count ?? 30,
+        rate: 0,
+        shape: 'ring',
+        spawnRadius: 0.15,
+        lifetime: [0.4, 0.9],
+        speed: [0.8, 2.5],
+        angle: [0, Math.PI * 2],
+        vz: [12, 30],
+        gravity: -25,
+        size: [2, 5],
+        sizeFinal: 0,
+        colorStart: opts.color ?? '#ff8800',
+        colorEnd: '#ff2200',
+        alphaStart: 1,
+        alphaEnd: 0,
+        blend: 'screen',
+        particleShape: 'circle',
+      };
+    },
   };
 }
 

@@ -1,14 +1,13 @@
 /**
  * Topological depth sort for isometric objects.
  *
- * Each object declares an axis-aligned bounding box (AABB) in world space.
- * Two objects A and B need an explicit ordering only when their AABBs overlap
- * on both X and Y axes — i.e. one could visually occlude the other.
- * In that case we compare on the axis of greater separation to determine
- * which is "behind".
+ * Each object declares a 3-D axis-aligned bounding box (AABB) in world space.
+ * Two objects need an explicit ordering only when their AABBs overlap on ALL
+ * THREE axes (X, Y, Z) — i.e. they could visually occlude each other.
  *
- * For non-overlapping pairs we fall back to the simple (x+y) heuristic.
- * This eliminates Z-fighting on diagonals without a full topological sort.
+ * Z-axis check prevents ground tiles from being sorted against elevated
+ * characters: if the character's baseZ is above the tile's maxZ they simply
+ * don't overlap in Z and no ordering edge is emitted.
  */
 
 export interface AABB {
@@ -22,6 +21,13 @@ export interface AABB {
   maxY: number;
   /** Ground-plane Z of the object base */
   baseZ: number;
+  /**
+   * Top Z of the object's bounding volume.
+   * Defaults to baseZ when omitted (flat / ground-level objects).
+   * Set this to baseZ + height for objects with vertical extent so that
+   * elevated objects are not incorrectly sorted against ground tiles.
+   */
+  maxZ?: number;
 }
 
 export interface Sortable {
@@ -30,7 +36,7 @@ export interface Sortable {
 
 /**
  * Returns true if A must be drawn before B (A is behind B).
- * Uses AABB overlap test; falls back to (x+y) heuristic for non-overlapping pairs.
+ * Uses a full 3-D AABB overlap test before applying the XY heuristic.
  */
 function isBehind(a: AABB, b: AABB): boolean {
   // Check if AABBs overlap on X axis
@@ -39,20 +45,43 @@ function isBehind(a: AABB, b: AABB): boolean {
   const overlapY = a.minY < b.maxY && a.maxY > b.minY;
 
   if (overlapX && overlapY) {
-    // Objects occupy the same floor space — use the one that ends earlier
-    // on the dominant separation axis
+    // Check Z overlap — only objects that share vertical space can occlude each other.
+    // When maxZ is omitted, treat the object as having infinite upward extent so that
+    // flat (baseZ-only) objects always overlap in Z and fall through to the XY heuristic.
+    const aMaxZ = a.maxZ ?? Infinity;
+    const bMaxZ = b.maxZ ?? Infinity;
+    const overlapZ = a.baseZ < bMaxZ && aMaxZ > b.baseZ;
+
+    if (!overlapZ) {
+      // Vertically separated: the lower object is always drawn first (behind).
+      return a.baseZ < b.baseZ;
+    }
+
+    // Full 3-D overlap — determine ordering.
+    //
+    // If B completely contains A in XY (A is a small object inside a large one,
+    // e.g. a character standing on a terrain tile), A should be drawn AFTER B
+    // (A is in the foreground). So isBehind(A, B) = false, isBehind(B, A) = true.
+    const bContainsA = b.minX <= a.minX && b.maxX >= a.maxX &&
+                       b.minY <= a.minY && b.maxY >= a.maxY;
+    if (bContainsA) return false; // A is on top of / inside B → draw A after B
+
+    const aContainsB = a.minX <= b.minX && a.maxX >= b.maxX &&
+                       a.minY <= b.minY && a.maxY >= b.maxY;
+    if (aContainsB) return true;  // B is inside A → draw B after A
+
+    // Partial overlap — use the dominant XY separation axis.
     const sepX = Math.min(b.maxX - a.minX, a.maxX - b.minX);
     const sepY = Math.min(b.maxY - a.minY, a.maxY - b.minY);
 
     if (sepX < sepY) {
-      // X axis separates them more cleanly: the one with smaller maxX is behind
       return a.maxX <= b.maxX;
     } else {
       return a.maxY <= b.maxY;
     }
   }
 
-  // Non-overlapping: simple (x+y) heuristic
+  // Non-overlapping in XY: simple (x+y) heuristic
   const centerA = (a.minX + a.maxX) / 2 + (a.minY + a.maxY) / 2;
   const centerB = (b.minX + b.maxX) / 2 + (b.minY + b.maxY) / 2;
   return centerA <= centerB;
@@ -96,8 +125,7 @@ export function topoSort<T extends Sortable>(objects: T[]): T[] {
     }
   }
 
-  // Fallback: if cycle detected (shouldn't happen with well-formed scenes),
-  // append remaining objects in original order
+  // Fallback: if cycle detected, append remaining in original order
   if (result.length < n) {
     for (let i = 0; i < n; i++) {
       if (!result.includes(objects[i])) result.push(objects[i]);

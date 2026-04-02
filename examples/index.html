@@ -12,44 +12,77 @@
       min-height: 100vh;
       font-family: 'Segoe UI', system-ui, sans-serif;
       color: #888;
-      padding: 48px 24px 64px;
+      padding: 48px 24px 72px;
     }
 
     header {
       text-align: center;
-      margin-bottom: 52px;
+      margin-bottom: 56px;
     }
-
     .logo {
-      font-size: 0.72rem;
-      letter-spacing: 0.35em;
+      font-size: 0.70rem;
+      letter-spacing: 0.38em;
       text-transform: uppercase;
-      color: #2a2a3a;
-      margin-bottom: 10px;
+      color: #222230;
+      margin-bottom: 12px;
     }
-
     h1 {
-      font-size: 1.6rem;
+      font-size: 1.7rem;
       font-weight: 300;
       letter-spacing: 0.08em;
       color: #ccc;
       margin-bottom: 8px;
     }
-
     .subtitle {
-      font-size: 0.78rem;
-      color: #2a2a3a;
+      font-size: 0.76rem;
+      color: #252535;
       letter-spacing: 0.06em;
     }
 
+    /* ── Section headings ── */
+    .section-heading {
+      max-width: 1100px;
+      margin: 0 auto 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .section-heading h2 {
+      font-size: 0.65rem;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #2a2a3a;
+      white-space: nowrap;
+    }
+    .section-heading::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #141420;
+    }
+
+    .section-gap { margin-bottom: 44px; }
+
+    /* ── Grid ── */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+      gap: 14px;
       max-width: 1100px;
       margin: 0 auto;
     }
 
+    /* Tools row — 2 columns max, wider cards */
+    .grid-tools {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 14px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* ── Card ── */
     .card {
       background: #0c0c14;
       border: 1px solid #141420;
@@ -61,121 +94,168 @@
       display: flex;
       flex-direction: column;
     }
-
     .card:hover {
       border-color: #2a2a4a;
       transform: translateY(-2px);
       box-shadow: 0 8px 32px rgba(80,100,200,0.08);
     }
+    .card.tool-card {
+      border-color: #181828;
+    }
+    .card.tool-card:hover {
+      border-color: #3a3a60;
+      box-shadow: 0 8px 32px rgba(100,120,220,0.10);
+    }
 
     .card-preview {
-      height: 160px;
+      height: 140px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 3rem;
+      font-size: 2.8rem;
       position: relative;
       overflow: hidden;
     }
-
     .card-body {
-      padding: 16px 18px 18px;
+      padding: 14px 16px 16px;
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
     }
-
     .card-num {
-      font-size: 0.62rem;
-      letter-spacing: 0.18em;
-      color: #222230;
+      font-size: 0.60rem;
+      letter-spacing: 0.20em;
+      color: #1e1e2e;
       font-family: monospace;
     }
-
     .card-title {
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       font-weight: 500;
       color: #bbb;
       letter-spacing: 0.03em;
     }
-
     .card-desc {
-      font-size: 0.72rem;
-      color: #333344;
-      line-height: 1.6;
+      font-size: 0.70rem;
+      color: #2e2e40;
+      line-height: 1.65;
       margin-top: 2px;
     }
-
     .card-tags {
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
+      gap: 4px;
       margin-top: 8px;
     }
-
     .tag {
-      font-size: 0.6rem;
-      letter-spacing: 0.08em;
-      padding: 2px 7px;
+      font-size: 0.58rem;
+      letter-spacing: 0.07em;
+      padding: 2px 6px;
       border-radius: 10px;
       border: 1px solid #1a1a28;
-      color: #2a2a40;
+      color: #282840;
       background: #0e0e18;
+    }
+    .tag.tool-tag {
+      border-color: #222240;
+      color: #3a3a60;
     }
 
     /* Preview backgrounds */
-    .bg-01 { background: linear-gradient(135deg, #0a1020 0%, #1a2840 100%); }
-    .bg-02 { background: linear-gradient(135deg, #0a1a10 0%, #1a3020 100%); }
-    .bg-03 { background: linear-gradient(135deg, #1a0a10 0%, #301020 100%); }
-    .bg-04 { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a30 100%); }
-    .bg-05 { background: linear-gradient(135deg, #0a1408 0%, #1a2a10 50%, #0a0a1a 100%); }
-    .bg-06 { background: linear-gradient(135deg, #020508 0%, #040c14 50%, #060f1c 100%); }
-    .bg-07 { background: linear-gradient(135deg, #1a0e04 0%, #3a2008 50%, #1a0a00 100%); }
+    .bg-01   { background: linear-gradient(135deg, #0a1020 0%, #1a2840 100%); }
+    .bg-02   { background: linear-gradient(135deg, #0a1a10 0%, #1a3020 100%); }
+    .bg-03   { background: linear-gradient(135deg, #1a0a10 0%, #301020 100%); }
+    .bg-04   { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a30 100%); }
+    .bg-05   { background: linear-gradient(135deg, #0a1408 0%, #1a2a10 50%, #0a0a1a 100%); }
+    .bg-06   { background: linear-gradient(135deg, #020508 0%, #040c14 50%, #060f1c 100%); }
+    .bg-07   { background: linear-gradient(135deg, #1a0e04 0%, #3a2008 50%, #1a0a00 100%); }
+    .bg-08   { background: linear-gradient(135deg, #0d0503 0%, #2a0a04 50%, #4a1a08 100%); }
     .bg-main { background: linear-gradient(135deg, #0a0a0f 0%, #141428 100%); }
+    .bg-scene-editor  { background: linear-gradient(135deg, #080810 0%, #10102a 50%, #0a0a1a 100%); }
+    .bg-sprite-editor { background: linear-gradient(135deg, #080c10 0%, #0c1828 50%, #080c18 100%); }
 
-    /* Animated preview dots */
-    .preview-dots {
-      position: absolute;
-      inset: 0;
-      overflow: hidden;
-    }
-
+    /* Animated dots */
+    .preview-dots { position: absolute; inset: 0; overflow: hidden; }
     .dot {
       position: absolute;
       border-radius: 50%;
       animation: float linear infinite;
       opacity: 0;
     }
-
     @keyframes float {
-      0%   { transform: translateY(0) scale(1);   opacity: 0; }
+      0%   { transform: translateY(0) scale(1);    opacity: 0; }
       10%  { opacity: 0.6; }
       90%  { opacity: 0.3; }
-      100% { transform: translateY(-120px) scale(0.3); opacity: 0; }
+      100% { transform: translateY(-110px) scale(0.3); opacity: 0; }
     }
 
     footer {
       text-align: center;
-      margin-top: 56px;
-      font-size: 0.65rem;
-      color: #1a1a28;
+      margin-top: 60px;
+      font-size: 0.63rem;
+      color: #181828;
       letter-spacing: 0.1em;
     }
-
-    footer a { color: #2a2a40; text-decoration: none; }
-    footer a:hover { color: #4a4a60; }
+    footer a { color: #222238; text-decoration: none; }
+    footer a:hover { color: #44446a; }
   </style>
 </head>
 <body>
 
 <header>
   <div class="logo">LuxIso Engine</div>
-  <h1>Examples</h1>
+  <h1>Examples &amp; Tools</h1>
   <div class="subtitle">Isometric rendering · Canvas 2D · TypeScript</div>
 </header>
 
-<div class="grid">
+<!-- ── Tools ─────────────────────────────────────────────────────────────── -->
+
+<div class="section-heading"><h2>Tools</h2></div>
+<div class="grid-tools section-gap">
+
+  <a class="card tool-card" href="/editor.html">
+    <div class="card-preview bg-scene-editor">
+      <div class="preview-dots" id="dots-scene-editor"></div>
+      <span>🛠️</span>
+    </div>
+    <div class="card-body">
+      <div class="card-num">TOOL</div>
+      <div class="card-title">Scene Editor</div>
+      <div class="card-desc">Visual editor for building isometric scenes. Place floors, walls, lights, characters and props, then export to JSON for use in your game.</div>
+      <div class="card-tags">
+        <span class="tag tool-tag">Editor</span>
+        <span class="tag tool-tag">JSON Export</span>
+        <span class="tag tool-tag">Undo / Redo</span>
+        <span class="tag tool-tag">Props</span>
+        <span class="tag tool-tag">Lighting</span>
+      </div>
+    </div>
+  </a>
+
+  <a class="card tool-card" href="/sprite-editor.html">
+    <div class="card-preview bg-sprite-editor">
+      <div class="preview-dots" id="dots-sprite-editor"></div>
+      <span>🎨</span>
+    </div>
+    <div class="card-body">
+      <div class="card-num">TOOL</div>
+      <div class="card-title">Sprite Editor</div>
+      <div class="card-desc">Configure sprite sheet animations. Define action clips, set frame size and FPS, preview all 8 directions, then export a SpriteSheet JSON config.</div>
+      <div class="card-tags">
+        <span class="tag tool-tag">Sprite Sheet</span>
+        <span class="tag tool-tag">Animation</span>
+        <span class="tag tool-tag">8-Direction</span>
+        <span class="tag tool-tag">JSON Export</span>
+      </div>
+    </div>
+  </a>
+
+</div>
+
+<!-- ── Examples ──────────────────────────────────────────────────────────── -->
+
+<div class="section-heading"><h2>Examples</h2></div>
+<div class="grid section-gap">
 
   <a class="card" href="/examples/01-minimal-scene/">
     <div class="card-preview bg-01">
@@ -299,7 +379,7 @@
   </a>
 
   <a class="card" href="/examples/08-volcano/">
-    <div class="card-preview" style="background:linear-gradient(135deg,#0d0503 0%,#2a0a04 50%,#4a1a08 100%)">
+    <div class="card-preview bg-08">
       <div class="preview-dots" id="dots-08"></div>
       <span>🌋</span>
     </div>
@@ -316,6 +396,13 @@
     </div>
   </a>
 
+</div>
+
+<!-- ── Engine Demo ────────────────────────────────────────────────────────── -->
+
+<div class="section-heading"><h2>Engine Demo</h2></div>
+<div class="grid-tools">
+
   <a class="card" href="/">
     <div class="card-preview bg-main">
       <div class="preview-dots" id="dots-main"></div>
@@ -323,13 +410,14 @@
     </div>
     <div class="card-body">
       <div class="card-num">MAIN</div>
-      <div class="card-title">Engine Demo</div>
-      <div class="card-desc">Interactive demo with lighting controls, pathfinding, minimap, and camera view presets.</div>
+      <div class="card-title">Interactive Engine Demo</div>
+      <div class="card-desc">Full-featured demo showcasing lighting controls, A* pathfinding, minimap, camera view presets, and scene JSON loading.</div>
       <div class="card-tags">
         <span class="tag">Pathfinding</span>
         <span class="tag">Minimap</span>
         <span class="tag">IsoView</span>
-        <span class="tag">Controls</span>
+        <span class="tag">Lighting</span>
+        <span class="tag">JSON Scene</span>
       </div>
     </div>
   </a>
@@ -341,17 +429,18 @@
 </footer>
 
 <script>
-  // Generate floating particle dots for each card preview
   const configs = {
-    'dots-01': { colors: ['#3060a0','#2050c0','#4080d0'], count: 8 },
-    'dots-02': { colors: ['#306030','#408040','#50a050'], count: 8 },
-    'dots-03': { colors: ['#a03030','#c04040','#d06060'], count: 8 },
-    'dots-04': { colors: ['#303080','#4040a0','#6060c0'], count: 8 },
-    'dots-05': { colors: ['#306030','#4080a0','#8040c0'], count: 10 },
-    'dots-06': { colors: ['#1040a0','#2060c0','#00a0c0'], count: 10 },
-    'dots-07': { colors: ['#c08020','#e0a030','#a06010'], count: 10 },
-    'dots-08': { colors: ['#ff4400','#ff8800','#cc2200'], count: 12 },
-    'dots-main': { colors: ['#404060','#505080','#6060a0'], count: 8 },
+    'dots-scene-editor':  { colors: ['#4455aa','#6677cc','#8899dd'], count: 8 },
+    'dots-sprite-editor': { colors: ['#2255aa','#3377cc','#4499dd'], count: 8 },
+    'dots-01': { colors: ['#3060a0','#2050c0','#4080d0'], count: 7 },
+    'dots-02': { colors: ['#306030','#408040','#50a050'], count: 7 },
+    'dots-03': { colors: ['#a03030','#c04040','#d06060'], count: 7 },
+    'dots-04': { colors: ['#303080','#4040a0','#6060c0'], count: 7 },
+    'dots-05': { colors: ['#306030','#4080a0','#8040c0'], count: 9 },
+    'dots-06': { colors: ['#1040a0','#2060c0','#00a0c0'], count: 9 },
+    'dots-07': { colors: ['#c08020','#e0a030','#a06010'], count: 9 },
+    'dots-08': { colors: ['#ff4400','#ff8800','#cc2200'], count: 11 },
+    'dots-main': { colors: ['#404060','#505080','#6060a0'], count: 9 },
   };
 
   for (const [id, cfg] of Object.entries(configs)) {

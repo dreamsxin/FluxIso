@@ -1,30 +1,36 @@
 # LuxIso
 
-A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, featuring dynamic lighting, shadow casting, occlusion sorting, a full ECS component system, particle effects, spatial audio, and a visual scene editor.
+A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, featuring dynamic lighting, shadow casting, occlusion sorting, a full ECS component system, particle effects, spatial audio, a visual scene editor, and a sprite sheet editor.
 
 ## Features
 
-- **Isometric math** — `project()` / `unproject()` / `depthKey()`; internal (X, Y, Z) space → screen
-- **Topological depth sort** — per-frame AABB-based Kahn sort; no Z-fighting
+- **Isometric math** — `project()` / `unproject()` / `depthKey()` / `drawIsoCube()`; internal (X, Y, Z) space → screen
+- **Topological depth sort** — 3-D AABB Kahn sort with containment detection; `maxZ` field for vertical extent; no Z-fighting
 - **OmniLight** — RGB point light, per-channel accumulation, distance falloff, `illuminateAt()`
 - **DirectionalLight** — face-normal dot product; angle/elevation; per-channel color mix
 - **Lightmap cache** — `OffscreenCanvas` floor cache; auto-invalidates on light/camera change
-- **Shadow casting** — `ShadowCaster` projects object silhouettes onto z=0 plane; circular footprint via `shadowRadius`; opt-in via `castsShadow = true` (default false)
+- **Shadow casting** — `ShadowCaster` projects object silhouettes onto z=0 plane; circular footprint via `shadowRadius`; opt-in via `castsShadow = true`
+- **Floor tile cache** — per-tile illumination color cached by lighting key; skips recomputation on static scenes; `invalidateCache()` for manual reset
 - **Tile materials** — procedural color or `tileImage` texture; light multiply + screen blend
 - **Wall openings** — door/window parallelogram clipping on wall faces
-- **Camera** — follow, pan, zoom, world-bounds clamping; `applyTransform()` fully wired into `Scene.draw()`
+- **IsoView** — `scene.view` rotation + elevation; `scene.transitionView()` smooth animated transitions
+- **Camera** — follow, pan, zoom, world-bounds clamping; frame-rate-independent lerp; `applyTransform()` fully wired into `Scene.draw()`
+- **ClickMover** — click-to-move + keyboard movement helper; animated marker; collision-aware
 - **Sprite animation** — `SpriteSheet` + `AnimationController` (idle/walk state machine, 8-direction)
 - **Directional animator** — `DirectionalAnimator`; clip naming `action_DIR`; fallback chain; `playOnce()`
-- **Particle system** — `ParticleSystem`; procedural circle/square + sprite mode; blend modes; presets: sparkBurst, emberTrail, dustPuff, crystalShatter, coinSpill, spriteExplosion
+- **Particle system** — `ParticleSystem`; procedural circle/square + sprite mode; blend modes; presets: sparkBurst, emberTrail, dustPuff, crystalShatter, coinSpill, spriteExplosion, ambientDrift, smokePlume, lavaSparks
 - **Tile collision** — `TileCollider` walkable grid; AABB slide-and-clamp; `sweepMove()` binary search with fast-path
+- **A\* Pathfinder** — 8-directional, corner-cut prevention, Bresenham LoS string-pull, min-heap O(log n); LRU result cache; `Pathfinder.invalidateCache()`
 - **ECS** — `Entity.addComponent()` / `getComponent()`; per-frame `component.update()`
 - **EventBus** — typed events (Damage/Heal/Death/Move/Arrival/Trigger); `globalBus` singleton
-- **Components** — `HealthComponent`, `MovementComponent`, `TimerComponent`, `TweenComponent` (8 easings, yoyo, repeat), `TriggerZoneComponent`
-- **Props** — `Crystal`, `Boulder`, `Chest`, `Cloud`; canvas-drawn, ECS-powered, health bars
+- **Components** — `HealthComponent`, `MovementComponent`, `TimerComponent`, `TweenComponent` (8 easings, yoyo, repeat), `TweenSequence` (chained tweens), `TriggerZoneComponent`
+- **Props** — `Crystal`, `Boulder`, `Chest`, `Cloud`, `FloatingText`; canvas-drawn, ECS-powered
 - **Audio** — `AudioManager`; one-shot SFX, looping BGM with crossfade, spatial distance attenuation, 3-bus volume (master/sfx/bgm)
 - **JSON scene loader** — `engine.loadScene(url)`; floor, walls, lights, characters, props, clouds, walkable collision map
 - **Scene validator** — `validateSceneJson()`; runtime JSON schema check + ECS component assertions
-- **Scene editor** — visual drag-and-drop editor (`editor.ts`); undo/redo, collision paint, sprite frame inspector, JSON export
+- **Scene editor** — visual editor (`editor.ts`); undo/redo, collision paint, object list, JSON export/copy
+- **Sprite editor** — sprite sheet frame inspector and animation clip builder (`sprite-editor.ts`); 8-direction preview; JSON export
+- **Lib build** — `npm run build:lib` → ESM + CJS dual output; `luxiso.d.ts` rollup
 
 ## Tech Stack
 
@@ -42,6 +48,7 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 npm install
 npm run dev        # http://localhost:5173 — interactive demo
 npm run build      # production build → dist/
+npm run build:lib  # library bundle → dist/luxiso.mjs + luxiso.cjs + types
 npx vitest --run   # run 157 unit tests (requires Node ≥ 22)
 ```
 
@@ -81,8 +88,7 @@ const crystal = new Crystal('gem', 3, 4, '#8060e0');
 crystal.addComponent(new HealthComponent({
   max: 60,
   onDeath: () => {
-    const fx = scene.getById('gem-fx') as ParticleSystem;
-    fx?.burst(20);
+    scene.spawnFloatingText({ x: 3, y: 4, z: 20, text: 'DESTROYED', color: '#ff4444' });
     scene.removeById('gem');
   },
 }));
@@ -97,7 +103,7 @@ audio.playSfx('/sfx/hit.ogg', {
 
 engine.start(
   (ts) => { /* postFrame: HUD, overlays */ },
-  (ts) => { /* preFrame: orbit, background glow */ },
+  (ts) => { /* preFrame: background glow */ },
 );
 ```
 
@@ -131,8 +137,7 @@ engine.start(
     { "id": "player", "x": 5, "y": 5, "z": 48, "radius": 26, "color": "#5590cc" }
   ],
   "clouds": [
-    { "id": "c1", "x": 2, "y": 1, "altitude": 6, "speed": 0.4, "angle": 0.3, "scale": 1.2, "seed": 0.7 },
-    { "id": "c2", "x": 8, "y": 6, "altitude": 8, "speed": 0.25, "angle": 0.1, "scale": 0.8, "seed": 0.3 }
+    { "id": "c1", "x": 2, "y": 1, "altitude": 6, "speed": 0.4, "angle": 0.3, "scale": 1.2, "seed": 0.7 }
   ]
 }
 ```
@@ -140,71 +145,36 @@ engine.start(
 ## Architecture
 
 ```
-Engine                     — canvas setup, RAF loop, JSON loader, TileCollider, pre/postFrame
-└── Scene                  — object + light container; topoSort; frustum cull; LightmapCache
-    ├── Camera             — follow / pan / zoom / applyTransform (fully wired into draw)
+Engine                     — canvas setup, RAF loop, JSON loader, pre/postFrame
+└── Scene                  — object + light container; topoSort; frustum cull; LightmapCache; IsoView
+    ├── Camera             — follow / pan / zoom / applyTransform (frame-rate-independent lerp)
     ├── LightmapCache      — OffscreenCanvas floor blit; auto-invalidate on light/camera delta
-    ├── Floor              — tile grid; tileImage; OmniLight + DirectionalLight RGB mix
+    ├── Floor              — tile grid; tileImage; per-tile color cache; OmniLight + DirectionalLight RGB mix
     ├── Wall               — parallelogram faces; door/window openings; face-normal lighting
     ├── ShadowCaster       — AABB silhouette → z=0 projection; radial gradient fill
-    ├── Character          — sphere/sprite entity; moveTo; AnimationController
+    ├── Character          — sphere/sprite entity; moveTo / pathTo; AnimationController
     ├── Entity (ECS)       — addComponent / getComponent; per-frame component.update()
     │   ├── Crystal        — low-poly hexagonal crystal; HealthComponent
     │   ├── Boulder        — low-poly 7-sided rock; crack lines; HealthComponent
     │   ├── Chest          — isometric box; animated lid; HealthComponent
-    │   └── Cloud          — deterministic LCG low-poly puffs; drift + wrap; ground shadow
-    ├── ParticleSystem     — IsoObject; procedural + sprite particles; depth-sorted
+    │   ├── Cloud          — deterministic LCG low-poly puffs; drift + wrap; ground shadow
+    │   └── FloatingText   — floating damage/status text; auto-expires; depth-sorted
+    ├── ParticleSystem     — IsoObject; procedural + sprite particles; depth-sorted; 9 presets
     └── LightManager
         ├── OmniLight      — illuminateAt(); RGB channel accumulation
         └── DirectionalLight — angle/elevation; incidentDirection; face-normal dot
-```
-
-### Rendering Pipeline
-
-```
-1. preFrame callback       — caller updates orbit, state
-2. clearRect               — clear canvas
-3. preFrame draw           — background radial glow from OmniLight
-4. Scene.update(ts)        — camera lerp + IsoObject.update(); Character moveTo; ECS components
-5. LightmapCache.blit()    — floor rendered into OffscreenCanvas, blit to main ctx
-6. camera.applyTransform() — translate + scale ctx for camera follow/zoom
-7. ShadowCaster.draw()     — project silhouettes onto z=0 in camera space
-8. topoSort                — AABB overlap → Kahn each frame (dirty-flag cached)
-9. Scene.draw()            — Floor → Walls → sorted Characters/Props/Particles → halos
-10. postFrame callback     — hint rings, HUD
-```
-
-### ECS Component System
-
-```
-Entity extends IsoObject
-  addComponent<T>(c)       — attach + onAttach(owner)
-  getComponent<T>(type)    — typed lookup by componentType string
-  hasComponent(type)
-  removeComponent(type)    — onDetach()
-
-Components (all implement Component interface):
-  HealthComponent          — hp/maxHp/fraction/isDead; takeDamage/heal; onDeath/onChange
-  MovementComponent        — ECS-ified moveTo; TileCollider; EventBus arrival/move events
-  TimerComponent           — delay/repeat countdown; pause/reset/restart
-  TweenComponent           — 8 easings (linear/easeIn/Out/InOut/cubic/bounce/elastic)
-                             yoyo ping-pong; repeat -1=infinite; delay; onComplete
-  TriggerZoneComponent     — circle-radius enter/exit detection; EventBus trigger events
-
-EventBus (typed):
-  events: damage | heal | death | move | arrival | trigger
-  globalBus singleton for cross-entity communication
 ```
 
 ## Project Structure
 
 ```
 src/
-├── index.ts                     # Public API barrel — 75+ exports
+├── index.ts                     # Public API barrel — 80+ exports
 ├── main.ts                      # Interactive demo
 ├── core/
 │   ├── AssetLoader.ts           # Promise image cache; loadImage / loadAll / get
-│   ├── Camera.ts                # follow / pan / zoom / applyTransform / clamp
+│   ├── Camera.ts                # follow / pan / zoom / applyTransform / clamp; frame-rate-independent lerp
+│   ├── ClickMover.ts            # Click-to-move + keyboard movement; animated marker; collision-aware
 │   ├── DebugRenderer.ts         # Overlay: collision grid, AABB, light radii, triggers, FPS
 │   ├── Engine.ts                # RAF loop; JSON loader (floor/walls/lights/chars/props/clouds); pre/postFrame
 │   ├── HudLayer.ts              # Canvas-space UI: labels, bars, buttons, panels
@@ -212,36 +182,39 @@ src/
 │   ├── LightmapCache.ts         # OffscreenCanvas floor cache; isDirty snapshot; blit()
 │   ├── Minimap.ts               # OffscreenCanvas HUD overlay; walkable grid + object dots
 │   ├── ObjectPool.ts            # Generic object pool; acquire/release/releaseAll; prewarm
-│   ├── Scene.ts                 # Object + light management; topoSort; frustum cull; LightmapCache; ShadowCaster
+│   ├── Scene.ts                 # Object + light management; topoSort; frustum cull; IsoView; transitionView()
 │   ├── SceneManager.ts          # Named scene stack; push/pop/replace/goto; lifecycle hooks
 │   ├── SceneTransition.ts       # Canvas transition effects: fade, slide, circle-wipe; playIn/playOut/between
 │   └── Validator.ts             # validateSceneJson(); validateComponents(); requireComponent()
 ├── elements/
 │   ├── IsoObject.ts             # Abstract base: id, position (IsoVec3), aabb, draw, update
-│   ├── Floor.ts                 # Tile grid + tileImage + multi-light RGB illumination
+│   ├── Floor.ts                 # Tile grid + tileImage + per-tile color cache + multi-light RGB illumination
 │   ├── Wall.ts                  # Parallelogram faces; openings; face-normal dir lighting
-│   ├── Character.ts             # Sphere/sprite entity; moveTo; AnimationController
+│   ├── Character.ts             # Sphere/sprite entity; moveTo / pathTo; AnimationController
 │   └── props/
 │       ├── Crystal.ts           # Low-poly crystal; Entity + HealthComponent
 │       ├── Boulder.ts           # Low-poly rock; Entity + HealthComponent
 │       ├── Chest.ts             # Isometric chest; animated lid; Entity + HealthComponent
-│       └── Cloud.ts             # Deterministic LCG low-poly cloud; drift + wrap; ground shadow
+│       ├── Cloud.ts             # Deterministic LCG low-poly cloud; drift + wrap; ground shadow
+│       └── FloatingText.ts      # Floating text; auto-expires; depth-sorted; Scene.spawnFloatingText()
 ├── animation/
 │   ├── SpriteSheet.ts           # AnimationClip (frames, fps, loop); AssetLoader preload
 │   ├── AnimationController.ts   # State machine; 8-direction; idle↔walk; dt-based
 │   ├── DirectionalAnimator.ts   # action_DIR clip naming; fallback chain; playOnce(); buildSheet()
-│   └── ParticleSystem.ts        # IsoObject; circle/square + sprite particles; blend modes; presets
+│   └── ParticleSystem.ts        # IsoObject; circle/square + sprite particles; blend modes; 9 presets
 ├── physics/
-│   └── TileCollider.ts          # Walkable grid; canOccupy(); resolveMove(); sweepMove() fast-path
+│   ├── TileCollider.ts          # Walkable grid; canOccupy(); resolveMove(); sweepMove() fast-path
+│   └── Pathfinder.ts            # A* 8-dir; Bresenham LoS string-pull; min-heap; LRU result cache
 ├── ecs/
 │   ├── Component.ts             # Interface: componentType, onAttach, onDetach, update
 │   ├── Entity.ts                # IsoObject + component Map; addComponent / getComponent
 │   ├── EventBus.ts              # Typed events; on/off/emit; globalBus singleton
 │   └── components/
 │       ├── HealthComponent.ts   # hp / maxHp / fraction / isDead; takeDamage / heal; callbacks
-│       ├── MovementComponent.ts # ECS moveTo; TileCollider; EventBus arrival/move
+│       ├── MovementComponent.ts # ECS moveTo / pathTo; TileCollider; EventBus arrival/move
 │       ├── TimerComponent.ts    # delay / repeat / pause / restart
 │       ├── TweenComponent.ts    # 8 easings; yoyo; repeat; delay; onComplete
+│       ├── TweenSequence.ts     # Chain multiple TweenComponent steps; repeat; onComplete
 │       └── TriggerZoneComponent.ts # Circle enter/exit; EventBus trigger
 ├── lighting/
 │   ├── BaseLight.ts             # Abstract: color, intensity, illuminate()
@@ -252,14 +225,28 @@ src/
 │   └── AudioManager.ts          # Web Audio API; SFX (fire-and-forget); BGM crossfade;
 │                                #   spatial volume; master/sfx/bgm gain buses; buffer cache
 ├── math/
-│   ├── IsoProjection.ts         # project() / unproject() / depthKey(); IsoVec3 / ScreenVec2
-│   ├── depthSort.ts             # AABB; topoSort<T extends Sortable>() — Kahn's algorithm
+│   ├── IsoProjection.ts         # project() / unproject() / depthKey() / drawIsoCube(); IsoVec3 / IsoView
+│   ├── depthSort.ts             # AABB (with maxZ); topoSort<T>() — 3-D Kahn + containment detection
 │   └── color.ts                 # hexToRgb / hexToRgba / shiftColor / blendColor / lerpColor
 └── editor/
     ├── EditorState.ts           # Central store; undo/redo command stack (100 deep); walkable grid; JSON I/O
     ├── EditorRenderer.ts        # Engine-backed live preview; world↔screen coordinate mapping
-    ├── editor.ts                # Full editor UI; toolbar; property panel; keyboard shortcuts
-    └── sprite-editor.ts         # Sprite sheet frame inspector and clip builder
+    ├── editor.ts                # Full editor UI; toolbar; object list; property panel; keyboard shortcuts
+    └── sprite-editor.ts         # Sprite sheet frame inspector and animation clip builder
+
+examples/
+├── index.html                   # Examples + tools gallery
+├── 01-minimal-scene/            # Floor, walls, single OmniLight
+├── 02-character-movement/       # WASD + collision + camera follow
+├── 03-combat-system/            # HealthComponent, damage events, particles
+├── 04-hud-debug-inputmap/       # HudLayer, DebugRenderer, InputMap
+├── 05-whisper-plains/           # Full demo: day/night, multi-scene, animals, portals
+│   ├── scenes/                  # PlainsScene, LakeScene, DeepSeaScene
+│   ├── entities/                # CubeHero, Portal, Animals, AquaticLife
+│   └── environment/             # LowPolyTree, DayNightCycle
+├── 06-voxel-lake/               # Voxel wave simulation, seabed decor
+├── 07-desert-ruins/             # Procedural terrain, interactive props, portals
+└── 08-volcano/                  # Lava terrain, particle FX, burn damage, click-to-move
 
 public/
 └── scenes/
@@ -290,26 +277,44 @@ scene.addObject(obj: IsoObject): void
 scene.addLight(light: BaseLight): void
 scene.removeById(id: string): void
 scene.getById(id: string): IsoObject | undefined
+scene.getAll<T>(ctor): T[]                      // get all objects of a given class
+scene.spawnFloatingText(opts): FloatingText     // convenience: create + add FloatingText
 scene.omniLights: OmniLight[]
 scene.dirLights: DirectionalLight[]
 scene.camera: Camera
 scene.collider: TileCollider | null
+scene.view: IsoView                             // { rotation: degrees, elevation: 0.2–1.0 }
+scene.transitionView(to: Partial<IsoView>, duration?): void  // smooth animated view change
+scene.ambientColor: string                      // CSS hex; drives day/night tint
+scene.ambientIntensity: number                  // 0–1
+scene.dynamicLighting: boolean                  // true = re-bake floor lightmap every frame
+scene.toJSON(): Record<string, unknown>         // full round-trip serialization
 ```
 
 ### `Camera`
 
 ```ts
 new Camera(opts?: CameraOptions)
-camera.follow(target: IsoObject): void         // attach follow target
+camera.follow(target: IsoObject): void
 camera.unfollow(): void
 camera.pan(dx: number, dy: number): void
 camera.zoom: number                            // 0.25–4, default 1
-camera.lerpFactor: number                      // 0–1, default 1 (instant); < 1 = smooth follow
+camera.lerpFactor: number                      // 0–1; frame-rate-independent convergence
 camera.setBounds(bounds: CameraBounds): void
 camera.applyTransform(ctx, canvasW, canvasH, tileW, tileH, originX, originY): void
 camera.restoreTransform(ctx): void
 camera.worldToScreen(wx, wy, wz, tileW, tileH, originX, originY): { sx, sy }
 camera.screenToWorld(cx, cy, canvasW, canvasH, tileW, tileH, originX, originY): { x, y }
+```
+
+### `ClickMover`
+
+```ts
+new ClickMover({ cols, rows, speed, radius?, collider? })
+mover.update(dt, input, map, camera, tileW, tileH, originX, originY, canvasW, canvasH, entityX, entityY): void
+mover.velX: number; mover.velY: number         // per-frame displacement (add to position)
+mover.reset(): void                            // clear target + velocity (call on scene enter)
+mover.drawMarker(ctx, camera, tileW, tileH, originX, originY, ts): void  // animated click ring
 ```
 
 ### `Character`
@@ -318,7 +323,7 @@ camera.screenToWorld(cx, cy, canvasW, canvasH, tileW, tileH, originX, originY): 
 new Character({ id, x, y, z?, radius?, color?, spriteSheet?, speed? })
 character.moveTo(x, y, z?): void               // direct smooth movement, no pathfinding
 character.pathTo(tx, ty, collider, tz?): boolean // A* — returns false if unreachable
-character.followPath(waypoints[], z?): void      // follow pre-computed IsoVec2[] path
+character.followPath(waypoints[], z?): void
 character.stopMoving(): void
 character.isMoving: boolean
 character.remainingWaypoints: readonly IsoVec2[]
@@ -333,7 +338,6 @@ entity.addComponent<T extends Component>(c: T): T
 entity.getComponent<T>(type: string): T | undefined
 entity.hasComponent(type: string): boolean
 entity.removeComponent(type: string): void
-// Entity extends IsoObject — must implement aabb and draw()
 ```
 
 ### `HealthComponent`
@@ -351,17 +355,11 @@ hp.setMax(max, scaleCurrentHp?): void
 ```ts
 new MovementComponent({ speed?, collider?, bus? })
 mv.moveTo(x, y, z?): void
+mv.pathTo(x, y, z?): boolean     // A* via attached collider; false = unreachable
+mv.followPath(waypoints, z?): void
 mv.stopMoving(): void
 mv.isMoving: boolean
 // Emits EventBus: 'move' each frame, 'arrival' on destination reached
-```
-
-### `TimerComponent`
-
-```ts
-new TimerComponent({ delay, repeat?, onTick?, onComplete? })
-timer.pause(): void; timer.resume(): void; timer.restart(): void
-timer.elapsed: number; timer.isDone: boolean
 ```
 
 ### `TweenComponent`
@@ -371,7 +369,7 @@ new TweenComponent({
   targets: [{ prop: 'x'|'y'|'z', from, to }],
   duration,               // seconds
   easing?: Easing.easeOut,
-  yoyo?: true,            // ping-pong
+  yoyo?: true,
   repeat?: -1,            // -1 = infinite
   delay?: 0.5,
   onComplete?: () => {},
@@ -381,43 +379,98 @@ tween.pause(); tween.resume(); tween.restart()
 tween.progress: number   // 0–1
 ```
 
+### `TweenSequence`
+
+```ts
+new TweenSequence(steps: TweenOptions[], { repeat?, onComplete? })
+// Each step plays after the previous completes.
+// repeat: -1 = infinite loop of the full sequence.
+entity.addComponent(new TweenSequence([
+  { targets: [{ prop: 'z', from: 0, to: 48 }], duration: 0.3, easing: Easing.easeOut },
+  { targets: [{ prop: 'z', from: 48, to: 0 }], duration: 0.5, easing: Easing.bounce },
+], { repeat: -1 }));
+```
+
 ### `TriggerZoneComponent`
 
 ```ts
 new TriggerZoneComponent({ radius?, onEnter?, onExit?, bus?, targets? })
 trigger.radius: number
-trigger.targets: IsoObject[]   // objects to test each frame (set after construction)
+trigger.targets: IsoObject[]
 trigger.contains(id: string): boolean
 trigger.insideIds: ReadonlySet<string>
-// Emits on EventBus: 'triggerEnter' / 'triggerExit' with { triggerId, enterId }
-// update() is called automatically by Scene.update() each frame
+// Emits EventBus: 'triggerEnter' / 'triggerExit'
 ```
 
 ### `ParticleSystem`
 
 ```ts
 new ParticleSystem(id, x, y, z?)
-ps.addEmitter(config: EmitterConfig): void
-ps.burst(count: number): void           // fire-and-forget
-ps.start(): void; ps.stop(): void       // continuous emitter
-// scene.addObject(ps) — depth-sorted with everything else
+ps.addEmitter(config: EmitterConfig): this
+ps.burst(count?: number): this
+ps.autoRemove: boolean          // default true — removes self when all particles die
+ps.onExhausted: (() => void) | null
 
 // Presets:
-ParticleSystem.presets.sparkBurst({ color? })
+ParticleSystem.presets.sparkBurst({ color?, count? })
 ParticleSystem.presets.emberTrail({ color? })
 ParticleSystem.presets.dustPuff({ color? })
 ParticleSystem.presets.crystalShatter({ color? })
 ParticleSystem.presets.coinSpill({ count? })
 ParticleSystem.presets.spriteExplosion(sheet, { clip?, count? })
+ParticleSystem.presets.ambientDrift({ color?, count?, speed?, size?, alpha?, blend?, shape? })
+ParticleSystem.presets.smokePlume({ color?, count? })
+ParticleSystem.presets.lavaSparks({ color?, count? })
+```
+
+### `Pathfinder`
+
+```ts
+Pathfinder.find(collider, start: IsoVec2, goal: IsoVec2): IsoVec2[] | null
+// Results are LRU-cached (capacity 64). Repeated calls with same inputs are O(1).
+
+Pathfinder.invalidateCache(collider?): void
+// Call after modifying walkability at runtime (e.g. opening a door).
+// Omit collider to flush all cached results.
+```
+
+### `Floor`
+
+```ts
+new Floor({ id, cols, rows, color?, altColor?, tileImage?, altTileImage? })
+floor.invalidateCache(): void   // force re-bake on next draw (after changing color/altColor)
+await floor.preload()           // preload tile textures before engine.start()
+```
+
+### `IsoProjection`
+
+```ts
+project(x, y, z, tileW, tileH): { sx, sy }
+unproject(sx, sy, tileW, tileH): { x, y }      // z=0 plane
+depthKey(x, y, z): number
+drawIsoCube(ctx, originX, originY, tileW, tileH, wx, wy, wz, w, d, h, topColor, leftColor, rightColor): void
+topoSort<T extends Sortable>(objects: T[]): T[]
+```
+
+### `AABB`
+
+```ts
+interface AABB {
+  minX: number; minY: number; maxX: number; maxY: number;
+  baseZ: number;    // bottom Z of the bounding volume
+  maxZ?: number;    // top Z; omit for flat/ground objects (treated as infinite upward extent)
+}
+// Setting maxZ enables vertical separation: objects that don't share Z space
+// are sorted by baseZ rather than XY heuristic, preventing terrain from
+// occluding elevated characters.
 ```
 
 ### `AudioManager`
 
 ```ts
 const audio = new AudioManager()
-audio.resume()                            // call from user gesture
-audio.suspend()
-audio.masterVolume = 0.8                  // 0–1
+audio.resume()
+audio.masterVolume = 0.8
 audio.sfxVolume = 1
 audio.bgmVolume = 0.6
 audio.playSfx(url, { volume?, rate?, loop?, spatial? }): AudioBufferSourceNode | null
@@ -440,98 +493,24 @@ anim.playOnce('attack', 'idle', onComplete?)
 anim.update(dt)
 anim.currentFrame(): { frame: FrameRect; image: HTMLImageElement } | null
 
-// Static helpers:
-DirectionalAnimator.buildSheet(url, frameW, frameH, actions, scale)  // grid-layout sheet builder
-DirectionalAnimator.auditSheet(sheet, action)   // { present, missing } clip names
-```
-
-### `Pathfinder`
-
-```ts
-Pathfinder.find(
-  collider: TileCollider,
-  start: IsoVec2,          // world position (tile floor = tile index)
-  goal:  IsoVec2,
-): IsoVec2[] | null        // tile-centre waypoints, or null if unreachable
-
-// Usage with MovementComponent:
-const path = Pathfinder.find(collider, { x: 1, y: 2 }, { x: 7, y: 5 });
-if (path) mv.followPath(path);
-// or via shorthand:
-mv.pathTo(7, 5);           // calls Pathfinder internally, returns false if unreachable
-mv.followPath(waypoints);  // manually supply pre-computed path
-```
-
-Features: 8-directional movement (diagonal cost √2), corner-cutting prevention,
-string-pulled path to remove redundant intermediate waypoints.
-
-### `MovementComponent` (updated)
-
-```ts
-mv.moveTo(x, y, z?)              // direct movement, no pathfinding
-mv.pathTo(x, y, z?): boolean     // A* path via attached collider; false = unreachable
-mv.followPath(waypoints, z?)     // follow pre-computed IsoVec2[] path
-mv.stopMoving()
-mv.isMoving: boolean
-mv.remainingWaypoints: readonly IsoVec2[]
+DirectionalAnimator.buildSheet(url, frameW, frameH, actions, scale)
+DirectionalAnimator.auditSheet(sheet, action)   // { present, missing }
 ```
 
 ### `Minimap`
 
 ```ts
 new Minimap(scene, { cols, rows, style? })
-
-minimap.draw(ctx, x, y, w, h)   // blit overlay onto main canvas (call in postFrame)
-minimap.setScene(scene)          // hot-swap scene reference
+minimap.draw(ctx, x, y, w, h)   // call in postFrame
+minimap.setScene(scene)
 
 // Style options (all optional):
 {
-  bg:          '#1a1a2e',         // background
-  walkable:    '#2a3a4a',         // open tile
-  blocked:     '#0a0a14',         // blocked tile
-  grid:        'rgba(255,255,255,0.06)',
-  playerColor: '#5590cc',         // Character dots (with pulse ring)
-  objectColor: '#cc8855',         // other IsoObject dots
-  border:      'rgba(255,255,255,0.25)',
-  radius:      6,                 // corner radius px
+  bg: '#1a1a2e', walkable: '#2a3a4a', blocked: '#0a0a14',
+  grid: 'rgba(255,255,255,0.06)',
+  playerColor: '#5590cc', objectColor: '#cc8855',
+  border: 'rgba(255,255,255,0.25)', radius: 6,
 }
-
-// Example — in postFrame:
-minimap.draw(ctx, canvas.width - 160, 16, 144, 144);
-```
-
-### `Scene.toJSON()`
-
-```ts
-scene.toJSON(): Record<string, unknown>
-// Returns a plain object matching the SceneJson schema accepted by Engine.loadScene().
-// Covers: floor (with walkable grid from collider), walls, lights, characters, clouds.
-// JSON.stringify-safe — no circular refs.
-
-const json = scene.toJSON();
-localStorage.setItem('level', JSON.stringify(json));
-
-// Round-trip:
-const saved = JSON.parse(localStorage.getItem('level')!);
-const scene2 = engine.buildScene(saved);
-```
-
-### `Camera` (updated)
-
-```ts
-camera.update(dt?: number)   // dt in seconds; frame-rate-independent lerp
-// lerpFactor is now treated as "per-60fps factor":
-//   actual factor = 1 - (1 - lerpFactor)^(dt * 60)
-// Same visual convergence speed at 60, 120, or 144 fps.
-```
-
-### `IsoProjection`
-
-```ts
-project(x, y, z, tileW, tileH): { sx, sy }
-unproject(sx, sy, tileW, tileH): { x, y }      // z=0 plane
-depthKey(x, y, z): number
-topoSort<T extends Sortable>(objects: T[]): T[]
 ```
 
 ### `Validator`
@@ -548,45 +527,44 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 
 | Module | Notes |
 |---|---|
-| Isometric math (project / unproject / depthKey) | |
-| Topological depth sort (AABB + Kahn) | |
+| Isometric math (project / unproject / depthKey / drawIsoCube) | |
+| Topological depth sort — 3-D AABB + containment detection + maxZ | |
 | Floor: OmniLight + DirectionalLight RGB illumination | |
 | Floor: tileImage texture + AssetLoader | |
+| Floor: per-tile color cache (dirty-flag, skips recomputation on static scenes) | |
 | Wall: parallelogram faces + openings + directional lighting | |
 | OmniLight: RGB point light with illuminateAt() | |
 | DirectionalLight: face-normal dot product | |
 | LightmapCache: OffscreenCanvas floor blit + auto-invalidate | |
 | ShadowCaster: AABB → z=0 silhouette + radial gradient | |
+| IsoView: scene rotation + elevation + transitionView() | |
 | Camera: follow / pan / zoom — fully wired into Scene.draw() | |
+| Camera: frame-rate-independent lerp | |
+| ClickMover: click-to-move + keyboard + animated marker | |
 | SpriteSheet + AnimationController (8-direction, idle/walk) | |
 | DirectionalAnimator: action_DIR clips + fallback + playOnce | |
-| ParticleSystem: procedural + sprite; 6 presets; depth-sorted | |
+| ParticleSystem: procedural + sprite; 9 presets; depth-sorted | |
 | TileCollider: walkable grid + AABB slide-and-clamp + sweepMove | |
+| A* Pathfinder: 8-directional, corner-cut prevention, Bresenham LoS string-pull, min-heap O(log n) | |
+| Pathfinder: LRU result cache + invalidateCache() | |
 | ECS: Entity + Component + EventBus (typed events) | |
 | HealthComponent / MovementComponent / TimerComponent | |
 | TweenComponent: 8 easings, yoyo, repeat, delay | |
+| TweenSequence: chained tween steps with repeat | |
 | TriggerZoneComponent: circle enter/exit + EventBus | |
-| Props: Crystal, Boulder, Chest, Cloud | |
+| Props: Crystal, Boulder, Chest, Cloud, FloatingText | |
+| Scene.spawnFloatingText() convenience helper | |
 | AudioManager: SFX + BGM crossfade + spatial volume | |
 | JSON scene loader: floor/walls/lights/chars/props/clouds | |
+| Scene.toJSON(): full round-trip serialization | |
 | Validator: scene JSON + ECS component assertions | |
-| Scene editor: drag-drop, undo/redo, collision paint, JSON export | |
-| A* Pathfinder: 8-directional, corner-cut prevention, Bresenham LoS string-pull, min-heap O(log n) | |
-| MovementComponent.pathTo() / followPath() | |
+| Scene editor: object list, undo/redo, collision paint, JSON export/copy | |
+| Sprite editor: frame inspector, clip builder, 8-direction preview, JSON export | |
 | Minimap: OffscreenCanvas HUD overlay, walkable grid + object dots | |
-| Scene.toJSON(): full round-trip serialization to SceneJson schema | |
-| Camera.update(dt): frame-rate-independent lerp | |
-| Character.pathTo(tx, ty, collider) — A* convenience shorthand on Character | |
-| Precise AABB frustum culling — full minX/maxX/minY/maxY vs view parallelogram | |
-| TypeScript strict-mode: 0 errors across all source + test files | |
-| Unit tests: 143 tests across 15 files (Vitest 4, Node ≥ 22) | |
-
-### Pending
-
-| Priority | Item |
-|---|---|
-| P4 | **Vite lib mode** — ESM + CJS dual output; `luxiso.d.ts` rollup; npm publish |
-| P4 | **Performance** — instanced floor tile rendering; Pathfinder result cache (invalidate on collider change) |
+| Precise AABB frustum culling | |
+| Lib build: ESM + CJS dual output + .d.ts (npm run build:lib) | |
+| Unit tests: 157 tests across 20 files (Vitest 4, Node ≥ 22) | |
+| Examples: 8 progressive demos + tools gallery | |
 
 ## License
 

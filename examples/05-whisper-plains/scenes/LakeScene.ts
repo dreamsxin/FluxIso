@@ -8,14 +8,14 @@
  * - 荷叶（带阴影 + 露珠）
  * - 水雾效果
  */
-import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
-import { AABB } from '../../src/math/depthSort';
-import { project } from '../../src/math/IsoProjection';
-import { Scene } from '../../src/core/Scene';
-import { DirectionalLight } from '../../src/lighting/DirectionalLight';
-import { OmniLight } from '../../src/lighting/OmniLight';
-import { Portal } from './Portal';
-import { FishSchool, WaterLilyFlower } from './AquaticLife';
+import { IsoObject, DrawContext } from '../../../src/elements/IsoObject';
+import { AABB } from '../../../src/math/depthSort';
+import { project } from '../../../src/math/IsoProjection';
+import { Scene } from '../../../src/core/Scene';
+import { DirectionalLight } from '../../../src/lighting/DirectionalLight';
+import { OmniLight } from '../../../src/lighting/OmniLight';
+import { Portal } from '../entities/Portal';
+import { FishSchool, WaterLilyFlower } from '../entities/AquaticLife';
 
 export const LAKE_PORTAL_X = 9;
 export const LAKE_PORTAL_Y = 9;

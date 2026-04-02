@@ -5,11 +5,11 @@
  * 装饰：内部旋转光芒 + 外圈折射光点
  * 动画：移动时上下浮动 + 方向倾斜 + 慢速自转
  */
-import { Entity } from '../../src/ecs/Entity';
-import { DrawContext } from '../../src/elements/IsoObject';
-import { AABB } from '../../src/math/depthSort';
-import { project } from '../../src/math/IsoProjection';
-import { DirectionalLight } from '../../src/lighting/DirectionalLight';
+import { Entity } from '../../../src/ecs/Entity';
+import { DrawContext } from '../../../src/elements/IsoObject';
+import { AABB } from '../../../src/math/depthSort';
+import { project } from '../../../src/math/IsoProjection';
+import { DirectionalLight } from '../../../src/lighting/DirectionalLight';
 
 export class CubeHero extends Entity {
   velX = 0;

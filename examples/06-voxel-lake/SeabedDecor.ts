@@ -7,6 +7,7 @@
 import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
 import { AABB } from '../../src/math/depthSort';
 import { project } from '../../src/math/IsoProjection';
+import { shiftColor } from '../../src/math/color';
 
 // ── 湖底石头 ───────────────────────────────────────────────────────────────
 
@@ -145,9 +146,6 @@ export class SeabedWeed extends IsoObject {
   }
 
   private _shiftColor(hex: string, amt: number): string {
-    const n = parseInt(hex.replace('#', ''), 16);
-    const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
-    const c = (v: number) => Math.max(0, Math.min(255, v + amt));
-    return `rgb(${c(r)},${c(g)},${c(b)})`;
+    return shiftColor(hex, amt);
   }
 }

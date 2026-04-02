@@ -22,8 +22,12 @@ const exportBtn   = document.getElementById('btn-export')!;
 const importBtn   = document.getElementById('btn-import')!;
 const clearBtn    = document.getElementById('btn-clear')!;
 const deleteBtn   = document.getElementById('btn-delete')!;
+const undoBtn     = document.getElementById('btn-undo') as HTMLButtonElement;
+const redoBtn     = document.getElementById('btn-redo') as HTMLButtonElement;
 const sceneNameInput = document.getElementById('scene-name') as HTMLInputElement;
-
+const sceneColsInput = document.getElementById('scene-cols') as HTMLInputElement;
+const sceneRowsInput = document.getElementById('scene-rows') as HTMLInputElement;
+const objectList  = document.getElementById('object-list')!;
 // ── State & renderer ──────────────────────────────────────────────────────────
 
 const state    = new EditorState();
@@ -202,7 +206,36 @@ function buildPropForm(obj: ReturnType<EditorState['getById']>): string {
 state.onChange(() => {
   if (state.selectedId) updatePropPanel();
   else propPanel.classList.add('hidden');
+  updateObjectList();
 });
+
+function updateObjectList(): void {
+  const objs = state.allObjects();
+  if (objs.length === 0) {
+    objectList.innerHTML = '<div class="obj-list-empty">No objects</div>';
+    return;
+  }
+  const kindLabel = (o: ReturnType<EditorState['getById']>): string => {
+    if (!o) return '';
+    if ('kind' in o) return (o as { kind: string }).kind;
+    if ('type' in o) return (o as { type: string }).type;
+    if ('radius' in o && 'color' in o) return 'char';
+    if ('endX' in o) return 'wall';
+    return '?';
+  };
+  objectList.innerHTML = objs.map(o => `
+    <div class="obj-list-item${o.id === state.selectedId ? ' active' : ''}" data-id="${o.id}">
+      <span class="obj-kind">${kindLabel(o)}</span>
+      <span class="obj-name">${o.id}</span>
+    </div>`).join('');
+  objectList.querySelectorAll<HTMLElement>('[data-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      state.select(el.dataset.id!);
+      updatePropPanel();
+    });
+  });
+}
+updateObjectList();
 
 // ── Toolbar actions ───────────────────────────────────────────────────────────
 
@@ -216,6 +249,7 @@ deleteBtn.addEventListener('click', () => {
 exportBtn.addEventListener('click', () => {
   jsonOutput.value = state.toJSON();
   jsonOutput.select();
+  navigator.clipboard?.writeText(jsonOutput.value).catch(() => {});
 });
 
 importBtn.addEventListener('click', () => {
@@ -237,6 +271,35 @@ sceneNameInput.addEventListener('input', () => {
 });
 sceneNameInput.value = state.scene.name;
 
+// ── Scene size ────────────────────────────────────────────────────────────────
+
+function applySceneSize(): void {
+  const cols = Math.max(2, Math.min(32, parseInt(sceneColsInput.value) || 10));
+  const rows = Math.max(2, Math.min(32, parseInt(sceneRowsInput.value) || 10));
+  sceneColsInput.value = String(cols);
+  sceneRowsInput.value = String(rows);
+  state.setSceneSize(cols, rows);
+  // Resize canvas
+  const s = state.scene;
+  canvas.width  = (s.cols + s.rows) * (s.tileW / 2);
+  canvas.height = (s.cols + s.rows) * (s.tileH / 2) + 120;
+}
+sceneColsInput.addEventListener('change', applySceneSize);
+sceneRowsInput.addEventListener('change', applySceneSize);
+
+// ── Undo / Redo ───────────────────────────────────────────────────────────────
+
+function updateUndoRedo(): void {
+  undoBtn.disabled = !state.canUndo;
+  redoBtn.disabled = !state.canRedo;
+  undoBtn.title = state.canUndo ? `Undo: ${state.undoDescription} (Ctrl+Z)` : 'Nothing to undo';
+  redoBtn.title = state.canRedo ? `Redo: ${state.redoDescription} (Ctrl+Y)` : 'Nothing to redo';
+}
+undoBtn.addEventListener('click', () => { state.undo(); updateUndoRedo(); });
+redoBtn.addEventListener('click', () => { state.redo(); updateUndoRedo(); });
+updateUndoRedo();
+state.onChange(updateUndoRedo);
+
 // ── Start rendering ───────────────────────────────────────────────────────────
 
 renderer.start();
@@ -249,6 +312,8 @@ const keyMap: Record<string, ToolType> = {
 };
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); state.undo(); updateUndoRedo(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Z')) { e.preventDefault(); state.redo(); updateUndoRedo(); return; }
   const tool = keyMap[e.key.toLowerCase()];
   if (tool) { state.setTool(tool); updateToolUI(); }
   if (e.key === 'Escape') { state.wallStart = null; state.select(null); updatePropPanel(); }

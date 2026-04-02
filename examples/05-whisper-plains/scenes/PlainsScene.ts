@@ -6,15 +6,15 @@
  * - 传送阵附近保持开阔
  * - 三种光源：太阳方向光 + 暖色环境光 + 传送阵紫光
  */
-import { Scene } from '../../src/core/Scene';
-import { Floor } from '../../src/elements/Floor';
-import { Cloud } from '../../src/elements/props/Cloud';
-import { DirectionalLight } from '../../src/lighting/DirectionalLight';
-import { OmniLight } from '../../src/lighting/OmniLight';
-import { TileCollider } from '../../src/physics/TileCollider';
-import { LowPolyTree, LowPolyGrass, LowPolyFlower, LowPolyRock } from './LowPolyTree';
-import { Portal } from './Portal';
-import { Bunny, Deer, Butterfly } from './Animals';
+import { Scene } from '../../../src/core/Scene';
+import { Floor } from '../../../src/elements/Floor';
+import { Cloud } from '../../../src/elements/props/Cloud';
+import { DirectionalLight } from '../../../src/lighting/DirectionalLight';
+import { OmniLight } from '../../../src/lighting/OmniLight';
+import { TileCollider } from '../../../src/physics/TileCollider';
+import { LowPolyTree, LowPolyGrass, LowPolyFlower, LowPolyRock } from '../environment/LowPolyTree';
+import { Portal } from '../entities/Portal';
+import { Bunny, Deer, Butterfly } from '../entities/Animals';
 
 export const PLAINS_COLS = 16;
 export const PLAINS_ROWS = 16;

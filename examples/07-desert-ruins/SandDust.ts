@@ -1,26 +1,12 @@
 /**
- * SandDust — 沙尘粒子系统
- *
- * 60个旋转半透明小菱形，缓慢漂移，远处更密集。
+ * SandDust — 沙尘粒子系统（使用框架 ParticleSystem.presets.ambientDrift）
  */
 import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
+import { ParticleSystem } from '../../src/animation/ParticleSystem';
 import { AABB } from '../../src/math/depthSort';
-import { project } from '../../src/math/IsoProjection';
-
-interface DustParticle {
-  x: number; y: number; z: number;
-  vx: number; vy: number;
-  rotation: number;
-  rotSpeed: number;
-  life: number;       // 0-1
-  lifeRate: number;
-  size: number;
-  alpha: number;
-}
 
 export class SandDustSystem extends IsoObject {
-  private _particles: DustParticle[] = [];
-  private _lastTs = 0;
+  private _ps: ParticleSystem;
   readonly cols: number;
   readonly rows: number;
   speedMult = 1;
@@ -31,88 +17,39 @@ export class SandDustSystem extends IsoObject {
     this.rows = rows;
     this.castsShadow = false;
 
-    for (let i = 0; i < 60; i++) {
-      this._particles.push(this._spawn(true));
-    }
+    // 在场景中心生成，用大 spawnRadius 覆盖整个场景
+    this._ps = new ParticleSystem(`${id}-ps`, cols / 2, rows / 2, 0);
+    this._ps.autoRemove = false;
+    this._ps.addEmitter({
+      ...ParticleSystem.presets.ambientDrift({
+        color: '#e8c870',
+        count: 60,
+        speed: [0.1, 0.5],
+        size: [2, 5],
+        alpha: 0.3,
+        blend: 'screen',
+        shape: 'square',
+      }),
+      shape: 'circle',
+      spawnRadius: Math.max(cols, rows) * 0.6,  // 覆盖整个场景
+    });
   }
 
   get aabb(): AABB {
-    return { minX: 0, minY: 0, maxX: this.cols, maxY: this.rows, baseZ: 0 };
-  }
-
-  private _spawn(randomLife = false): DustParticle {
-    // 远处（row < 6）更密集
-    const farBias = Math.random() < 0.55;
-    const x = Math.random() * this.cols;
-    const y = farBias ? Math.random() * 6 : Math.random() * this.rows;
-    const z = Math.random() * 8;
-    return {
-      x, y, z,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.3) * 0.3,
-      rotation: Math.random() * Math.PI * 2,
-      rotSpeed: (Math.random() - 0.5) * 2,
-      life: randomLife ? Math.random() : 0,
-      lifeRate: 0.04 + Math.random() * 0.06,
-      size: 2 + Math.random() * 4,
-      alpha: 0.15 + Math.random() * 0.3,
-    };
+    return { minX: 0, minY: 0, maxX: this.cols, maxY: this.rows, baseZ: 0, maxZ: 4 };
   }
 
   update(ts?: number): void {
-    const now = ts ?? performance.now();
-    const dt = this._lastTs === 0 ? 0.016 : Math.min((now - this._lastTs) / 1000, 0.1);
-    this._lastTs = now;
-
-    for (let i = 0; i < this._particles.length; i++) {
-      const p = this._particles[i];
-      p.life += p.lifeRate * dt * this.speedMult;
-      if (p.life >= 1) {
-        this._particles[i] = this._spawn(false);
-        continue;
-      }
-      p.x += p.vx * dt * this.speedMult;
-      p.y += p.vy * dt * this.speedMult;
-      p.z += 0.3 * dt * this.speedMult;
-      if (p.z > 8) p.z = 0;
-      p.rotation += p.rotSpeed * dt * this.speedMult;
+    const cfg = (this._ps as any)._emitters[0]?.cfg;
+    if (cfg) {
+      cfg.rate = Math.round(60 * this.speedMult);
+      // 调整速度
+      cfg.speed = [0.1 * this.speedMult, 0.5 * this.speedMult];
     }
+    this._ps.update(ts);
   }
 
   draw(dc: DrawContext): void {
-    const { ctx, tileW, tileH, originX, originY } = dc;
-
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-
-    for (const p of this._particles) {
-      const fadeAlpha = p.alpha * Math.sin(p.life * Math.PI);
-      if (fadeAlpha < 0.02) continue;
-
-      const { sx, sy } = project(p.x, p.y, p.z, tileW, tileH);
-      const px = originX + sx, py = originY + sy;
-
-      ctx.save();
-      ctx.translate(px, py);
-      ctx.rotate(p.rotation);
-      ctx.globalAlpha = fadeAlpha;
-
-      // 菱形（旋转正方形）
-      const s = p.size;
-      ctx.beginPath();
-      ctx.moveTo(0, -s);
-      ctx.lineTo(s * 0.6, 0);
-      ctx.lineTo(0, s);
-      ctx.lineTo(-s * 0.6, 0);
-      ctx.closePath();
-      ctx.fillStyle = '#e8c870';
-      ctx.fill();
-
-      ctx.restore();
-    }
-
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.restore();
+    this._ps.draw(dc);
   }
 }

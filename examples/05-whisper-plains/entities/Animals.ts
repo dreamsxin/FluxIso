@@ -5,9 +5,9 @@
  * Deer   — 低多边形鹿，缓慢游荡，受惊时快速跑开
  * Butterfly — 蝴蝶，在花朵间飞舞
  */
-import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
-import { AABB } from '../../src/math/depthSort';
-import { project } from '../../src/math/IsoProjection';
+import { IsoObject, DrawContext } from '../../../src/elements/IsoObject';
+import { AABB } from '../../../src/math/depthSort';
+import { project } from '../../../src/math/IsoProjection';
 
 // ── 工具 ──────────────────────────────────────────────────────────────────
 

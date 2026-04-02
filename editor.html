@@ -7,7 +7,7 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #0d0d14; color: #aaa;
+      background: #1a1a26; color: #c0c0d0;
       font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px;
       display: flex; flex-direction: column; height: 100vh; overflow: hidden;
     }
@@ -15,124 +15,124 @@
     /* ── Top bar ── */
     .topbar {
       display: flex; align-items: center; gap: 8px;
-      padding: 5px 12px; background: #0a0a10;
-      border-bottom: 1px solid #1a1a28; flex-shrink: 0;
+      padding: 5px 12px; background: #14141f;
+      border-bottom: 1px solid #2a2a3e; flex-shrink: 0;
     }
-    .topbar h1 { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: #3a3a58; margin-right: 4px; }
-    .topbar a { font-size: 0.70rem; color: #2a2a48; text-decoration: none; padding: 3px 8px; border: 1px solid #1a1a28; border-radius: 3px; }
-    .topbar a:hover { color: #6688cc; border-color: #334488; }
+    .topbar h1 { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: #5a5a7a; margin-right: 4px; }
+    .topbar a { font-size: 0.70rem; color: #4a4a6a; text-decoration: none; padding: 3px 8px; border: 1px solid #2a2a3e; border-radius: 3px; }
+    .topbar a:hover { color: #8899dd; border-color: #4455aa; }
     .topbar input[type="text"] {
-      background: #12121c; border: 1px solid #222234; color: #888;
+      background: #1e1e2e; border: 1px solid #333348; color: #aaa;
       padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; width: 140px;
     }
-    .topbar input[type="text"]:focus { outline: none; border-color: #3a3a60; color: #bbb; }
-    .topbar .size-row { display: flex; align-items: center; gap: 4px; font-size: 0.68rem; color: #333; }
+    .topbar input[type="text"]:focus { outline: none; border-color: #5566bb; color: #ddd; }
+    .topbar .size-row { display: flex; align-items: center; gap: 4px; font-size: 0.68rem; color: #666; }
     .topbar .size-row input[type="number"] {
-      width: 40px; background: #12121c; border: 1px solid #1e1e2e; color: #666;
+      width: 40px; background: #1e1e2e; border: 1px solid #2e2e44; color: #999;
       padding: 2px 4px; border-radius: 3px; font-size: 0.68rem; text-align: center;
     }
-    .topbar .size-row input:focus { outline: none; border-color: #3a3a60; color: #bbb; }
-    .sep { width: 1px; height: 20px; background: #1a1a28; margin: 0 4px; }
+    .topbar .size-row input:focus { outline: none; border-color: #5566bb; color: #ddd; }
+    .sep { width: 1px; height: 20px; background: #2a2a3e; margin: 0 4px; }
     .spacer { flex: 1; }
     .topbar button {
-      background: #14141e; border: 1px solid #222234; color: #666;
+      background: #1e1e2e; border: 1px solid #333348; color: #888;
       padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 0.72rem;
       transition: border-color 0.12s, color 0.12s;
     }
-    .topbar button:hover:not(:disabled) { border-color: #444466; color: #aaa; }
+    .topbar button:hover:not(:disabled) { border-color: #5566aa; color: #bbc; }
     .topbar button:disabled { opacity: 0.3; cursor: default; }
-    .topbar button.danger { border-color: #3a1a1a; color: #884444; }
-    .topbar button.danger:hover { border-color: #662222; color: #cc6666; }
+    .topbar button.danger { border-color: #4a2222; color: #aa5555; }
+    .topbar button.danger:hover { border-color: #883333; color: #dd7777; }
 
     /* ── Layout ── */
     .workspace { display: flex; flex: 1; overflow: hidden; }
 
     /* ── Left toolbar ── */
     .toolbar {
-      width: 52px; background: #0a0a10; border-right: 1px solid #1a1a28;
+      width: 52px; background: #14141f; border-right: 1px solid #2a2a3e;
       display: flex; flex-direction: column; align-items: center;
       padding: 8px 0; gap: 3px; flex-shrink: 0; overflow-y: auto;
     }
     .tool-btn {
-      width: 38px; height: 38px; background: #12121c; border: 1px solid #1e1e2e;
+      width: 38px; height: 38px; background: #1e1e2e; border: 1px solid #2e2e44;
       border-radius: 5px; cursor: pointer; display: flex; align-items: center;
-      justify-content: center; font-size: 16px; color: #444;
+      justify-content: center; font-size: 16px; color: #666;
       transition: border-color 0.12s, color 0.12s, background 0.12s; position: relative;
     }
-    .tool-btn:hover { border-color: #333355; color: #888; background: #16161f; }
-    .tool-btn.active { border-color: #4455aa; color: #8899dd; background: #14142a; }
-    .tool-btn.active-red { border-color: #aa4444; color: #dd8888; background: #2a1414; }
-    .tool-btn.active-green { border-color: #44aa55; color: #88dd99; background: #142a18; }
+    .tool-btn:hover { border-color: #4455aa; color: #aab; background: #22223a; }
+    .tool-btn.active { border-color: #5566cc; color: #99aaee; background: #1e1e3a; }
+    .tool-btn.active-red { border-color: #cc5555; color: #ee9999; background: #2e1a1a; }
+    .tool-btn.active-green { border-color: #55bb66; color: #99eeaa; background: #1a2e1e; }
     .tool-btn[title]:hover::after {
       content: attr(title); position: absolute; left: 44px; top: 50%;
-      transform: translateY(-50%); background: #1a1a2e; border: 1px solid #2a2a44;
-      color: #aaa; padding: 3px 8px; border-radius: 4px; font-size: 0.70rem;
+      transform: translateY(-50%); background: #22223a; border: 1px solid #3a3a5a;
+      color: #ccc; padding: 3px 8px; border-radius: 4px; font-size: 0.70rem;
       white-space: nowrap; pointer-events: none; z-index: 100;
     }
-    .tool-sep { width: 26px; height: 1px; background: #1a1a28; margin: 2px 0; }
+    .tool-sep { width: 26px; height: 1px; background: #2a2a3e; margin: 2px 0; }
 
     /* ── Canvas area ── */
     .canvas-area {
       flex: 1; display: flex; align-items: center; justify-content: center;
-      overflow: auto; background: #0a0a0f; padding: 16px;
+      overflow: auto; background: #111118; padding: 16px;
     }
     #editor-canvas {
       display: block; cursor: crosshair; border-radius: 4px;
-      box-shadow: 0 0 40px rgba(60,80,160,0.08); flex-shrink: 0;
+      box-shadow: 0 0 40px rgba(60,80,160,0.15); flex-shrink: 0;
     }
 
     /* ── Right panel ── */
     .right-panel {
-      width: 230px; background: #0a0a10; border-left: 1px solid #1a1a28;
+      width: 230px; background: #14141f; border-left: 1px solid #2a2a3e;
       display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
     }
-    .panel-section { border-bottom: 1px solid #1a1a28; padding: 8px 10px; }
-    .panel-title { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: #2a2a3a; margin-bottom: 6px; }
+    .panel-section { border-bottom: 1px solid #2a2a3e; padding: 8px 10px; }
+    .panel-title { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: #4a4a6a; margin-bottom: 6px; }
 
     /* Object list */
     #object-list { flex: 0 0 auto; max-height: 140px; overflow-y: auto; }
-    .obj-list-empty { font-size: 0.65rem; color: #2a2a3a; padding: 4px 0; }
+    .obj-list-empty { font-size: 0.65rem; color: #4a4a6a; padding: 4px 0; }
     .obj-list-item {
       display: flex; align-items: center; gap: 6px; padding: 3px 4px;
       border-radius: 3px; cursor: pointer; font-size: 0.68rem;
     }
-    .obj-list-item:hover { background: #14141e; }
-    .obj-list-item.active { background: #14142a; color: #8899dd; }
-    .obj-kind { font-size: 0.60rem; color: #3a3a5a; width: 52px; flex-shrink: 0; }
-    .obj-name { color: #666; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .obj-list-item:hover { background: #1e1e2e; }
+    .obj-list-item.active { background: #1e1e3a; color: #99aaee; }
+    .obj-kind { font-size: 0.60rem; color: #5a5a7a; width: 52px; flex-shrink: 0; }
+    .obj-name { color: #888; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* Properties */
     #prop-panel { flex: 1; overflow-y: auto; }
     #prop-panel.hidden { display: none; }
-    .obj-id { font-size: 0.65rem; font-family: monospace; color: #3a3a5a; margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px solid #1a1a28; }
+    .obj-id { font-size: 0.65rem; font-family: monospace; color: #5a5a7a; margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px solid #2a2a3e; }
     .field-row { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
-    .field-row label { font-size: 0.65rem; color: #3a3a4a; width: 60px; flex-shrink: 0; }
+    .field-row label { font-size: 0.65rem; color: #5a5a6a; width: 60px; flex-shrink: 0; }
     .field-row input {
-      flex: 1; background: #12121c; border: 1px solid #1e1e2e; color: #888;
+      flex: 1; background: #1e1e2e; border: 1px solid #2e2e44; color: #aaa;
       padding: 2px 5px; border-radius: 3px; font-size: 0.70rem; min-width: 0;
     }
     .field-row input[type="color"] { padding: 1px 2px; height: 22px; cursor: pointer; }
-    .field-row input:focus { outline: none; border-color: #3a3a60; color: #bbb; }
+    .field-row input:focus { outline: none; border-color: #5566bb; color: #ddd; }
 
     /* JSON */
-    .json-section { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; border-top: 1px solid #1a1a28; }
+    .json-section { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; border-top: 1px solid #2a2a3e; }
     .json-section textarea {
-      background: #0d0d14; border: 1px solid #1a1a28; color: #3a5a3a;
+      background: #1a1a28; border: 1px solid #2a2a3e; color: #5a8a5a;
       font-family: 'Consolas', monospace; font-size: 0.60rem;
       padding: 5px; border-radius: 3px; resize: none; height: 100px;
     }
-    .json-section textarea:focus { outline: none; border-color: #2a3a2a; }
+    .json-section textarea:focus { outline: none; border-color: #3a5a3a; }
     .json-btns { display: flex; gap: 5px; }
     .json-btns button {
-      flex: 1; background: #12121c; border: 1px solid #1e1e2e; color: #555;
+      flex: 1; background: #1e1e2e; border: 1px solid #2e2e44; color: #777;
       padding: 3px 0; border-radius: 3px; cursor: pointer; font-size: 0.68rem;
     }
-    .json-btns button:hover { border-color: #333355; color: #999; }
+    .json-btns button:hover { border-color: #4455aa; color: #aab; }
 
     /* Status bar */
     .statusbar {
-      padding: 3px 12px; background: #0a0a10; border-top: 1px solid #1a1a28;
-      font-size: 0.63rem; color: #2a2a3a; flex-shrink: 0;
+      padding: 3px 12px; background: #14141f; border-top: 1px solid #2a2a3e;
+      font-size: 0.63rem; color: #5a5a7a; flex-shrink: 0;
     }
   </style>
 </head>

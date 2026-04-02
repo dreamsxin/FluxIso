@@ -4,9 +4,9 @@
  * Fish      — 低多边形小鱼，成群游动
  * WaterLily — 升级版荷花，带花苞和开放状态
  */
-import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
-import { AABB } from '../../src/math/depthSort';
-import { project } from '../../src/math/IsoProjection';
+import { IsoObject, DrawContext } from '../../../src/elements/IsoObject';
+import { AABB } from '../../../src/math/depthSort';
+import { project } from '../../../src/math/IsoProjection';
 
 function clamp(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)); }
 

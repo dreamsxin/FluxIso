@@ -88,7 +88,7 @@ export { validateSceneJson, validateComponents, requireComponent } from './core/
 export type { ValidationResult } from './core/Validator';
 
 // Math
-export { project, unproject, depthKey } from './math/IsoProjection';
+export { project, unproject, depthKey, drawIsoCube } from './math/IsoProjection';
 export type { IsoVec3, ScreenVec2, IsoView } from './math/IsoProjection';
 export { DEFAULT_ISO_VIEW } from './math/IsoProjection';
 export { topoSort } from './math/depthSort';
