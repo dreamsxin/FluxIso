@@ -48,6 +48,11 @@ export class Scene {
    */
   private _sortHash = 0;
 
+  // ── Performance: pre-allocated partition buffers ───────────────────────────
+  // Reused every frame to avoid per-frame array allocation.
+  private _floorBuf: Floor[]     = [];
+  private _cullBuf:  IsoObject[] = [];
+
   readonly tileW: number;
   readonly tileH: number;
   readonly cols: number;
@@ -243,9 +248,14 @@ export class Scene {
       (ab / 255) * ai,
     ];
 
-    // Separate floor from other objects for lightmap caching
-    const floorObjects  = this.objects.filter((o): o is Floor => o instanceof Floor);
-    const sceneObjects  = this.objects.filter((o) => !(o instanceof Floor));
+    // ── Partition into floor vs non-floor (single pass, reuse buffers) ──
+    this._floorBuf.length = 0;
+    this._cullBuf.length  = 0;
+    for (const o of this.objects) {
+      if (o instanceof Floor) this._floorBuf.push(o);
+      else if (o.visible)     this._cullBuf.push(o);
+    }
+    const floorObjects = this._floorBuf;
 
     // ── Bake floor lightmap if lights or ambient changed ───────────────────
     const cache = this._lightmapCache;
@@ -288,7 +298,7 @@ export class Scene {
       }
 
       // Draw shadows into the lightmap so they appear under all objects
-      const shadowCasters = sceneObjects.filter(o => o.visible && o.castsShadow !== false);
+      const shadowCasters = this._cullBuf.filter(o => o.castsShadow !== false);
       for (const light of omniLights) {
         ShadowCaster.draw(offCtx, light, shadowCasters, this.tileW, this.tileH);
       }
@@ -324,12 +334,13 @@ export class Scene {
     // NOTE: shadows are now baked into the lightmap offscreen canvas above,
     // so they correctly appear beneath all scene objects.
 
-    // ── Frustum culling ────────────────────────────────────────────────────
-    const visibleObjects = this._frustumCull(sceneObjects.filter(o => o.visible), canvasW, canvasH, originX, originY);
+    // ── Frustum culling (in-place, no new array) ───────────────────────────
+    this._frustumCull(this._cullBuf, canvasW, canvasH);
+    const visibleObjects = this._cullBuf;
 
     // ── Dirty-flag topoSort ────────────────────────────────────────────────
     // Re-sort only when object positions have changed.
-    const hash = this._computeSortHash(visibleObjects);
+    const hash = (this._computeSortHash(visibleObjects) * 31 + visibleObjects.length) | 0;
     if (this._sortDirty || hash !== this._sortHash) {
       this._sortedCache = topoSort(visibleObjects);
       this._sortHash    = hash;
@@ -351,13 +362,16 @@ export class Scene {
     this.camera.restoreTransform(ctx);
   }
 
+  /**
+   * Frustum-cull `objects` in-place: removes elements that are fully outside
+   * the visible isometric viewport. Operates directly on the passed array so
+   * no new array is allocated per frame.
+   */
   private _frustumCull(
     objects: IsoObject[],
     canvasW: number,
     canvasH: number,
-    _originX: number,
-    _originY: number,
-  ): IsoObject[] {
+  ): void {
     // Compute the world-space iso-parallelogram visible through the camera.
     //
     // The camera transform maps world → screen as:
@@ -388,19 +402,24 @@ export class Scene {
     const diffMin = camDiff - halfDiff * 2;
     const diffMax = camDiff + halfDiff * 2;
 
-    return objects.filter((obj) => {
+    let write = 0;
+    for (let i = 0; i < objects.length; i++) {
+      const obj = objects[i];
       const { minX, minY, maxX, maxY } = obj.aabb;
-      // Compute the sum/diff range of the AABB corners
       // sum  extremes: min at (minX+minY), max at (maxX+maxY)
       // diff extremes: min at (minX-maxY), max at (maxX-minY)
       const aabbSumMin  = minX + minY;
       const aabbSumMax  = maxX + maxY;
       const aabbDiffMin = minX - maxY;
       const aabbDiffMax = maxX - minY;
-
-      return aabbSumMax  >= sumMin  && aabbSumMin  <= sumMax
-          && aabbDiffMax >= diffMin && aabbDiffMin <= diffMax;
-    });
+      if (
+        aabbSumMax  >= sumMin  && aabbSumMin  <= sumMax &&
+        aabbDiffMax >= diffMin && aabbDiffMin <= diffMax
+      ) {
+        objects[write++] = obj;
+      }
+    }
+    objects.length = write;
   }
 
   /**

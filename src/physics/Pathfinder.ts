@@ -75,61 +75,90 @@ class BinaryHeap {
   }
 }
 
-const key = (col: number, row: number) => `${col},${row}`;
+const nodeKey = (col: number, row: number) => `${col},${row}`;
 
-// ── Path result cache ─────────────────────────────────────────────────────────
-// LRU cache keyed by "sc,sr→gc,gr". Invalidated when the collider changes.
-// Capacity is intentionally small — pathfinding is typically called for a
-// handful of agents, and stale entries waste memory.
-
-const CACHE_CAPACITY = 64;
+// ── PathCache ─────────────────────────────────────────────────────────────────
+// Instance-level LRU path-result cache.
+//
+// Each Scene (or any owner that has its own TileCollider) should create its own
+// PathCache so that switching scenes never invalidates another scene's cached
+// paths. The default module-level cache used by the static Pathfinder.find()
+// still exists for backwards-compatible call sites.
 
 interface CacheEntry {
   result: IsoVec2[] | null;
   lruOrder: number;
-}
-
-let _cacheCollider: TileCollider | null = null;
-let _cacheVersion  = 0;   // bumped on collider swap
-let _lruClock      = 0;
-const _cache       = new Map<string, CacheEntry & { version: number }>();
-
-function _cacheGet(collider: TileCollider, cacheKey: string): IsoVec2[] | null | undefined {
-  if (collider !== _cacheCollider) return undefined; // miss — different collider
-  const entry = _cache.get(cacheKey);
-  if (!entry || entry.version !== _cacheVersion) return undefined;
-  entry.lruOrder = ++_lruClock;
-  return entry.result;
-}
-
-function _cacheSet(collider: TileCollider, cacheKey: string, result: IsoVec2[] | null): void {
-  if (collider !== _cacheCollider) {
-    // New collider — flush everything
-    _cache.clear();
-    _cacheCollider = collider;
-    _cacheVersion++;
-  }
-  if (_cache.size >= CACHE_CAPACITY) {
-    // Evict LRU entry
-    let oldest = Infinity, oldestKey = '';
-    for (const [k, v] of _cache) {
-      if (v.lruOrder < oldest) { oldest = v.lruOrder; oldestKey = k; }
-    }
-    if (oldestKey) _cache.delete(oldestKey);
-  }
-  _cache.set(cacheKey, { result, lruOrder: ++_lruClock, version: _cacheVersion });
+  version: number;
 }
 
 /**
- * Invalidate the path cache for a specific collider.
- * Call this whenever you modify walkability (e.g. a door opens/closes).
+ * LRU cache for A* path results, scoped to a single TileCollider instance.
+ *
+ * Create one per scene / per agent group and pass it to `Pathfinder.find()`.
+ * This prevents multi-scene cache pollution that occurs when a module-level
+ * cache is shared across scenes with different TileColliders.
+ *
+ * @example
+ *   const pathCache = new PathCache(64);
+ *   const path = Pathfinder.find(collider, start, goal, pathCache);
+ *   // later, when the map changes:
+ *   pathCache.invalidate();
  */
-function invalidateCache(collider?: TileCollider): void {
-  if (!collider || collider === _cacheCollider) {
-    _cacheVersion++;
-    _cache.clear();
+export class PathCache {
+  private _collider: TileCollider | null = null;
+  private _version  = 0;
+  private _lruClock = 0;
+  private _map      = new Map<string, CacheEntry>();
+  readonly capacity: number;
+
+  constructor(capacity = 64) {
+    this.capacity = capacity;
   }
+
+  get(collider: TileCollider, key: string): IsoVec2[] | null | undefined {
+    if (collider !== this._collider) return undefined; // miss — different collider
+    const entry = this._map.get(key);
+    if (!entry || entry.version !== this._version) return undefined;
+    entry.lruOrder = ++this._lruClock;
+    return entry.result;
+  }
+
+  set(collider: TileCollider, key: string, result: IsoVec2[] | null): void {
+    if (collider !== this._collider) {
+      // New collider — flush everything for this cache instance only
+      this._map.clear();
+      this._collider = collider;
+      this._version++;
+    }
+    if (this._map.size >= this.capacity) {
+      // Evict LRU entry
+      let oldest = Infinity, oldestKey = '';
+      for (const [k, v] of this._map) {
+        if (v.lruOrder < oldest) { oldest = v.lruOrder; oldestKey = k; }
+      }
+      if (oldestKey) this._map.delete(oldestKey);
+    }
+    this._map.set(key, { result, lruOrder: ++this._lruClock, version: this._version });
+  }
+
+  /**
+   * Invalidate all cached paths (e.g. after a door opens or a tile changes).
+   * Optionally pass the collider to only invalidate if it matches.
+   */
+  invalidate(collider?: TileCollider): void {
+    if (!collider || collider === this._collider) {
+      this._version++;
+      this._map.clear();
+    }
+  }
+
+  /** Number of currently cached entries. */
+  get size(): number { return this._map.size; }
 }
+
+// Module-level default cache — used by the static Pathfinder.find() for
+// backwards-compatible call sites that do not pass an explicit PathCache.
+const _defaultCache = new PathCache(64);
 
 /**
  * A* pathfinder over a TileCollider grid.
@@ -143,24 +172,33 @@ function invalidateCache(collider?: TileCollider): void {
  * - Open list uses a binary min-heap for O(log n) push/pop.
  * - Path is post-processed with Bresenham LoS string-pulling to straighten
  *   zigzag routes across open areas.
- * - Results are cached per (collider, start-tile, goal-tile). The cache is
- *   automatically flushed when a different collider is passed. Call
- *   `Pathfinder.invalidateCache()` after modifying walkability at runtime.
+ * - Results are cached per (collider, start-tile, goal-tile). Pass an explicit
+ *   `PathCache` instance per scene to avoid cross-scene cache pollution.
+ *   Call `cache.invalidate()` after modifying walkability at runtime.
  *
  * @example
+ *   // Simple (backwards-compatible) — uses module-level cache:
  *   const path = Pathfinder.find(collider, { x: 1, y: 1 }, { x: 7, y: 5 });
+ *
+ *   // Recommended — per-scene cache:
+ *   const pathCache = new PathCache();
+ *   const path = Pathfinder.find(collider, start, goal, pathCache);
  *   if (path) mv.followPath(path);
  */
 export class Pathfinder {
   /**
    * Find a path from `start` to `goal` on the given collider grid.
    * Returns tile-centre world coordinates, or `null` if unreachable.
-   * Results are cached — repeated calls with the same inputs are O(1).
+   *
+   * @param cache  Optional per-scene PathCache. When omitted, a module-level
+   *               default cache is used (backwards-compatible but shared across
+   *               all scenes — may cause cross-scene cache flushes).
    */
   static find(
     collider: TileCollider,
     start: IsoVec2,
     goal: IsoVec2,
+    cache: PathCache = _defaultCache,
   ): IsoVec2[] | null {
     const sc = Math.floor(start.x);
     const sr = Math.floor(start.y);
@@ -168,21 +206,24 @@ export class Pathfinder {
     const gr = Math.floor(goal.y);
 
     const cacheKey = `${sc},${sr}→${gc},${gr}`;
-    const cached = _cacheGet(collider, cacheKey);
+    const cached = cache.get(collider, cacheKey);
     if (cached !== undefined) return cached;
 
     const result = Pathfinder._search(collider, sc, sr, gc, gr);
-    _cacheSet(collider, cacheKey, result);
+    cache.set(collider, cacheKey, result);
     return result;
   }
 
   /**
-   * Invalidate the path result cache.
-   * Call after modifying collider walkability at runtime (e.g. opening a door).
+   * Invalidate the module-level default path result cache.
+   * For per-scene caches, call `pathCache.invalidate()` directly.
    * If `collider` is omitted, all cached results are cleared.
+   *
+   * @deprecated Prefer passing an explicit PathCache and calling
+   *             `pathCache.invalidate()` instead.
    */
   static invalidateCache(collider?: TileCollider): void {
-    invalidateCache(collider);
+    _defaultCache.invalidate(collider);
   }
 
   // ── Internal A* search ───────────────────────────────────────────────────
@@ -207,12 +248,12 @@ export class Pathfinder {
     };
     startNode.f = startNode.h;
     open.push(startNode);
-    best.set(key(sc, sr), 0);
-    nodeMap.set(key(sc, sr), startNode);
+    best.set(nodeKey(sc, sr), 0);
+    nodeMap.set(nodeKey(sc, sr), startNode);
 
     while (open.size > 0) {
       const cur = open.pop();
-      const ck  = key(cur.col, cur.row);
+      const ck  = nodeKey(cur.col, cur.row);
 
       if (closed.has(ck)) continue;
       closed.add(ck);
@@ -225,7 +266,7 @@ export class Pathfinder {
       for (const [dc, dr, cost] of Pathfinder._neighbors(collider, cur.col, cur.row)) {
         const nc = cur.col + dc;
         const nr = cur.row + dr;
-        const nk = key(nc, nr);
+        const nk = nodeKey(nc, nr);
         if (closed.has(nk)) continue;
 
         const g = cur.g + cost;
