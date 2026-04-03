@@ -19,17 +19,19 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 - **Sprite animation** — `SpriteSheet` + `AnimationController` (idle/walk state machine, 8-direction)
 - **Directional animator** — `DirectionalAnimator`; clip naming `action_DIR`; fallback chain; `playOnce()`
 - **Particle system** — `ParticleSystem`; procedural circle/square + sprite mode; blend modes; presets: sparkBurst, emberTrail, dustPuff, crystalShatter, coinSpill, spriteExplosion, ambientDrift, smokePlume, lavaSparks
-- **Tile collision** — `TileCollider` walkable grid; AABB slide-and-clamp; `sweepMove()` binary search with fast-path
-- **A\* Pathfinder** — 8-directional, corner-cut prevention, Bresenham LoS string-pull, min-heap O(log n); LRU result cache; `Pathfinder.invalidateCache()`
-- **ECS** — `Entity.addComponent()` / `getComponent()`; per-frame `component.update()`
-- **EventBus** — typed events (Damage/Heal/Death/Move/Arrival/Trigger); `globalBus` singleton
-- **Components** — `HealthComponent`, `MovementComponent`, `TimerComponent`, `TweenComponent` (8 easings, yoyo, repeat), `TweenSequence` (chained tweens), `TriggerZoneComponent`
+- **Tile collision** — `TileCollider` walkable grid; AABB slide-and-clamp; `sweepMove()` binary search with fast-path; `MovementComponent.nudge(dx,dy)` collision-resolved directional move
+- **A\* Pathfinder** — 8-directional, corner-cut prevention, Bresenham LoS string-pull, min-heap O(log n); instance-level `PathCache` (per-scene, zero cross-scene pollution); `cache.invalidate()`
+- **ECS** — `Entity.addComponent()` / `getComponent()`; per-frame `component.update()`; zero-copy component iteration
+- **EventBus** — typed events (`DamageEvent` w/ `targetId`, `HealEvent`, `DeathEvent`, `MoveEvent`, `ArrivalEvent`, `TriggerEvent`); `globalBus` singleton
+- **Components** — `HealthComponent` (unified EventBus emit on damage/death), `MovementComponent` (nudge + A* pathTo), `TimerComponent`, `TweenComponent` (8 easings, yoyo, repeat), `TweenSequence` (chained tweens), `TriggerZoneComponent` (zero per-frame GC)
 - **Props** — `Crystal`, `Boulder`, `Chest`, `Cloud`, `FloatingText`; canvas-drawn, ECS-powered
 - **Audio** — `AudioManager`; one-shot SFX, looping BGM with crossfade, spatial distance attenuation, 3-bus volume (master/sfx/bgm)
 - **JSON scene loader** — `engine.loadScene(url)`; floor, walls, lights, characters, props, clouds, walkable collision map
 - **Scene validator** — `validateSceneJson()`; runtime JSON schema check + ECS component assertions
 - **Scene editor** — visual editor (`editor.ts`); undo/redo, collision paint, object list, JSON export/copy
 - **Sprite editor** — sprite sheet frame inspector and animation clip builder (`sprite-editor.ts`); 8-direction preview; JSON export
+- **AssetLoader** — instanceable image preloader; per-scene isolation; `unload(url)`; `size` getter; static API delegates to `AssetLoader.default` (backwards-compatible)
+- **PathCache** — per-scene A* result cache; `new PathCache(capacity)`; `invalidate()`; pass to `Pathfinder.find()` for zero cross-scene pollution
 - **Lib build** — `npm run build:lib` → ESM + CJS dual output; `luxiso.d.ts` rollup
 
 ## Tech Stack
@@ -586,7 +588,7 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 | ParticleSystem: procedural + sprite; 9 presets; depth-sorted | |
 | TileCollider: walkable grid + AABB slide-and-clamp + sweepMove | |
 | A* Pathfinder: 8-directional, corner-cut prevention, Bresenham LoS string-pull, min-heap O(log n) | |
-| Pathfinder: LRU result cache + invalidateCache() | |
+| Pathfinder: LRU result cache — instance-level `PathCache`; per-scene isolation | |
 | ECS: Entity + Component + EventBus (typed events) | |
 | HealthComponent / MovementComponent / TimerComponent | |
 | TweenComponent: 8 easings, yoyo, repeat, delay | |
@@ -601,10 +603,35 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 | Scene editor: object list, undo/redo, collision paint, JSON export/copy | |
 | Sprite editor: frame inspector, clip builder, 8-direction preview, JSON export | |
 | Minimap: OffscreenCanvas HUD overlay, walkable grid + object dots | |
-| Precise AABB frustum culling | |
+| Precise AABB frustum culling — in-place write-pointer compaction, zero per-frame allocation | |
+| AssetLoader: instanceable; unload(url); size getter; static delegates to .default | |
+| PathCache: per-scene A* cache; invalidate(); passed to Pathfinder.find() | |
+| ECS: HealthComponent unified EventBus emit; MovementComponent.nudge(); TriggerZone zero-GC | |
+| Performance: depthSort head-pointer + Set; Scene sortHash imul; frustum cull in-place | |
+| Engine: PropRegistry + LightRegistry (open for extension) | |
+| Scene.toJSON(): full prop serialization (Crystal/Boulder/Chest) | |
 | Lib build: ESM + CJS dual output + .d.ts (npm run build:lib) | |
 | Unit tests: 157 tests across 20 files (Vitest 4, Node ≥ 22) | |
 | Examples: 8 progressive demos + tools gallery | |
+
+## Known Limitations & Roadmap (Next)
+
+See [FRAMEWORK_ANALYSIS.md](FRAMEWORK_ANALYSIS.md) for a detailed comparison with Excalibur.js, Phaser 3, Godot 4, and Bevy ECS.
+
+| Priority | Item | Notes |
+|----------|------|-------|
+| P0 | `example-05` hero collider not updated on scene switch | `heroMv.setCollider()` in `onEnter` |
+| P0 | `InputManager.destroy()` missing | Memory leak on scene pop |
+| P1 | `Character` internal move logic duplicates `MovementComponent` | Remove `_target/_waypoints/pathTo` from Character |
+| P1 | `getComponent` uses string key — not type-safe | Change to constructor-reference key |
+| P1 | `example-05` sky draw functions (400+ lines) inline in `main.ts` | Split to `environment/*.ts` |
+| P2 | Fixed timestep (semi-fixed accumulator) | Physics/pathfinding frame-rate independent |
+| P2 | Depth sort O(n²) graph build | Spatial partitioning or per-bucket comparison |
+| P2 | `SceneManager` does not auto-clear `AssetLoader` on scene exit | Add `assetLoader?` to `ManagedScene` |
+| P2 | `ShadowCaster` re-projects every frame | Cache per-caster projection, invalidate on move |
+| P3 | No System layer (batch component processing) | `scene.addSystem(new MovementSystem())` |
+| P3 | `ParticleSystem` allocates new particles each frame | Integrate `ObjectPool<Particle>` |
+| P3 | Spatial audio uses linear falloff calc, not `PannerNode` | Use Web Audio `PannerNode` + HRTF |
 
 ## License
 
