@@ -45,6 +45,8 @@ export class Chest extends Entity {
     this.castsShadow  = true;
   }
 
+  get propColor(): string { return this._woodColor; }
+
   open():   void { this._lidOpen = true;  }
   close():  void { this._lidOpen = false; }
   toggle(): void { this._lidOpen = !this._lidOpen; }

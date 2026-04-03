@@ -19,6 +19,9 @@ export class Boulder extends Entity {
     this.castsShadow  = true;
   }
 
+  get propColor(): string  { return this.color; }
+  get propRadius(): number { return this.radius; }
+
   get aabb(): AABB {
     return { minX: this.position.x - 0.45, minY: this.position.y - 0.45, maxX: this.position.x + 0.45, maxY: this.position.y + 0.45, baseZ: 0 };
   }

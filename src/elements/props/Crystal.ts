@@ -27,6 +27,9 @@ export class Crystal extends Entity {
     this.castsShadow  = true;
   }
 
+  get propColor(): string   { return this.color; }
+  get propHeightPx(): number { return this.heightPx; }
+
   get aabb(): AABB {
     return { minX: this.position.x - 0.4, minY: this.position.y - 0.4, maxX: this.position.x + 0.4, maxY: this.position.y + 0.4, baseZ: 0 };
   }

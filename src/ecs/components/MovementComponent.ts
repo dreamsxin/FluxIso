@@ -91,6 +91,25 @@ export class MovementComponent implements Component {
     this._waypoints = [];
   }
 
+  /**
+   * Nudge the owner by (dx, dy) world units in a single frame, passing the
+   * displacement through collision resolution so walls are respected.
+   * Designed for keyboard / analogue-stick direct control that should NOT
+   * cancel any in-progress pathfinding target.
+   */
+  nudge(dx: number, dy: number): void {
+    if (!this._owner) return;
+    const pos = this._owner.position;
+    if (this._collider) {
+      const resolved = this._collider.resolveMove(pos.x, pos.y, dx, dy, this.radius);
+      pos.x += resolved.dx;
+      pos.y += resolved.dy;
+    } else {
+      pos.x += dx;
+      pos.y += dy;
+    }
+  }
+
   get isMoving(): boolean { return this._target !== null; }
 
   /** Remaining path waypoints (read-only). */

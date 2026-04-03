@@ -3,6 +3,7 @@ import { Floor } from '../elements/Floor';
 import { Wall, WallOptions } from '../elements/Wall';
 import { OmniLight } from '../lighting/OmniLight';
 import { DirectionalLight } from '../lighting/DirectionalLight';
+import { BaseLight } from '../lighting/BaseLight';
 import { Character } from '../elements/Character';
 import { Cloud } from '../elements/props/Cloud';
 import { Crystal } from '../elements/props/Crystal';
@@ -10,10 +11,53 @@ import { Boulder } from '../elements/props/Boulder';
 import { Chest } from '../elements/props/Chest';
 import { HealthComponent } from '../ecs/components/HealthComponent';
 import { TileCollider } from '../physics/TileCollider';
+import { IsoObject } from '../elements/IsoObject';
 
 export interface EngineOptions {
   canvas: HTMLCanvasElement;
 }
+
+// ── Registry types ──────────────────────────────────────────────────────────
+
+/** Shape of a prop entry from the JSON scene definition. */
+export interface PropJson {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  color?: string;
+  radius?: number;
+  heightPx?: number;
+  health?: number;
+  [key: string]: unknown;
+}
+
+/** Shape of a light entry from the JSON scene definition. */
+export interface LightJson {
+  id?: string;
+  type: string;
+  x?: number;
+  y?: number;
+  z?: number;
+  color?: string;
+  intensity?: number;
+  radius?: number;
+  angle?: number;
+  elevation?: number;
+  [key: string]: unknown;
+}
+
+/**
+ * Factory function that constructs an IsoObject from a raw JSON prop entry.
+ * Register custom types with Engine.registerProp().
+ */
+export type PropFactory = (json: PropJson) => IsoObject;
+
+/**
+ * Factory function that constructs a BaseLight from a raw JSON light entry.
+ * Register custom types with Engine.registerLight().
+ */
+export type LightFactory = (json: LightJson) => BaseLight;
 
 // ── JSON scene schema ──────────────────────────────────────────────────────
 
@@ -66,16 +110,7 @@ interface SceneJson {
     color?: string;
     seed?: number;
   }>;
-  props?: Array<{
-    id: string;
-    type: 'crystal' | 'boulder' | 'chest';
-    x: number;
-    y: number;
-    color?: string;
-    radius?: number;
-    heightPx?: number;
-    health?: number;
-  }>;
+  props?: Array<PropJson>;
 }
 
 /**
@@ -83,6 +118,46 @@ interface SceneJson {
  * Handles the canvas setup, scene loading, and the main render loop.
  */
 export class Engine {
+  // ── Static prop/light registries ───────────────────────────────────────────
+  //
+  // These maps allow users to register custom prop and light types without
+  // modifying engine source code (Open-Closed Principle).
+  //
+  // Usage:
+  //   Engine.registerProp('dragon', (json) => new Dragon(json.id, json.x, json.y));
+  //   Engine.registerLight('spot', (json) => new SpotLight({ ... }));
+  //
+  static _propRegistry   = new Map<string, PropFactory>();
+  static _lightRegistry  = new Map<string, LightFactory>();
+
+  /**
+   * Register a factory for a custom prop type.
+   * The factory is called during _buildScene for every prop entry whose
+   * `type` field matches the given key.
+   */
+  static registerProp(type: string, factory: PropFactory): void {
+    Engine._propRegistry.set(type, factory);
+  }
+
+  /**
+   * Register a factory for a custom light type.
+   * The factory is called during _buildScene for every light entry whose
+   * `type` field matches the given key.
+   */
+  static registerLight(type: string, factory: LightFactory): void {
+    Engine._lightRegistry.set(type, factory);
+  }
+
+  /** Remove a previously registered prop factory. */
+  static unregisterProp(type: string): void {
+    Engine._propRegistry.delete(type);
+  }
+
+  /** Remove a previously registered light factory. */
+  static unregisterLight(type: string): void {
+    Engine._lightRegistry.delete(type);
+  }
+
   readonly canvas: HTMLCanvasElement;
   readonly ctx: CanvasRenderingContext2D;
 
@@ -149,26 +224,11 @@ export class Engine {
     }
 
     for (const l of json.lights ?? []) {
-      if (l.type === 'omni') {
-        scene.addLight(
-          new OmniLight({
-            x: l.x ?? 0,
-            y: l.y ?? 0,
-            z: l.z ?? 120,
-            color: l.color,
-            intensity: l.intensity,
-            radius: l.radius,
-          }),
-        );
-      } else if (l.type === 'directional') {
-        scene.addLight(
-          new DirectionalLight({
-            angle: l.angle,
-            elevation: l.elevation,
-            color: l.color,
-            intensity: l.intensity,
-          }),
-        );
+      const lightFactory = Engine._lightRegistry.get(l.type);
+      if (lightFactory) {
+        scene.addLight(lightFactory(l));
+      } else {
+        console.warn(`[Engine] Unknown light type '${l.type}'. Register it with Engine.registerLight().`);
       }
     }
 
@@ -194,24 +254,18 @@ export class Engine {
     }
 
     for (const p of json.props ?? []) {
-      let prop;
-      switch (p.type) {
-        case 'crystal':
-          prop = new Crystal(p.id, p.x, p.y, p.color, p.heightPx);
-          break;
-        case 'boulder':
-          prop = new Boulder(p.id, p.x, p.y, p.color, p.radius);
-          break;
-        case 'chest':
-          prop = new Chest(p.id, p.x, p.y, p.color);
-          break;
+      const propFactory = Engine._propRegistry.get(p.type);
+      if (!propFactory) {
+        console.warn(`[Engine] Unknown prop type '${p.type}'. Register it with Engine.registerProp().`);
+        continue;
       }
-      if (prop) {
-        if (p.health) {
-          prop.addComponent(new HealthComponent({ max: p.health }));
-        }
-        scene.addObject(prop);
+      const prop = propFactory(p);
+      if (p.health) {
+        // All built-in props (Crystal/Boulder/Chest) extend Entity which has addComponent.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (prop as any).addComponent(new HealthComponent({ max: p.health }));
       }
+      scene.addObject(prop);
     }
 
     // Build collision layer
@@ -302,3 +356,25 @@ export class Engine {
     this._onFrame?.(ts);
   }
 }
+
+// ── Register built-in prop and light factories ────────────────────────────
+// This static initialiser runs once when the Engine class is first loaded.
+// It seeds the registries with the default types so existing scene JSON
+// continues to work without any changes.
+Engine._propRegistry.set('crystal',
+  (p) => new Crystal(p.id, p.x, p.y, p.color, p.heightPx as number | undefined));
+Engine._propRegistry.set('boulder',
+  (p) => new Boulder(p.id, p.x, p.y, p.color, p.radius as number | undefined));
+Engine._propRegistry.set('chest',
+  (p) => new Chest(p.id, p.x, p.y, p.color));
+
+Engine._lightRegistry.set('omni',
+  (l) => new OmniLight({
+    x: l.x ?? 0, y: l.y ?? 0, z: l.z ?? 120,
+    color: l.color, intensity: l.intensity, radius: l.radius,
+  }));
+Engine._lightRegistry.set('directional',
+  (l) => new DirectionalLight({
+    angle: l.angle, elevation: l.elevation,
+    color: l.color, intensity: l.intensity,
+  }));

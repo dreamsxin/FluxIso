@@ -9,6 +9,10 @@ import { Floor } from '../elements/Floor';
 import { Wall } from '../elements/Wall';
 import { Character } from '../elements/Character';
 import { Cloud } from '../elements/props/Cloud';
+import { Crystal } from '../elements/props/Crystal';
+import { Boulder } from '../elements/props/Boulder';
+import { Chest } from '../elements/props/Chest';
+import { HealthComponent } from '../ecs/components/HealthComponent';
 import { FloatingText, FloatingTextOptions } from '../elements/props/FloatingText';
 import { project, DEFAULT_ISO_VIEW } from '../math/IsoProjection';
 import type { IsoView } from '../math/IsoProjection';
@@ -37,8 +41,12 @@ export class Scene {
   // ── Performance: dirty-flag sort cache ────────────────────────────────────
   private _sortedCache: IsoObject[] = [];
   private _sortDirty = true;
-  /** Snapshot of AABB positions used to detect movement between frames. */
-  private _aabbSnapshot: string = '';
+  /**
+   * Lightweight sort-dirty detection: numeric hash of all visible object
+   * positions. Compared each frame instead of serializing AABB to a JSON
+   * string, eliminating per-frame string allocation and GC pressure.
+   */
+  private _sortHash = 0;
 
   readonly tileW: number;
   readonly tileH: number;
@@ -321,11 +329,11 @@ export class Scene {
 
     // ── Dirty-flag topoSort ────────────────────────────────────────────────
     // Re-sort only when object positions have changed.
-    const snap = this._buildAabbSnapshot(visibleObjects);
-    if (this._sortDirty || snap !== this._aabbSnapshot) {
-      this._sortedCache  = topoSort(visibleObjects);
-      this._aabbSnapshot = snap;
-      this._sortDirty    = false;
+    const hash = this._computeSortHash(visibleObjects);
+    if (this._sortDirty || hash !== this._sortHash) {
+      this._sortedCache = topoSort(visibleObjects);
+      this._sortHash    = hash;
+      this._sortDirty   = false;
     }
 
     for (const obj of this._sortedCache) {
@@ -395,11 +403,22 @@ export class Scene {
     });
   }
 
-  private _buildAabbSnapshot(objects: IsoObject[]): string {
-    // Compact snapshot: only position, not full AABB, for speed
-    return objects.map(o =>
-      `${o.id}:${o.position.x.toFixed(2)},${o.position.y.toFixed(2)},${o.position.z.toFixed(2)}`
-    ).join('|');
+  /**
+   * Compute a lightweight numeric hash of all object positions.
+   * Uses a simple djb2-style accumulation — no string allocation, O(n) arithmetic.
+   * Two different configurations may theoretically collide, but the cost of a
+   * spurious re-sort is just one extra topoSort call, not a correctness issue.
+   */
+  private _computeSortHash(objects: IsoObject[]): number {
+    let h = 0;
+    for (const o of objects) {
+      const p = o.position;
+      // Multiply by primes and XOR to mix x/y/z independently
+      h = (Math.imul(h, 31) + (p.x * 1000 | 0)) | 0;
+      h = (Math.imul(h, 31) + (p.y * 1000 | 0)) | 0;
+      h = (Math.imul(h, 31) + (p.z * 1000 | 0)) | 0;
+    }
+    return h;
   }
 
   // ── Serialization ──────────────────────────────────────────────────────────
@@ -407,15 +426,18 @@ export class Scene {
   /**
    * Export the scene as a plain JSON object compatible with `Engine.loadScene()`.
    *
-   * Props other than Cloud, Character, Floor, Wall are omitted (they carry
-   * runtime state that cannot round-trip cleanly). Add custom serialization
-   * by subclassing Scene and overriding this method.
+   * Serializes Floor, Wall, Character, Cloud, Crystal, Boulder, and Chest.
+   * HealthComponent max HP is preserved when present.
+   * Custom prop types must override this method or handle serialization externally.
    */
   toJSON(): Record<string, unknown> {
     const floors      = this.objects.filter((o): o is Floor      => o instanceof Floor);
     const walls       = this.objects.filter((o): o is Wall       => o instanceof Wall);
     const characters  = this.objects.filter((o): o is Character  => o instanceof Character);
     const clouds      = this.objects.filter((o): o is Cloud      => o instanceof Cloud);
+    const crystals    = this.objects.filter((o): o is Crystal    => o instanceof Crystal);
+    const boulders    = this.objects.filter((o): o is Boulder    => o instanceof Boulder);
+    const chests      = this.objects.filter((o): o is Chest      => o instanceof Chest);
 
     const floor = floors[0];
     const walkable = this.collider
@@ -493,6 +515,39 @@ export class Scene {
         scale:    c.scale,
         seed:     c.seed,
       })),
+
+      // Props — serialized so the editor can round-trip Crystal / Boulder / Chest.
+      props: [
+        ...crystals.map(o => ({
+          type:     'crystal' as const,
+          id:       o.id,
+          x:        o.position.x,
+          y:        o.position.y,
+          color:    o.propColor,
+          heightPx: o.propHeightPx,
+          ...(o.getComponent<HealthComponent>('health')
+            ? { health: o.getComponent<HealthComponent>('health')!.maxHp } : {}),
+        })),
+        ...boulders.map(o => ({
+          type:   'boulder' as const,
+          id:     o.id,
+          x:      o.position.x,
+          y:      o.position.y,
+          color:  o.propColor,
+          radius: o.propRadius,
+          ...(o.getComponent<HealthComponent>('health')
+            ? { health: o.getComponent<HealthComponent>('health')!.maxHp } : {}),
+        })),
+        ...chests.map(o => ({
+          type:  'chest' as const,
+          id:    o.id,
+          x:     o.position.x,
+          y:     o.position.y,
+          color: o.propColor,
+          ...(o.getComponent<HealthComponent>('health')
+            ? { health: o.getComponent<HealthComponent>('health')!.maxHp } : {}),
+        })),
+      ],
     };
   }
 

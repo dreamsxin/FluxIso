@@ -5,8 +5,8 @@
  *   - Character with A* pathfinding
  *   - TileCollider (blocked tiles)
  *   - Click-to-move
- *   - Arrow key nudge
- *   - MovementComponent
+ *   - Arrow key nudge (collision-resolved via MovementComponent.nudge)
+ *   - MovementComponent registered through Entity.addComponent
  */
 import {
   Engine, Scene, Floor, Wall, OmniLight,
@@ -50,8 +50,10 @@ scene.collider = collider;
 const character = new Character({ id: 'player', x: 1.5, y: 1.5 });
 scene.addObject(character);
 
-const mv = new MovementComponent({ speed: 3.5, radius: 0.35, collider });
-mv.onAttach(character);
+// FIX: register via addComponent so Entity.update() drives it automatically.
+// Previously mv.onAttach(character) was called manually, leaving the component
+// outside the entity's component map and requiring a manual mv.update(ts) call.
+const mv = character.addComponent(new MovementComponent({ speed: 3.5, radius: 0.35, collider }));
 
 // ── Input ──────────────────────────────────────────────────────────────────
 
@@ -69,17 +71,23 @@ canvas.addEventListener('click', (e) => {
 
 // ── Loop ───────────────────────────────────────────────────────────────────
 
+const NUDGE = 0.05; // world units per frame
+
 engine.setScene(scene);
 engine.start(
-  undefined,
+  // onFrame (post-draw): flush input state here so wasPressed is valid for the
+  // full frame (both preFrame and the draw pass) before being cleared.
   (ts) => {
-    // Arrow key nudge
-    if (input.isDown('ArrowUp'))    character.position.y -= 0.05;
-    if (input.isDown('ArrowDown'))  character.position.y += 0.05;
-    if (input.isDown('ArrowLeft'))  character.position.x -= 0.05;
-    if (input.isDown('ArrowRight')) character.position.x += 0.05;
+    // Arrow key nudge — goes through collision resolution via mv.nudge(),
+    // so the character can no longer clip through walls.
+    if (input.isDown('ArrowUp'))    mv.nudge(0, -NUDGE);
+    if (input.isDown('ArrowDown'))  mv.nudge(0,  NUDGE);
+    if (input.isDown('ArrowLeft'))  mv.nudge(-NUDGE, 0);
+    if (input.isDown('ArrowRight')) mv.nudge( NUDGE, 0);
 
-    mv.update(ts);
-    input.flush();
+    input.flush(); // clear single-frame wasPressed / wasReleased flags
+    void ts;       // ts available for future use (e.g. animations)
   },
 );
+// Note: mv.update(ts) is NOT called here — it is driven automatically by
+// character.update() → component.update() inside scene.update() each frame.

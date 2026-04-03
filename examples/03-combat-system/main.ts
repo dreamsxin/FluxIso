@@ -14,7 +14,7 @@ import {
   HealthComponent, ParticleSystem,
   globalBus,
 } from '../../src/index';
-import type { DamageEvent } from '../../src/index';
+import type { DamageEvent, DeathEvent } from '../../src/index';
 
 const COLS = 8, ROWS = 8, TILE_W = 64, TILE_H = 32;
 
@@ -48,6 +48,7 @@ function spawnFx(x: number, y: number, color: string, preset: 'crystal' | 'spark
 
 const crystal = new Crystal('crystal', 2, 2, '#8060e0');
 crystal.addComponent(new HealthComponent({
+  bus: globalBus,
   max: 60,
   onChange: () => spawnFx(crystal.position.x, crystal.position.y, '#8060e0', 'spark'),
   onDeath:  () => { spawnFx(crystal.position.x, crystal.position.y, '#8060e0', 'crystal'); scene.removeById('crystal'); },
@@ -56,6 +57,7 @@ scene.addObject(crystal);
 
 const boulder = new Boulder('boulder', 4, 3);
 boulder.addComponent(new HealthComponent({
+  bus: globalBus,
   max: 80,
   onChange: () => spawnFx(boulder.position.x, boulder.position.y, '#888', 'dust'),
   onDeath:  () => { spawnFx(boulder.position.x, boulder.position.y, '#888', 'dust'); scene.removeById('boulder'); },
@@ -64,6 +66,7 @@ scene.addObject(boulder);
 
 const chest = new Chest('chest', 6, 5);
 chest.addComponent(new HealthComponent({
+  bus: globalBus,
   max: 40,
   onChange: (hp, max) => { if (hp < max) chest.open(); spawnFx(chest.position.x, chest.position.y, '#ffd040', 'spark'); },
   onDeath:  () => { chest.open(); spawnFx(chest.position.x, chest.position.y, '#ffd040', 'spark'); },
@@ -72,8 +75,13 @@ scene.addObject(chest);
 
 // ── EventBus: log damage ───────────────────────────────────────────────────
 
-globalBus.on<DamageEvent>('damage', ({ amount, target }) => {
-  console.log(`[damage] ${target} took ${amount} damage`);
+globalBus.on<DamageEvent>('damage', ({ amount, targetId, sourceId }) => {
+  const who  = targetId  ?? 'unknown';
+  const from = sourceId ? ` (from ${sourceId})` : '';
+  console.log(`[damage] ${who} took ${amount}${from}`);
+});
+globalBus.on<DeathEvent>('death', ({ id }) => {
+  console.log(`[death] ${id} has been destroyed`);
 });
 
 // ── Click to damage ────────────────────────────────────────────────────────

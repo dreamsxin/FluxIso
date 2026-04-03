@@ -45,7 +45,9 @@ export class TriggerZoneComponent implements Component {
   targets: IsoObject[];
 
   private _owner:   IsoObject | null = null;
-  private _inside   = new Set<string>();
+  // Two pre-allocated Sets swapped each frame to avoid per-frame allocation.
+  private _inside = new Set<string>();
+  private _next   = new Set<string>();
   private _onEnter: ((id: string) => void) | undefined;
   private _onExit:  ((id: string) => void) | undefined;
   private _bus:     EventBus | null;
@@ -59,7 +61,7 @@ export class TriggerZoneComponent implements Component {
   }
 
   onAttach(owner: IsoObject): void { this._owner = owner; }
-  onDetach(): void                 { this._owner = null; this._inside.clear(); }
+  onDetach(): void                 { this._owner = null; this._inside.clear(); this._next.clear(); }
 
   /** IDs of objects currently inside the zone. */
   get insideIds(): ReadonlySet<string> { return this._inside; }
@@ -80,7 +82,8 @@ export class TriggerZoneComponent implements Component {
     const oy = this._owner.position.y;
     const r  = this.radius;
 
-    const nowInside = new Set<string>();
+    // Reuse _next (cleared at end of previous frame) instead of allocating a new Set.
+    const nowInside = this._next;
 
     for (const target of this.targets) {
       if (target === this._owner) continue;
@@ -107,6 +110,10 @@ export class TriggerZoneComponent implements Component {
       }
     }
 
+    // Swap: _inside = current frame; _next is cleared and ready for reuse.
+    const prev   = this._inside;
     this._inside = nowInside;
+    this._next   = prev;
+    this._next.clear();
   }
 }

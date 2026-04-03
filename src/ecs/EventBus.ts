@@ -87,7 +87,7 @@ export const globalBus = new EventBus();
 
 // ── Common event payload types ────────────────────────────────────────────────
 
-export interface DamageEvent   { amount: number; sourceId?: string }
+export interface DamageEvent   { amount: number; targetId?: string; sourceId?: string }
 export interface HealEvent     { amount: number }
 export interface DeathEvent    { id: string }
 export interface MoveEvent     { x: number; y: number; z: number }

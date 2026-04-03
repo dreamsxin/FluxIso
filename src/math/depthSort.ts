@@ -110,25 +110,28 @@ export function topoSort<T extends Sortable>(objects: T[]): T[] {
   }
 
   // Kahn's algorithm (BFS topological sort)
+  // Use a head-pointer instead of queue.shift() to avoid O(n) array shifts.
   const queue: number[] = [];
+  let head = 0;
   for (let i = 0; i < n; i++) {
     if (inDegree[i] === 0) queue.push(i);
   }
 
   const result: T[] = [];
-  while (queue.length > 0) {
-    const idx = queue.shift()!;
+  while (head < queue.length) {
+    const idx = queue[head++];
     result.push(objects[idx]);
     for (const next of graph[idx]) {
-      inDegree[next]--;
-      if (inDegree[next] === 0) queue.push(next);
+      if (--inDegree[next] === 0) queue.push(next);
     }
   }
 
-  // Fallback: if cycle detected, append remaining in original order
+  // Fallback: if cycle detected, append remaining in original order.
+  // Use a Set for O(1) membership test instead of result.includes() O(n).
   if (result.length < n) {
+    const inResult = new Set<T>(result);
     for (let i = 0; i < n; i++) {
-      if (!result.includes(objects[i])) result.push(objects[i]);
+      if (!inResult.has(objects[i])) result.push(objects[i]);
     }
   }
 
