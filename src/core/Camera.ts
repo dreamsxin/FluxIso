@@ -1,5 +1,5 @@
 import { IsoObject } from '../elements/IsoObject';
-import { unproject, project } from '../math/IsoProjection';
+import { unproject } from '../math/IsoProjection';
 import type { IsoView } from '../math/IsoProjection';
 
 export interface CameraBounds {

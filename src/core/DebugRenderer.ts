@@ -1,5 +1,4 @@
 import { Scene } from './Scene';
-import { Camera } from './Camera';
 import { project } from '../math/IsoProjection';
 import { IsoVec2 } from '../physics/Pathfinder';
 import { Entity } from '../ecs/Entity';

@@ -5,7 +5,7 @@ import { Character } from '../elements/Character';
 
 // Mock OffscreenCanvas if not available in the test environment
 if (typeof OffscreenCanvas === 'undefined') {
-  (global as any).OffscreenCanvas = class {
+  (globalThis as any).OffscreenCanvas = class {
     width: number;
     height: number;
     constructor(width: number, height: number) {

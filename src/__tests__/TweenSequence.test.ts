@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { TweenSequence } from '../ecs/components/TweenSequence';
 import { Entity } from '../ecs/Entity';
 import { AABB } from '../math/depthSort';
@@ -6,7 +6,7 @@ import { DrawContext } from '../elements/IsoObject';
 
 class TestEntity extends Entity {
   get aabb(): AABB { return { minX: 0, minY: 0, maxX: 1, maxY: 1, baseZ: 0 }; }
-  draw(dc: DrawContext): void {}
+  draw(_dc: DrawContext): void {}
 }
 
 describe('TweenSequence', () => {

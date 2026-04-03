@@ -7,7 +7,7 @@ import { DrawContext } from '../elements/IsoObject';
 
 class TestEntity extends Entity {
   get aabb(): AABB { return { minX: 0, minY: 0, maxX: 1, maxY: 1, baseZ: 0 }; }
-  draw(dc: DrawContext): void {}
+  draw(_dc: DrawContext): void {}
 }
 
 describe('AnimationComponent', () => {

@@ -22,7 +22,7 @@ describe('InputManager', () => {
     } as unknown as HTMLCanvasElement;
 
     // Mock window global
-    (global as any).window = {
+    (globalThis as any).window = {
       addEventListener: (type: string, cb: Function) => {
         if (!winListeners[type]) winListeners[type] = [];
         winListeners[type].push(cb);

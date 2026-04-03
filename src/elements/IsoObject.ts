@@ -1,4 +1,4 @@
-import { IsoVec3, IsoView, DEFAULT_ISO_VIEW } from '../math/IsoProjection';
+import { IsoVec3, IsoView } from '../math/IsoProjection';
 import { OmniLight } from '../lighting/OmniLight';
 import { DirectionalLight } from '../lighting/DirectionalLight';
 import { AABB } from '../math/depthSort';
