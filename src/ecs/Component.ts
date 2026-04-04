@@ -18,4 +18,7 @@ export interface Component {
 
   /** Called every frame by Scene.update(). */
   update?(ts?: number): void;
+
+  /** Called at a fixed rate (default 1/60 s) for physics and pathfinding. */
+  fixedUpdate?(dt: number): void;
 }

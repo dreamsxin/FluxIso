@@ -109,6 +109,20 @@ export class AssetLoader {
   }
 
   /**
+   * Register an already-loaded image directly into the cache.
+   * Useful for images loaded via FileReader / data URLs that don't
+   * go through a network fetch (e.g. the sprite editor).
+   */
+  register(url: string, img: HTMLImageElement): void {
+    this._cache.set(url, img);
+  }
+
+  /** @see {@link AssetLoader#register} */
+  static register(url: string, img: HTMLImageElement): void {
+    AssetLoader.default.register(url, img);
+  }
+
+  /**
    * Clear the global default cache.
    * To clear a specific scene's loader, call `loader.clear()` on that instance.
    */

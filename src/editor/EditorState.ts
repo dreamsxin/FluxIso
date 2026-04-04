@@ -3,8 +3,8 @@
  */
 
 export type ToolType =
-  | 'select' | 'move'
-  | 'wall' | 'omnilight' | 'character'
+  | 'select'
+  | 'wall' | 'omnilight' | 'dirlight' | 'character'
   | 'crystal' | 'boulder' | 'chest'
   | 'walkable' | 'blocked';
 
@@ -26,11 +26,17 @@ export interface EditorWall {
 
 export interface EditorLight {
   id: string;
-  type: 'omni';
-  x: number; y: number; z: number;
+  type: 'omni' | 'directional';
+  /** World position of the light anchor (required for both omni and directional). */
+  x: number; y: number;
+  z?: number;
   color: string;
   intensity: number;
-  radius: number;
+  radius?: number;
+  /** Directional light horizontal angle in radians. */
+  angle?: number;
+  /** Directional light elevation (0-1). */
+  elevation?: number;
 }
 
 export interface EditorCharacter {
@@ -42,9 +48,11 @@ export interface EditorCharacter {
 
 export interface EditorProp {
   id: string;
+  /** Internal kind for the editor; exported as `type` in JSON. */
   kind: 'crystal' | 'boulder' | 'chest';
   x: number; y: number;
   color: string;
+  health?: number;
 }
 
 export type EditorObject = EditorWall | EditorLight | EditorCharacter | EditorProp;
@@ -126,6 +134,14 @@ export class EditorState {
     });
   }
 
+  /** Paint a tile without creating an undo entry (used during drag). */
+  paintWalkable(col: number, row: number, value: boolean): void {
+    if (row < 0 || row >= this.scene.rows || col < 0 || col >= this.scene.cols) return;
+    if (this.scene.walkable[row][col] === value) return;
+    this.scene.walkable[row][col] = value;
+    this.emit();
+  }
+
   resizeWalkable(cols: number, rows: number): void {
     const grid: boolean[][] = Array.from({ length: rows }, (_, r) =>
       Array.from({ length: cols }, (__, c) => this.scene.walkable[r]?.[c] ?? true),
@@ -152,7 +168,7 @@ export class EditorState {
   addWall(w: EditorWall): void {
     this._execute({
       description: `add wall ${w.id}`,
-      execute: () => { this.scene.walls.push(w); this.emit(); },
+      execute: () => { this.scene.walls.push(w); this.select(w.id); },
       undo:    () => { this.scene.walls = this.scene.walls.filter(o => o.id !== w.id); this.emit(); },
     });
   }
@@ -160,7 +176,7 @@ export class EditorState {
   addLight(l: EditorLight): void {
     this._execute({
       description: `add light ${l.id}`,
-      execute: () => { this.scene.lights.push(l); this.emit(); },
+      execute: () => { this.scene.lights.push(l); this.select(l.id); },
       undo:    () => { this.scene.lights = this.scene.lights.filter(o => o.id !== l.id); this.emit(); },
     });
   }
@@ -168,7 +184,7 @@ export class EditorState {
   addCharacter(c: EditorCharacter): void {
     this._execute({
       description: `add character ${c.id}`,
-      execute: () => { this.scene.characters.push(c); this.emit(); },
+      execute: () => { this.scene.characters.push(c); this.select(c.id); },
       undo:    () => { this.scene.characters = this.scene.characters.filter(o => o.id !== c.id); this.emit(); },
     });
   }
@@ -176,7 +192,7 @@ export class EditorState {
   addProp(p: EditorProp): void {
     this._execute({
       description: `add prop ${p.id}`,
-      execute: () => { this.scene.props.push(p); this.emit(); },
+      execute: () => { this.scene.props.push(p); this.select(p.id); },
       undo:    () => { this.scene.props = this.scene.props.filter(o => o.id !== p.id); this.emit(); },
     });
   }
@@ -226,6 +242,14 @@ export class EditorState {
       execute: () => { this.updateObject(id, { x, y } as never); },
       undo:    () => { this.updateObject(id, { x: prevX, y: prevY } as never); },
     });
+  }
+
+  /** Move without creating undo entry (during drag; commit with moveObject on mouseup). */
+  dragObject(id: string, x: number, y: number): void {
+    const obj = this.getById(id) as { x: number; y: number } | undefined;
+    if (!obj) return;
+    obj.x = x; obj.y = y;
+    this.emit();
   }
 
   getById(id: string): EditorObject | undefined {
@@ -288,11 +312,32 @@ export class EditorState {
     const { name, cols, rows, tileW, tileH, floor, walkable, walls, lights, characters, props } = this.scene;
     const out = {
       name, cols, rows, tileW, tileH,
-      floor: { ...floor, walkable },
+      floor: {
+        id: floor.id, cols, rows,
+        color: floor.color, altColor: floor.altColor,
+        // walkable embedded in floor for Engine._buildScene compatibility
+        walkable,
+      },
       walls: walls.map(w => ({ ...w })),
-      lights: lights.map(l => ({ ...l })),
+      lights: lights.map(l => {
+        // Directional lights don't have a world position in the Engine schema;
+        // keep x/y only for omni lights. Store as _editorX/_editorY so round-
+        // tripping through loadJSON restores the anchor position.
+        if (l.type === 'directional') {
+          const { x, y, ...rest } = l;
+          return { ...rest, _editorX: x, _editorY: y };
+        }
+        return { ...l };
+      }),
       characters: characters.map(c => ({ ...c })),
-      objects: props.map(p => ({ ...p })),
+      // props: use 'type' not 'kind' so Engine._buildScene can load them
+      props: props.map(p => ({
+        id: p.id,
+        type: p.kind,   // Engine expects `type` field
+        x: p.x, y: p.y,
+        color: p.color,
+        ...(p.health !== undefined ? { health: p.health } : {}),
+      })),
     };
     return JSON.stringify(out, null, 2);
   }
@@ -302,22 +347,41 @@ export class EditorState {
       const data = JSON.parse(json);
       const cols = data.cols ?? 10;
       const rows = data.rows ?? 10;
+      const rawWalkable = data.floor?.walkable ?? data.walkable;
       this.scene = {
         name:       data.name ?? 'Imported',
         cols, rows,
         tileW:      data.tileW ?? 64,
         tileH:      data.tileH ?? 32,
-        floor:      data.floor ?? EditorState.defaultScene().floor,
-        walkable:   data.floor?.walkable
-          ? (Array.isArray(data.floor.walkable[0])
-              ? data.floor.walkable
+        floor:      {
+          id:       data.floor?.id ?? 'mainFloor',
+          cols, rows,
+          color:    data.floor?.color,
+          altColor: data.floor?.altColor,
+        },
+        walkable: rawWalkable
+          ? (Array.isArray(rawWalkable[0])
+              ? rawWalkable as boolean[][]
               : Array.from({ length: rows }, (_: unknown, r: number) =>
-                  Array.from({ length: cols }, (__: unknown, c: number) => data.floor.walkable[r * cols + c] ?? true)))
+                  Array.from({ length: cols }, (__: unknown, c: number) => (rawWalkable as boolean[])[r * cols + c] ?? true)))
           : Array.from({ length: rows }, () => Array(cols).fill(true)),
         walls:      data.walls ?? [],
-        lights:     data.lights ?? [],
+        // Ensure lights always have x/y.
+        // Directional lights exported via toJSON() store anchor as _editorX/_editorY.
+        lights: (data.lights ?? []).map((l: any) => ({
+          ...l,
+          x: l.x ?? l._editorX ?? (cols / 2),
+          y: l.y ?? l._editorY ?? (rows / 2),
+        })),
         characters: data.characters ?? [],
-        props:      (data.objects ?? []).filter((o: EditorProp) => o.kind),
+        // Support both 'kind' (editor-internal) and 'type' (engine JSON format)
+        props: (data.props ?? data.objects ?? []).map((p: any) => ({
+          id:    p.id,
+          kind:  (p.kind ?? p.type) as 'crystal' | 'boulder' | 'chest',
+          x: p.x, y: p.y,
+          color: p.color ?? '#888',
+          ...(p.health !== undefined ? { health: p.health } : {}),
+        })).filter((p: EditorProp) => p.kind),
       };
       this.selectedId = null;
       this._undoStack = [];

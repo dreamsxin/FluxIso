@@ -1,8 +1,8 @@
 import { Scene } from './Scene';
+import { TriggerZoneComponent } from '../ecs/components/TriggerZoneComponent';
 import { project } from '../math/IsoProjection';
 import { IsoVec2 } from '../physics/Pathfinder';
 import { Entity } from '../ecs/Entity';
-import { TriggerZoneComponent } from '../ecs/components/TriggerZoneComponent';
 
 export interface DebugRendererOptions {
   /** Show walkable/blocked tile grid. Default true. */
@@ -279,7 +279,7 @@ export class DebugRenderer {
 
     for (const obj of objects) {
       if (!(obj instanceof Entity)) continue;
-      const trigger = obj.getComponent<TriggerZoneComponent>('triggerZone');
+      const trigger = obj.getComponent(TriggerZoneComponent);
       if (!trigger) continue;
 
       const { sx, sy } = project(obj.position.x, obj.position.y, 0, tileW, tileH);

@@ -25,11 +25,6 @@ export interface MovementOptions {
  * Emits on the provided EventBus:
  *   'move'    — every frame while moving: { x, y, z }
  *   'arrival' — when the final destination is reached: { id, x, y }
- *
- * @example
- *   const mv = entity.addComponent(new MovementComponent({ speed: 3, bus: globalBus }));
- *   mv.pathTo(7, 5);   // A* path through walkable tiles
- *   bus.on<ArrivalEvent>('arrival', ({ id }) => console.log(id, 'arrived'));
  */
 export class MovementComponent implements Component {
   readonly componentType = 'movement' as const;
@@ -64,8 +59,6 @@ export class MovementComponent implements Component {
 
   /**
    * Use A* to find a path to (x, y) and begin following it.
-   * Falls back to direct `moveTo` when no collider is set.
-   * Returns true if a path was found (or no collider), false if unreachable.
    */
   pathTo(x: number, y: number, z?: number): boolean {
     if (!this._collider || !this._owner) {
@@ -74,28 +67,25 @@ export class MovementComponent implements Component {
     }
     const path = Pathfinder.find(this._collider, this._owner.position, { x, y });
     if (!path) return false;
-    this._waypoints = path.slice(1); // skip tile we're already in
+    this._waypoints = path.slice(1); // skip current tile
     this._advanceWaypoint(z);
     return true;
   }
 
-  /** Follow a pre-computed path (array of world-space waypoints). */
+  /** Follow a pre-computed path. */
   followPath(waypoints: IsoVec2[], z?: number): void {
     this._waypoints = [...waypoints];
     this._advanceWaypoint(z);
   }
 
-  /** Cancel any in-progress movement. */
+  /** Cancel movement. */
   stopMoving(): void {
     this._target    = null;
     this._waypoints = [];
   }
 
   /**
-   * Nudge the owner by (dx, dy) world units in a single frame, passing the
-   * displacement through collision resolution so walls are respected.
-   * Designed for keyboard / analogue-stick direct control that should NOT
-   * cancel any in-progress pathfinding target.
+   * Nudge by displacement (dx, dy) with collision resolution.
    */
   nudge(dx: number, dy: number): void {
     if (!this._owner) return;
@@ -112,21 +102,20 @@ export class MovementComponent implements Component {
 
   get isMoving(): boolean { return this._target !== null; }
 
-  /** Remaining path waypoints (read-only). */
+  /** Remaining waypoints (read-only). */
   get remainingWaypoints(): readonly IsoVec2[] { return this._waypoints; }
 
-  /** Attach or replace the TileCollider used for collision + pathfinding. */
+  /** Attach or replace the collider. */
   setCollider(collider: TileCollider | null): void { this._collider = collider; }
 
   // ── Per-frame update ──────────────────────────────────────────────────────
 
-  update(ts?: number): void {
+  /** 
+   * Fixed-timestep update for physics. 
+   * Called by Engine/Scene automatically if attached to an Entity.
+   */
+  fixedUpdate(dt: number): void {
     if (!this._owner || !this._target) return;
-
-    const now = ts ?? performance.now();
-    const dt  = this._lastTs === 0 ? 0 : Math.min((now - this._lastTs) / 1000, 0.1);
-    this._lastTs = now;
-    if (dt === 0) return;
 
     const pos  = this._owner.position;
     const dx   = this._target.x - pos.x;
@@ -137,19 +126,11 @@ export class MovementComponent implements Component {
 
     if (dist <= step) {
       // Arrived at current waypoint
-      const r  = this.radius;
-      const ok = !this._collider || this._collider.canOccupy(
-        this._target.x - r, this._target.y - r,
-        this._target.x + r, this._target.y + r,
-      );
-      if (ok) {
-        pos.x = this._target.x;
-        pos.y = this._target.y;
-        pos.z = this._target.z;
-      }
+      pos.x = this._target.x;
+      pos.y = this._target.y;
+      pos.z = this._target.z;
 
       if (this._waypoints.length > 0) {
-        // Advance to the next waypoint along the path
         this._advanceWaypoint();
       } else {
         this._target = null;
@@ -164,7 +145,11 @@ export class MovementComponent implements Component {
         const resolved = this._collider.resolveMove(pos.x, pos.y, nx, ny, this.radius);
         rdx = resolved.dx;
         rdy = resolved.dy;
-        if (rdx === 0 && rdy === 0) { this._target = null; this._waypoints = []; return; }
+        // If stuck against a wall while pathfinding, we might want to stop
+        if (rdx === 0 && rdy === 0 && this._waypoints.length > 0) {
+           this.stopMoving();
+           return;
+        }
       }
 
       pos.x += rdx;
@@ -173,6 +158,17 @@ export class MovementComponent implements Component {
 
       this._bus?.emit<MoveEvent>('move', { x: pos.x, y: pos.y, z: pos.z });
     }
+  }
+
+  /**
+   * Variable-timestep update for compatibility.
+   */
+  update(ts?: number): void {
+    if (ts === undefined) return; 
+    const now = ts;
+    const dt  = this._lastTs === 0 ? 0 : Math.min((now - this._lastTs) / 1000, 0.1);
+    this._lastTs = now;
+    if (dt > 0) this.fixedUpdate(dt);
   }
 
   // ── Internal ───────────────────────────────────────────────────────────────

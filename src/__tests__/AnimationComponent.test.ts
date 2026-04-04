@@ -27,7 +27,7 @@ describe('AnimationComponent', () => {
     const entity = new TestEntity('test', 0, 0, 0);
     const anim = new AnimationComponent({ spriteSheet: sheet });
     entity.addComponent(anim);
-    expect(entity.getComponent('animation')).toBe(anim);
+    expect(entity.getComponent(AnimationComponent)).toBe(anim);
   });
 
   it('updates direction automatically when owner moves', () => {

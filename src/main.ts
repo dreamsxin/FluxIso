@@ -119,14 +119,14 @@ const proximityLabel = hud.addLabel({ id: 'proximity', x: 0, y: 0,
 let _fxCounter = 0;
 type FxPreset = 'spark' | 'crystal' | 'dust' | 'coin';
 
-function spawnFx(x: number, y: number, preset: FxPreset, color?: string, count?: number): void {
+function spawnFx(x: number, y: number, preset: FxPreset, color?: string, _count?: number): void {
   const id = `fx-${++_fxCounter}`;
   const ps = new ParticleSystem(id, x, y, 0);
   switch (preset) {
-    case 'crystal': ps.addEmitter(ParticleSystem.presets.crystalShatter({ color })); break;
-    case 'dust':    ps.addEmitter(ParticleSystem.presets.dustPuff({ color })); break;
-    case 'coin':    ps.addEmitter(ParticleSystem.presets.coinSpill({ count })); break;
-    default:        ps.addEmitter(ParticleSystem.presets.sparkBurst({ color, count })); break;
+    case 'crystal': ps.addEmitter({ rate: 0, life: [0.4, 0.8] as [number,number], speed: [2, 5] as [number,number], size: [4, 8] as [number,number], color: color ? [color] : ['#00ffff', '#ffffff'], gravity: 10 }); break;
+    case 'dust':    ps.addEmitter({ rate: 0, life: [0.6, 1.0] as [number,number], speed: [0.5, 2] as [number,number], size: [8, 20] as [number,number], color: color ? [color] : ['#887766'], gravity: 0 }); break;
+    case 'coin':    ps.addEmitter({ rate: 0, life: [0.8, 1.5] as [number,number], speed: [1, 4] as [number,number], size: [5, 10] as [number,number], color: ['#ffff00', '#ffd700'], gravity: 12 }); break;
+    default:        ps.addEmitter({ rate: 0, life: [0.3, 0.6] as [number,number], speed: [4, 8] as [number,number], size: [2, 5] as [number,number], color: color ? [color] : ['#ffffff', '#ffffcc'], gravity: 5 }); break;
   }
   ps.onExhausted = () => scene.removeById(id);
   ps.burst();
@@ -145,11 +145,7 @@ function maybeSpawnFootstep(dt: number): void {
   _footTimer = 0;
   const id = `foot-${++_fxCounter}`;
   const ps = new ParticleSystem(id, character.position.x, character.position.y, 0);
-  ps.addEmitter({ maxParticles: 4, rate: 0, shape: 'ring',
-    lifetime: [0.3, 0.6], speed: [0.3, 0.9], angle: [0, Math.PI * 2],
-    vz: [0.2, 0.8], gravity: 0, size: [2, 4], sizeFinal: 0,
-    colorStart: '#c8b090', colorEnd: '#a09070', alphaStart: 0.35, alphaEnd: 0,
-    blend: 'source-over', rotSpeed: [0, 1], particleShape: 'circle' });
+  ps.addEmitter({ rate: 0, life: [0.3, 0.6], speed: [0.3, 0.9], size: [2, 4], color: ['#c8b090', '#a09070'], gravity: 0 });
   ps.onExhausted = () => scene.removeById(id);
   ps.burst(4);
   scene.addObject(ps);
@@ -206,7 +202,7 @@ function buildProp(def: PropDef): Entity {
   });
   prop.addComponent(zone);
 
-  const hp = prop.getComponent<HealthComponent>('health')!;
+  const hp = prop.getComponent(HealthComponent)!;
 
   hp.onChange = () => {
     bus.emit('hit', { id: def.id, score: def.scoreValue });
@@ -318,7 +314,7 @@ const playerMv = new MovementComponent({
   radius:   0.35,
   collider: scene.collider ?? undefined,
 });
-playerMv.onAttach(character);
+character.addComponent(playerMv);
 
 // ─── Minimap ──────────────────────────────────────────────────────────────────
 
@@ -554,7 +550,7 @@ function handlePointerDown(cx: number, cy: number): void {
   const prop = hitTestProps(cx, cy);
   if (prop) {
     audio.resume();
-    const hp = prop.getComponent<HealthComponent>('health');
+    const hp = prop.getComponent(HealthComponent);
     if (hp && !hp.isDead) {
       const def = PROP_DEFS.find(d => d.id === prop.id)!;
       const vol = AudioManager.spatialVolume({
@@ -673,7 +669,7 @@ function drawHintRing(ctx: CanvasRenderingContext2D, x: number, y: number, color
 // Prop highlight ring (pulsing when player is near)
 function drawPropHighlight(ctx: CanvasRenderingContext2D, ts: number): void {
   for (const [, prop] of liveProps) {
-    const zone = prop.getComponent<TriggerZoneComponent>('triggerZone');
+    const zone = prop.getComponent(TriggerZoneComponent);
     if (!zone || !zone.contains(character.id)) continue;
     const { ex, ey } = getEntityScreenPos(prop);
     const pulse = 0.5 + Math.sin(ts * 0.005) * 0.3;

@@ -95,29 +95,46 @@ export class Floor extends IsoObject {
     }
 
     // ── Draw tiles using cached colors ──────────────────────────────────────
-    const hw = tileW / 2;
-    const hh = tileH / 2;
+    // Each tile is a diamond defined by its 4 corner grid-points:
+    //   top    = project(col,   row,   0)  ← NW corner of tile
+    //   right  = project(col+1, row,   0)  ← NE corner
+    //   bottom = project(col+1, row+1, 0)  ← SE corner
+    //   left   = project(col,   row+1, 0)  ← SW corner
+    // This correctly places the tile between its four bounding grid-points.
 
     for (let row = 0; row < this.rows; row++) {
       for (let col = 0; col < this.cols; col++) {
-        const { sx: cx, sy: cy } = project(col, row, 0, tileW, tileH);
-        const tileX = originX + cx;
-        const tileY = originY + cy;
+        const pTop    = project(col,     row,     0, tileW, tileH);
+        const pRight  = project(col + 1, row,     0, tileW, tileH);
+        const pBottom = project(col + 1, row + 1, 0, tileW, tileH);
+        const pLeft   = project(col,     row + 1, 0, tileW, tileH);
+
+        const tTop    = { x: originX + pTop.sx,    y: originY + pTop.sy    };
+        const tRight  = { x: originX + pRight.sx,  y: originY + pRight.sy  };
+        const tBottom = { x: originX + pBottom.sx, y: originY + pBottom.sy };
+        const tLeft   = { x: originX + pLeft.sx,   y: originY + pLeft.sy   };
+
+        // Tile centre for image positioning
+        const cx = (tTop.x + tBottom.x) / 2;
+        const cy = (tTop.y + tBottom.y) / 2;
+        const hw = tileW / 2;
+        const hh = tileH / 2;
+
         const isEven = (col + row) % 2 === 0;
         const tileImg = isEven ? img : (altImg ?? img);
 
-        // Diamond clip path (reused for fill + border)
+        // Diamond clip path
         ctx.save();
         ctx.beginPath();
-        ctx.moveTo(tileX,      tileY - hh);
-        ctx.lineTo(tileX + hw, tileY);
-        ctx.lineTo(tileX,      tileY + hh);
-        ctx.lineTo(tileX - hw, tileY);
+        ctx.moveTo(tTop.x,    tTop.y);
+        ctx.lineTo(tRight.x,  tRight.y);
+        ctx.lineTo(tBottom.x, tBottom.y);
+        ctx.lineTo(tLeft.x,   tLeft.y);
         ctx.closePath();
 
         if (tileImg) {
           ctx.clip();
-          ctx.drawImage(tileImg, tileX - hw, tileY - hh, tileW, tileH);
+          ctx.drawImage(tileImg, cx - hw, cy - hh, tileW, tileH);
 
           // Cached illumination overlay
           const illumColor = this._colorCache[row * this.cols + col];
@@ -134,12 +151,12 @@ export class Floor extends IsoObject {
 
         ctx.restore();
 
-        // Tile border (no clip needed)
+        // Tile border
         ctx.beginPath();
-        ctx.moveTo(tileX,      tileY - hh);
-        ctx.lineTo(tileX + hw, tileY);
-        ctx.lineTo(tileX,      tileY + hh);
-        ctx.lineTo(tileX - hw, tileY);
+        ctx.moveTo(tTop.x,    tTop.y);
+        ctx.lineTo(tRight.x,  tRight.y);
+        ctx.lineTo(tBottom.x, tBottom.y);
+        ctx.lineTo(tLeft.x,   tLeft.y);
         ctx.closePath();
         ctx.strokeStyle = 'rgba(0,0,0,0.35)';
         ctx.lineWidth = 0.5;

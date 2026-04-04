@@ -221,6 +221,22 @@ export class Scene {
     }
   }
 
+  /**
+   * Fixed-timestep update — called by Engine at a constant rate (default 60 Hz).
+   * Drives physics and pathfinding components (MovementComponent.fixedUpdate).
+   */
+  fixedUpdate(dt: number): void {
+    for (const obj of this.objects) {
+      if (!obj.visible) continue;
+      // Only Entity subclasses have components
+      if ('components' in obj) {
+        for (const comp of (obj as any).components) {
+          comp.fixedUpdate?.(dt);
+        }
+      }
+    }
+  }
+
   // ── Rendering ──────────────────────────────────────────────────────────────
 
   draw(
@@ -544,8 +560,8 @@ export class Scene {
           y:        o.position.y,
           color:    o.propColor,
           heightPx: o.propHeightPx,
-          ...(o.getComponent<HealthComponent>('health')
-            ? { health: o.getComponent<HealthComponent>('health')!.maxHp } : {}),
+          ...(o.getComponent(HealthComponent)
+            ? { health: o.getComponent(HealthComponent)!.maxHp } : {}),
         })),
         ...boulders.map(o => ({
           type:   'boulder' as const,
@@ -554,8 +570,8 @@ export class Scene {
           y:      o.position.y,
           color:  o.propColor,
           radius: o.propRadius,
-          ...(o.getComponent<HealthComponent>('health')
-            ? { health: o.getComponent<HealthComponent>('health')!.maxHp } : {}),
+          ...(o.getComponent(HealthComponent)
+            ? { health: o.getComponent(HealthComponent)!.maxHp } : {}),
         })),
         ...chests.map(o => ({
           type:  'chest' as const,
@@ -563,8 +579,8 @@ export class Scene {
           x:     o.position.x,
           y:     o.position.y,
           color: o.propColor,
-          ...(o.getComponent<HealthComponent>('health')
-            ? { health: o.getComponent<HealthComponent>('health')!.maxHp } : {}),
+          ...(o.getComponent(HealthComponent)
+            ? { health: o.getComponent(HealthComponent)!.maxHp } : {}),
         })),
       ],
     };

@@ -114,6 +114,13 @@
     .field-row input[type="color"] { padding: 1px 2px; height: 22px; cursor: pointer; }
     .field-row input:focus { outline: none; border-color: #5566bb; color: #ddd; }
 
+    /* Kind badge */
+    .obj-kind-badge {
+      display: inline-block; font-size: 0.60rem; text-transform: uppercase; letter-spacing: 0.1em;
+      background: #1e2240; border: 1px solid #3a3a6a; color: #7788cc;
+      padding: 1px 7px; border-radius: 9px; margin-bottom: 6px;
+    }
+
     /* JSON */
     .json-section { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; border-top: 1px solid #2a2a3e; }
     .json-section textarea {
@@ -164,6 +171,7 @@
       <div class="tool-sep"></div>
       <button class="tool-btn" data-tool="wall"      title="Wall (W)">▬</button>
       <button class="tool-btn" data-tool="omnilight" title="Omni Light (L)">✦</button>
+      <button class="tool-btn" data-tool="dirlight"  title="Directional Light (D)" style="font-size:13px">☀</button>
       <div class="tool-sep"></div>
       <button class="tool-btn" data-tool="character" title="Character (C)">◉</button>
       <button class="tool-btn" data-tool="crystal"   title="Crystal (1)">◆</button>

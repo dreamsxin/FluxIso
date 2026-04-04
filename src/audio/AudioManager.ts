@@ -1,33 +1,31 @@
 /**
- * AudioManager — Web Audio API wrapper for LuxIso.
- *
- * Features:
- *   - One-shot SFX playback (fire-and-forget)
- *   - Looping BGM with crossfade
- *   - Spatial distance attenuation for world-positioned sounds
- *   - Three volume buses: master, sfx, bgm
- *   - Lazy AudioContext creation (requires user gesture on most browsers)
- *   - Buffer cache: each URL is decoded once
+ * AudioManager — Web Audio API wrapper for LuxIso with spatial support.
  */
 export interface SpatialOptions {
   /** World X of the sound source */
   x: number;
   /** World Y of the sound source */
   y: number;
-  /** World X of the listener (usually the player) */
-  listenerX: number;
-  /** World Y of the listener */
-  listenerY: number;
+  /** World Z (height) of the sound source. Default 0. */
+  z?: number;
+  /** World X of the listener (deprecated, used by spatialVolume) */
+  listenerX?: number;
+  /** World Y of the listener (deprecated, used by spatialVolume) */
+  listenerY?: number;
   /**
-   * World-unit distance at which volume reaches 0.
-   * Default: 12 world units.
+   * World-unit distance at which volume starts falling off.
+   * Default: 1 world unit.
+   */
+  refDistance?: number;
+  /**
+   * World-unit distance at which volume reaches 0 (linear) or 
+   * becomes very quiet (exponential). Default: 10 world units.
    */
   maxDistance?: number;
   /**
-   * World-unit distance at which volume starts falling off.
-   * Default: 2 world units.
+   * Rolloff factor for the distance model. Default: 1.
    */
-  refDistance?: number;
+  rolloffFactor?: number;
 }
 
 export interface PlayOptions {
@@ -35,38 +33,28 @@ export interface PlayOptions {
   volume?: number;
   /** Playback rate (1 = normal speed). Default 1. */
   rate?: number;
-  /** If true, loop the sound (use for BGM via playSfx if needed). Default false. */
+  /** If true, loop the sound. Default false. */
   loop?: boolean;
-  /** Spatial attenuation options. Omit for non-spatial (UI sounds etc.). */
+  /** Spatial options. Omit for non-spatial (UI sounds etc.). */
   spatial?: SpatialOptions;
 }
 
 export class AudioManager {
   private _ctx: AudioContext | null = null;
-  private _cache = new Map<string, AudioBuffer>();
+  private _bufferCache = new Map<string, AudioBuffer>();
   private _pending = new Map<string, Promise<AudioBuffer>>();
 
-  // Volume buses
   private _masterGain!: GainNode;
   private _sfxGain!: GainNode;
   private _bgmGain!: GainNode;
 
-  // BGM state
   private _bgmSource: AudioBufferSourceNode | null = null;
   private _bgmUrl = '';
 
-  // Volume values (stored so they survive lazy init)
   private _masterVol = 1;
   private _sfxVol    = 1;
   private _bgmVol    = 0.6;
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
-
-  /**
-   * Initialise the AudioContext and gain buses.
-   * Must be called from a user-gesture handler (click, keydown, etc.).
-   * Safe to call multiple times — subsequent calls are no-ops.
-   */
   resume(): void {
     if (this._ctx) {
       if (this._ctx.state === 'suspended') this._ctx.resume();
@@ -84,14 +72,29 @@ export class AudioManager {
     this._masterGain.gain.value = this._masterVol;
     this._sfxGain.gain.value    = this._sfxVol;
     this._bgmGain.gain.value    = this._bgmVol;
+
+    const l = this._ctx.listener;
+    if (l.forwardX) {
+      l.forwardX.value = 0; l.forwardY.value = -1; l.forwardZ.value = -1;
+      l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0;
+    } else {
+      (l as any).setOrientation(0, -1, -1, 0, 1, 0);
+    }
   }
 
-  /** Suspend the AudioContext (e.g. when tab is hidden). */
-  suspend(): void {
-    this._ctx?.suspend();
-  }
+  suspend(): void { this._ctx?.suspend(); }
 
-  // ── Volume buses ──────────────────────────────────────────────────────────
+  updateListener(x: number, y: number, z = 0): void {
+    if (!this._ctx) return;
+    const l = this._ctx.listener;
+    if (l.positionX) {
+      l.positionX.setTargetAtTime(x, this._ctx.currentTime, 0.03);
+      l.positionY.setTargetAtTime(z, this._ctx.currentTime, 0.03);
+      l.positionZ.setTargetAtTime(y, this._ctx.currentTime, 0.03);
+    } else {
+      (l as any).setPosition(x, z, y);
+    }
+  }
 
   get masterVolume(): number { return this._masterVol; }
   set masterVolume(v: number) {
@@ -111,76 +114,39 @@ export class AudioManager {
     if (this._bgmGain) this._bgmGain.gain.value = this._bgmVol;
   }
 
-  // ── Buffer loading ────────────────────────────────────────────────────────
+  async preload(url: string): Promise<void> { await this._loadBuffer(url); }
+  async preloadAll(urls: string[]): Promise<void> { await Promise.all(urls.map(u => this.preload(u))); }
 
-  /**
-   * Preload an audio file into the buffer cache.
-   * Safe to call before resume() — will decode once the context is ready.
-   */
-  async preload(url: string): Promise<void> {
-    await this._loadBuffer(url);
-  }
-
-  /** Preload multiple files in parallel. */
-  async preloadAll(urls: string[]): Promise<void> {
-    await Promise.all(urls.map((u) => this.preload(u)));
-  }
-
-  // ── SFX ──────────────────────────────────────────────────────────────────
-
-  /**
-   * Play a one-shot sound effect.
-   * Returns the AudioBufferSourceNode so callers can stop it early if needed.
-   * Returns null if the AudioContext is not yet initialised.
-   */
   playSfx(url: string, opts: PlayOptions = {}): AudioBufferSourceNode | null {
     const ctx = this._ctx;
     if (!ctx) return null;
-
-    const buffer = this._cache.get(url);
+    const buffer = this._bufferCache.get(url);
     if (!buffer) {
-      // Load in background and play when ready
-      this._loadBuffer(url).then((buf) => this._playBuffer(buf, this._sfxGain, opts));
+      this._loadBuffer(url).then(buf => this._playBuffer(buf, this._sfxGain, opts));
       return null;
     }
     return this._playBuffer(buffer, this._sfxGain, opts);
   }
 
-  // ── BGM ───────────────────────────────────────────────────────────────────
-
-  /**
-   * Start looping background music.
-   * If the same URL is already playing, this is a no-op.
-   * Crossfades from the previous track over `fadeDuration` seconds.
-   */
   async playBgm(url: string, fadeDuration = 1.0): Promise<void> {
     if (!this._ctx) return;
     if (url === this._bgmUrl && this._bgmSource) return;
-
     const buffer = await this._loadBuffer(url);
     const ctx = this._ctx;
     if (!ctx) return;
-
-    // Fade out old track
     if (this._bgmSource) {
       const old = this._bgmSource;
       const fadeGain = ctx.createGain();
       fadeGain.gain.setValueAtTime(1, ctx.currentTime);
       fadeGain.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeDuration);
-      // Reconnect old source through fade gain
       old.disconnect();
       old.connect(fadeGain);
       fadeGain.connect(this._bgmGain);
-      setTimeout(() => { try { old.stop(); } catch { /* already stopped */ } }, fadeDuration * 1000 + 100);
+      setTimeout(() => { try { old.stop(); } catch {} }, fadeDuration * 1000 + 100);
     }
-
-    // Start new track
     const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    src.loop = true;
-
+    src.buffer = buffer; src.loop = true;
     if (fadeDuration > 0 && this._bgmSource) {
-      // Fade in
       const fadeIn = ctx.createGain();
       fadeIn.gain.setValueAtTime(0, ctx.currentTime);
       fadeIn.gain.linearRampToValueAtTime(1, ctx.currentTime + fadeDuration);
@@ -189,45 +155,30 @@ export class AudioManager {
     } else {
       src.connect(this._bgmGain);
     }
-
     src.start();
-    this._bgmSource = src;
-    this._bgmUrl = url;
+    this._bgmSource = src; this._bgmUrl = url;
   }
 
-  /** Stop BGM immediately or with a fade-out. */
   stopBgm(fadeDuration = 0.5): void {
     const ctx = this._ctx;
     if (!ctx || !this._bgmSource) return;
-    const src = this._bgmSource;
-    this._bgmSource = null;
-    this._bgmUrl = '';
-
+    const src = this._bgmSource; this._bgmSource = null; this._bgmUrl = '';
     if (fadeDuration > 0) {
       const fadeGain = ctx.createGain();
       fadeGain.gain.setValueAtTime(1, ctx.currentTime);
       fadeGain.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeDuration);
-      src.disconnect();
-      src.connect(fadeGain);
+      src.disconnect(); src.connect(fadeGain);
       fadeGain.connect(this._bgmGain);
-      setTimeout(() => { try { src.stop(); } catch { /* already stopped */ } }, fadeDuration * 1000 + 100);
+      setTimeout(() => { try { src.stop(); } catch {} }, fadeDuration * 1000 + 100);
     } else {
-      try { src.stop(); } catch { /* already stopped */ }
+      try { src.stop(); } catch {}
     }
   }
 
-  // ── Spatial helper ────────────────────────────────────────────────────────
-
-  /**
-   * Compute a 0–1 volume factor based on world-space distance.
-   * Use this to set `opts.volume` when calling playSfx with spatial audio.
-   *
-   * Uses a simple linear falloff from refDistance (full volume) to
-   * maxDistance (silence), matching the SpatialOptions interface.
-   */
+  /** Backwards compatibility for manual spatial calculations. */
   static spatialVolume(opts: SpatialOptions): number {
-    const dx = opts.x - opts.listenerX;
-    const dy = opts.y - opts.listenerY;
+    const dx = opts.x - (opts.listenerX ?? 0);
+    const dy = opts.y - (opts.listenerY ?? 0);
     const dist = Math.hypot(dx, dy);
     const ref = opts.refDistance ?? 2;
     const max = opts.maxDistance ?? 12;
@@ -236,67 +187,51 @@ export class AudioManager {
     return 1 - (dist - ref) / (max - ref);
   }
 
-  // ── Internals ─────────────────────────────────────────────────────────────
-
   private async _loadBuffer(url: string): Promise<AudioBuffer> {
-    const cached = this._cache.get(url);
+    const cached = this._bufferCache.get(url);
     if (cached) return cached;
-
     const inFlight = this._pending.get(url);
     if (inFlight) return inFlight;
-
     const promise = (async () => {
-      // Ensure context exists (may be called before resume())
-      if (!this._ctx) {
-        // Defer until context is available — poll briefly
-        await waitForContext(() => this._ctx);
-      }
+      if (!this._ctx) await waitForContext(() => this._ctx);
       const ctx = this._ctx!;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`AudioManager: failed to fetch "${url}" (${res.status})`);
       const arrayBuffer = await res.arrayBuffer();
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-      this._cache.set(url, audioBuffer);
+      this._bufferCache.set(url, audioBuffer);
       this._pending.delete(url);
       return audioBuffer;
     })();
-
     this._pending.set(url, promise);
     return promise;
   }
 
-  private _playBuffer(
-    buffer: AudioBuffer,
-    bus: GainNode,
-    opts: PlayOptions,
-  ): AudioBufferSourceNode {
+  private _playBuffer(buffer: AudioBuffer, bus: GainNode, opts: PlayOptions): AudioBufferSourceNode {
     const ctx = this._ctx!;
     const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    src.loop = opts.loop ?? false;
-    src.playbackRate.value = opts.rate ?? 1;
-
-    if (opts.volume !== undefined && opts.volume !== 1) {
-      const vol = ctx.createGain();
-      vol.gain.value = clamp01(opts.volume);
-      src.connect(vol);
-      vol.connect(bus);
-    } else {
-      src.connect(bus);
+    src.buffer = buffer; src.loop = opts.loop ?? false; src.playbackRate.value = opts.rate ?? 1;
+    let chain: AudioNode = src;
+    if (opts.spatial) {
+      const p = ctx.createPanner();
+      p.panningModel = 'HRTF'; p.distanceModel = 'inverse';
+      p.refDistance = opts.spatial.refDistance ?? 1;
+      p.maxDistance = opts.spatial.maxDistance ?? 10;
+      p.rolloffFactor = opts.spatial.rolloffFactor ?? 1;
+      p.positionX.value = opts.spatial.x; p.positionY.value = opts.spatial.z ?? 0; p.positionZ.value = opts.spatial.y;
+      chain.connect(p); chain = p;
     }
-
+    if (opts.volume !== undefined && opts.volume !== 1) {
+      const vol = ctx.createGain(); vol.gain.value = clamp01(opts.volume);
+      chain.connect(vol); chain = vol;
+    }
+    chain.connect(bus);
     src.start();
     return src;
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v));
-}
-
-/** Poll until the context factory returns a non-null value (max 5 s). */
+function clamp01(v: number): number { return Math.max(0, Math.min(1, v)); }
 function waitForContext(getter: () => AudioContext | null): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now();

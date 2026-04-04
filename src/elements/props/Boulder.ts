@@ -107,7 +107,7 @@ export class Boulder extends Entity {
   }
 
   private drawHealthBar(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-    const hp = this.getComponent<HealthComponent>('health');
+    const hp = this.getComponent(HealthComponent);
     if (!hp || hp.isDead) return;
     const w = 32, h = 4;
     ctx.fillStyle = 'rgba(0,0,0,0.5)';

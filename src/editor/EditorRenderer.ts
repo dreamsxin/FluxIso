@@ -6,7 +6,7 @@ import { Crystal } from '../elements/props/Crystal';
 import { Boulder } from '../elements/props/Boulder';
 import { Chest } from '../elements/props/Chest';
 import { project, unproject } from '../math/IsoProjection';
-import { EditorState } from './EditorState';
+import { EditorState, EditorObject } from './EditorState';
 
 export class EditorRenderer {
   readonly engine: Engine;
@@ -39,12 +39,15 @@ export class EditorRenderer {
       name: s.name,
       cols: s.cols, rows: s.rows,
       tileW: s.tileW, tileH: s.tileH,
-      floor: { ...s.floor },
+      floor: {
+        id: s.floor.id,
+        cols: s.cols, rows: s.rows,
+        color: s.floor.color, altColor: s.floor.altColor,
+        // Pass walkable grid so TileCollider is correctly built
+        walkable: s.walkable,
+      },
       walls: s.walls.map(w => ({ ...w })),
-      lights: s.lights.map(l => ({
-        type: l.type, x: l.x, y: l.y, z: l.z,
-        color: l.color, intensity: l.intensity, radius: l.radius,
-      })),
+      lights: s.lights.map(l => ({ ...l })),
       characters: s.characters.map(c => ({
         id: c.id, x: c.x, y: c.y, z: c.z, radius: c.radius, color: c.color,
       })),
@@ -61,6 +64,17 @@ export class EditorRenderer {
 
   canvasToWorld(cx: number, cy: number): { x: number; y: number } {
     const s = this._state.scene;
+    const scene = this.engine.scene;
+    if (scene) {
+      // Use camera.screenToWorld so zoom & pan are handled correctly
+      return scene.camera.screenToWorld(
+        cx, cy,
+        this.engine.canvas.width, this.engine.canvas.height,
+        s.tileW, s.tileH,
+        this.engine.originX, this.engine.originY,
+      );
+    }
+    // Fallback when scene not yet initialised
     return unproject(cx - this.engine.originX, cy - this.engine.originY, s.tileW, s.tileH);
   }
 
@@ -92,13 +106,13 @@ export class EditorRenderer {
     const tw  = s.tileW, th = s.tileH;
 
     // ── Walkable / blocked tile overlay ──────────────────────────────────
-    const showCollision = this._state.activeTool === 'walkable' || this._state.activeTool === 'blocked';
-    if (showCollision) {
+    const isPaintTool = this._state.activeTool === 'walkable' || this._state.activeTool === 'blocked';
+    // Always show blocked tiles (in red) when paint tool is active
+    if (isPaintTool) {
       for (let row = 0; row < s.rows; row++) {
         for (let col = 0; col < s.cols; col++) {
-          const walkable = this._state.isWalkable(col, row);
-          if (!walkable) {
-            this._drawTileHighlight(ctx, col, row, ox, oy, tw, th, 'rgba(220,60,60,0.28)');
+          if (!this._state.isWalkable(col, row)) {
+            this._drawTileHighlight(ctx, col, row, ox, oy, tw, th, 'rgba(220,60,60,0.32)');
           }
         }
       }
@@ -124,8 +138,8 @@ export class EditorRenderer {
       const col = Math.floor(x), row = Math.floor(y);
       if (col >= 0 && col < s.cols && row >= 0 && row < s.rows) {
         const tool = this._state.activeTool;
-        const color = tool === 'blocked'  ? 'rgba(220,60,60,0.35)'
-                    : tool === 'walkable' ? 'rgba(60,220,100,0.25)'
+        const color = tool === 'blocked'  ? 'rgba(220,60,60,0.42)'
+                    : tool === 'walkable' ? 'rgba(60,220,100,0.30)'
                     : 'rgba(100,180,255,0.18)';
         this._drawTileHighlight(ctx, col, row, ox, oy, tw, th, color);
       }
@@ -152,22 +166,107 @@ export class EditorRenderer {
       ctx.restore();
     }
 
+    // ── OmniLight anchor dot ──────────────────────────────────────────────
+    for (const l of s.lights) {
+      if (l.type !== 'omni') continue;
+      const lz = l.z ?? 0;
+      const lp = project(l.x, l.y, lz, tw, th);
+      const lcx = ox + lp.sx, lcy = oy + lp.sy;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(lcx, lcy, 8, 0, Math.PI * 2);
+      ctx.fillStyle = `${l.color}55`;
+      ctx.fill();
+      ctx.strokeStyle = l.color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // Cross hairs
+      ctx.beginPath();
+      ctx.moveTo(lcx - 5, lcy); ctx.lineTo(lcx + 5, lcy);
+      ctx.moveTo(lcx, lcy - 5); ctx.lineTo(lcx, lcy + 5);
+      ctx.strokeStyle = l.color;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ── DirectionalLight preview (anchor dot + direction arrow) ──────────
+    for (const l of s.lights) {
+      if (l.type !== 'directional') continue;
+      const angle = l.angle ?? 0;
+      const lz = l.z ?? 0;
+      // Anchor at the light's stored world position (l.x, l.y, lz)
+      const lp = project(l.x, l.y, lz, tw, th);
+      const lcx = ox + lp.sx, lcy = oy + lp.sy;
+      ctx.save();
+
+      // Anchor dot (clickable handle)
+      ctx.beginPath();
+      ctx.arc(lcx, lcy, 7, 0, Math.PI * 2);
+      ctx.fillStyle = `${l.color}88`;
+      ctx.fill();
+      ctx.strokeStyle = `${l.color}`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Direction arrow
+      const len = Math.min(tw * 1.2, 80);
+      ctx.strokeStyle = `${l.color}cc`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(lcx, lcy);
+      ctx.lineTo(lcx + Math.cos(angle) * len, lcy + Math.sin(angle) * len);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Arrowhead
+      const ax = lcx + Math.cos(angle) * len;
+      const ay = lcy + Math.sin(angle) * len;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax + Math.cos(angle + 2.5) * 10, ay + Math.sin(angle + 2.5) * 10);
+      ctx.lineTo(ax + Math.cos(angle - 2.5) * 10, ay + Math.sin(angle - 2.5) * 10);
+      ctx.closePath();
+      ctx.fillStyle = `${l.color}cc`;
+      ctx.fill();
+      ctx.restore();
+    }
+
     // ── Selection highlight ───────────────────────────────────────────────
     if (this._state.selectedId) {
       const obj = this._state.getById(this._state.selectedId);
       if (obj) {
-        const x = (obj as { x: number }).x ?? 0;
-        const y = (obj as { y: number }).y ?? 0;
-        const { sx, sy } = project(x, y, 0, tw, th);
-        ctx.save();
-        ctx.strokeStyle = '#ffdd44';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath();
-        ctx.arc(ox + sx, oy + sy, 22, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
+        const x = (obj as EditorObject & { x?: number }).x;
+        const y = (obj as EditorObject & { y?: number }).y;
+        const z = (obj as EditorObject & { z?: number }).z ?? 0;
+        if (x !== undefined && y !== undefined) {
+          const { sx, sy } = project(x, y, z, tw, th);
+          // Scale the highlight ring proportionally to tileW
+          const ring = tw * 0.36;
+          ctx.save();
+          ctx.strokeStyle = '#ffdd44';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.arc(ox + sx, oy + sy, ring, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
       }
+    }
+
+    // ── Drag object ghost position ────────────────────────────────────────
+    if (this._state.dragId && this.hoverWorld) {
+      const { sx, sy } = project(this.hoverWorld.x, this.hoverWorld.y, 0, tw, th);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(100,200,255,0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(ox + sx, oy + sy, tw * 0.36, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // ── Object labels (id) ────────────────────────────────────────────────
@@ -175,10 +274,9 @@ export class EditorRenderer {
     ctx.font = '9px monospace';
     ctx.fillStyle = 'rgba(180,200,255,0.5)';
     for (const obj of this._state.allObjects()) {
-      const x = (obj as { x: number }).x;
-      const y = (obj as { y: number }).y;
-      if (x === undefined) continue;
-      const { sx, sy } = project(x, y, 0, tw, th);
+      const o = obj as EditorObject & { x?: number; y?: number; z?: number };
+      if (o.x === undefined) continue;
+      const { sx, sy } = project(o.x, o.y!, o.z ?? 0, tw, th);
       ctx.fillText(obj.id, ox + sx + 14, oy + sy - 4);
     }
     ctx.restore();
@@ -191,7 +289,9 @@ export class EditorRenderer {
     tileW: number, tileH: number,
     color: string,
   ): void {
-    const { sx, sy } = project(col, row, 0, tileW, tileH);
+    // Use tile centre (col+0.5, row+0.5) so the diamond aligns with the
+    // floor tile drawn by the engine and with snapToTile output.
+    const { sx, sy } = project(col + 0.5, row + 0.5, 0, tileW, tileH);
     const hw = tileW / 2, hh = tileH / 2;
     const tx = ox + sx, ty = oy + sy;
     ctx.beginPath();

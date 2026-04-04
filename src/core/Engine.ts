@@ -164,6 +164,10 @@ export class Engine {
   private _scene: Scene | null = null;
   private _rafId: number | null = null;
   private _onFrame: ((ts: number) => void) | null = null;
+  private _lastTs = 0;
+  private _accumulator = 0;
+  /** Fixed physics timestep in seconds. Default 1/60. */
+  fixedDeltaTime = 1 / 60;
   private _preFrame: ((ts: number) => void) | null = null;
 
   get canvasW(): number { return this.canvas.width; }
@@ -345,6 +349,15 @@ export class Engine {
 
   private _tick(ts: number): void {
     if (!this._scene) return;
+
+    const rawDt = this._lastTs === 0 ? 0 : Math.min((ts - this._lastTs) / 1000, 0.1);
+    this._lastTs = ts;
+
+    this._accumulator += rawDt;
+    while (this._accumulator >= this.fixedDeltaTime) {
+      this._scene.fixedUpdate(this.fixedDeltaTime);
+      this._accumulator -= this.fixedDeltaTime;
+    }
 
     this._scene.update(ts);
 

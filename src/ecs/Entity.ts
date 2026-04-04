@@ -20,7 +20,7 @@ import { Component } from './Component';
  * Use this as a base for interactive objects like characters, props, and triggers.
  */
 export abstract class Entity extends IsoObject {
-  private _components = new Map<string, Component>();
+  private _components = new Map<Function, Component>();
 
   constructor(id: string, x: number, y: number, z: number) {
     super(id, x, y, z);
@@ -29,24 +29,24 @@ export abstract class Entity extends IsoObject {
   // ── Component API ─────────────────────────────────────────────────────────
 
   addComponent<T extends Component>(component: T): T {
-    this._components.set(component.componentType, component);
+    this._components.set(component.constructor, component);
     component.onAttach?.(this);
     return component;
   }
 
-  getComponent<T extends Component>(type: string): T | undefined {
-    return this._components.get(type) as T | undefined;
+  getComponent<T extends Component>(ctor: new(...a: any[]) => T): T | undefined {
+    return this._components.get(ctor) as T | undefined;
   }
 
-  hasComponent(type: string): boolean {
-    return this._components.has(type);
+  hasComponent(ctor: new(...a: any[]) => Component): boolean {
+    return this._components.has(ctor);
   }
 
-  removeComponent(type: string): void {
-    const comp = this._components.get(type);
+  removeComponent(ctor: new(...a: any[]) => Component): void {
+    const comp = this._components.get(ctor);
     if (comp) {
       comp.onDetach?.();
-      this._components.delete(type);
+      this._components.delete(ctor);
     }
   }
 

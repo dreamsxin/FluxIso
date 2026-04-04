@@ -223,6 +223,14 @@ export class InputManager {
       this.pointer.released = true;
       this._pointerReleasedThisFrame = true;
     });
+
+    add(this._canvas, 'touchcancel', () => {
+      this.pointer.down = false;
+      if (!this._pointerReleasedThisFrame) {
+        this.pointer.released = true;
+        this._pointerReleasedThisFrame = true;
+      }
+    });
   }
 
   private _canvasPos(e: MouseEvent): { x: number; y: number } {

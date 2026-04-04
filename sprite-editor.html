@@ -79,7 +79,7 @@
     /* Actions */
     .action-row {
       display: grid;
-      grid-template-columns: 80px 40px 50px 40px auto 24px;
+      grid-template-columns: 80px 36px 46px 36px auto 24px;
       gap: 4px; align-items: center; margin-bottom: 5px;
     }
     .action-row input[type="text"],
@@ -95,7 +95,7 @@
     }
     .btn-del-action:hover { border-color: #663333; color: #cc6666; }
     .action-header {
-      display: grid; grid-template-columns: 80px 40px 50px 40px auto 24px;
+      display: grid; grid-template-columns: 80px 36px 46px 36px auto 24px;
       gap: 4px; margin-bottom: 4px;
     }
     .action-header span { font-size: 0.60rem; color: #2a2a3a; }
@@ -106,8 +106,8 @@
     }
     .add-action-btn:hover { border-color: #445; color: #999; }
 
-    /* Playback */
-    .playback-row { display: flex; align-items: center; gap: 10px; }
+    /* Preview action + playback */
+    .playback-row { display: flex; align-items: center; gap: 8px; }
     .playback-row select {
       flex: 1; background: #12121c; border: 1px solid #1e1e2e; color: #888;
       padding: 4px 6px; border-radius: 3px; font-size: 0.72rem;
@@ -115,26 +115,33 @@
     .playback-row select:focus { outline: none; border-color: #3a3a60; }
     .playback-row button {
       background: #14141e; border: 1px solid #334488; color: #6688cc;
-      padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 0.72rem;
+      padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 0.72rem; white-space: nowrap;
     }
     .playback-row button:hover { border-color: #5566aa; color: #99aaee; }
 
     /* JSON output */
-    .json-area { display: flex; flex-direction: column; gap: 6px; }
+    .json-area { display: flex; flex-direction: column; gap: 5px; }
     .json-area textarea {
       background: #0d0d14; border: 1px solid #1a1a28; color: #3a5a3a;
       font-family: 'Consolas', monospace; font-size: 0.60rem;
-      padding: 6px; border-radius: 4px; resize: none; height: 100px;
+      padding: 6px; border-radius: 4px; resize: none; height: 110px;
     }
+    .json-area .btn-row { display: flex; gap: 5px; }
+    .json-area .btn-row button {
+      flex: 1; background: #12121c; border: 1px solid #1e1e2e; color: #555;
+      padding: 4px; border-radius: 3px; cursor: pointer; font-size: 0.70rem;
+    }
+    .json-area .btn-row button:hover { border-color: #444; color: #999; }
 
     /* ── Centre: sheet preview ── */
     .centre-panel {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: flex-start;
-      overflow: auto; padding: 16px; gap: 12px; background: #0a0a0f;
+      overflow: auto; padding: 16px; gap: 10px; background: #0a0a0f;
     }
     .centre-panel h2 { font-size: 0.65rem; letter-spacing: 0.14em; text-transform: uppercase; color: #2a2a3a; }
     #sheet-preview { border: 1px solid #1a1a28; border-radius: 3px; image-rendering: pixelated; }
+    #frame-info { font-size: 0.65rem; color: #3a4a6a; font-family: monospace; min-height: 16px; }
 
     /* ── Right: 8-direction preview grid ── */
     .right-panel {
@@ -158,6 +165,10 @@
     }
     .dir-label { font-size: 0.65rem; color: #3a3a5a; letter-spacing: 0.06em; }
     .preview-cell canvas { image-rendering: pixelated; border-radius: 2px; }
+    .preview-empty {
+      grid-column: 1 / -1; text-align: center;
+      font-size: 0.70rem; color: #252535; padding: 30px 0;
+    }
   </style>
 </head>
 <body>
@@ -167,7 +178,7 @@
     <a href="/editor.html">← Scene Editor</a>
     <a href="/">Demo</a>
     <div class="spacer"></div>
-    <button id="btn-play" class="primary">▶ Play</button>
+    <button id="btn-play" class="primary">⏸ Pause</button>
     <button id="btn-export-sprite">Export JSON</button>
   </div>
 
@@ -193,8 +204,8 @@
         <div class="config-grid">
           <div class="field"><label>Frame W (px)</label><input type="number" id="frame-w" value="64" min="1" /></div>
           <div class="field"><label>Frame H (px)</label><input type="number" id="frame-h" value="64" min="1" /></div>
-          <div class="field"><label>Draw Scale</label><input type="number" id="sprite-scale" value="1" min="0.1" step="0.1" /></div>
-          <div class="field"><label>Anchor Y</label><input type="number" id="anchor-y" value="1" min="0" max="1" step="0.1" title="0=top, 1=bottom" /></div>
+          <div class="field"><label>Draw Scale</label><input type="number" id="sprite-scale" value="2" min="0.1" step="0.1" /></div>
+          <div class="field"><label>Anchor Y <span style="color:#252535">(0=top 1=bot)</span></label><input type="number" id="anchor-y" value="1" min="0" max="1" step="0.05" /></div>
         </div>
       </div>
 
@@ -215,10 +226,13 @@
       </div>
 
       <div class="section">
-        <div class="section-title">Export</div>
+        <div class="section-title">JSON Config</div>
         <div class="json-area">
-          <textarea id="sprite-json" placeholder="Click Export to generate config JSON…" spellcheck="false" readonly></textarea>
-          <button id="btn-copy-json" style="margin-top:4px;width:100%;background:#12121c;border:1px solid #1e1e2e;color:#555;padding:4px;border-radius:3px;cursor:pointer;font-size:0.70rem;">Copy to Clipboard</button>
+          <textarea id="sprite-json" placeholder="Click Export JSON to generate…" spellcheck="false"></textarea>
+          <div class="btn-row">
+            <button id="btn-copy-json">Copy</button>
+            <button id="btn-import-json">Import</button>
+          </div>
         </div>
       </div>
 
@@ -227,14 +241,16 @@
     <!-- Centre: sheet preview -->
     <div class="centre-panel">
       <h2>Sheet Preview — click a frame to inspect</h2>
-      <canvas id="sheet-preview" width="400" height="300"></canvas>
-      <div id="frame-info" style="font-size:0.65rem;color:#3a3a5a;font-family:monospace;min-height:16px;"></div>
+      <canvas id="sheet-preview" width="400" height="200"></canvas>
+      <div id="frame-info"></div>
     </div>
 
     <!-- Right: 8-direction preview -->
     <div class="right-panel">
       <div class="right-panel-title">8-Direction Preview</div>
-      <div id="preview-grid"></div>
+      <div id="preview-grid">
+        <div class="preview-empty">Load a sprite sheet to preview animations</div>
+      </div>
     </div>
 
   </div>

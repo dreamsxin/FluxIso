@@ -3,11 +3,10 @@ import { AABB } from '../math/depthSort';
 import { DrawContext } from './IsoObject';
 import { SpriteSheet } from '../animation/SpriteSheet';
 import { AnimationController } from '../animation/AnimationController';
-import { TileCollider } from '../physics/TileCollider';
-import { Pathfinder, IsoVec2 } from '../physics/Pathfinder';
 import { shiftColor } from '../math/color';
 import { Entity } from '../ecs/Entity';
 import { AnimationComponent } from '../ecs/components/AnimationComponent';
+import { MovementComponent } from '../ecs/components/MovementComponent';
 
 export interface CharacterOptions {
   id: string;
@@ -25,21 +24,21 @@ export interface CharacterOptions {
 
 /**
  * Character — a specialized Entity for controllable or NPC characters.
- * Supports pathfinding, collision, and 8-direction sprite animation.
+ * 
+ * Unlike v1, movement logic is now delegated to MovementComponent.
+ * Character focus is on:
+ * - Visuals (Sprite animation or sphere fallback)
+ * - State management (walk/idle animation transitions)
+ * - Identity (radius, color, name)
  */
 export class Character extends Entity {
   radius: number;
   color: string;
   speed: number;
 
-  private _target: { x: number; y: number; z: number } | null = null;
-  /** Remaining path waypoints when following a multi-step path. */
-  private _waypoints: IsoVec2[] = [];
   private _prevX: number;
   private _prevY: number;
-
   private _anim: AnimationComponent | null = null;
-  private _lastFrameTime = 0;
 
   constructor(opts: CharacterOptions) {
     super(opts.id, opts.x, opts.y, opts.z ?? 0);
@@ -48,9 +47,8 @@ export class Character extends Entity {
     this.speed = opts.speed ?? 2.4;
     this._prevX = opts.x;
     this._prevY = opts.y;
-    this._lastFrameTime = 0;
 
-    // Character draws its own blob shadow in draw(); skip ShadowCaster
+    // Character draws its own blob shadow in draw(); skip ShadowCaster system
     this.castsShadow = false;
 
     if (opts.spriteSheet) {
@@ -67,7 +65,7 @@ export class Character extends Entity {
 
   /** Attach a sprite sheet and start animation. */
   setSpriteSheet(sheet: SpriteSheet, initialClip = 'idle'): void {
-    this.removeComponent('animation');
+    this.removeComponent(AnimationComponent);
     this._anim = this.addComponent(new AnimationComponent({
       spriteSheet: sheet,
       initialClip,
@@ -77,7 +75,6 @@ export class Character extends Entity {
 
   /**
    * Switch to named animation clip.
-   * No-op if no sprite sheet is attached or clip doesn't exist.
    */
   playAnimation(name: string): void {
     if (!this._anim) return;
@@ -85,50 +82,15 @@ export class Character extends Entity {
     this._anim.play(name);
   }
 
-  /** Begin smooth movement toward world position (x, y, z). No pathfinding. */
-  moveTo(x: number, y: number, z = this.position.z): void {
-    this._waypoints = [];
-    this._target = { x, y, z };
-  }
-
   /**
-   * Use A* to find a path to (tx, ty) on the supplied collider and begin
-   * following it. Returns `true` if a path was found, `false` if unreachable.
-   *
-   * Falls back to a direct `moveTo` when `collider` is null/undefined.
+   * Returns true if the character moved significantly since the last update.
    */
-  pathTo(tx: number, ty: number, collider: TileCollider | null | undefined, tz = this.position.z): boolean {
-    if (!collider) {
-      this.moveTo(tx, ty, tz);
-      return true;
-    }
-    const path = Pathfinder.find(collider, this.position, { x: tx, y: ty });
-    if (!path) return false;
-    this._followWaypoints(path, tz);
-    return true;
-  }
-
-  /**
-   * Follow a pre-computed array of world-space waypoints.
-   * Each waypoint is consumed in order; the character stops at the last one.
-   */
-  followPath(waypoints: IsoVec2[], z = this.position.z): void {
-    this._followWaypoints(waypoints, z);
-  }
-
-  /** Cancel any in-progress movement. */
-  stopMoving(): void {
-    this._target = null;
-    this._waypoints = [];
-  }
-
   get isMoving(): boolean {
-    return this._target !== null;
-  }
-
-  /** Remaining waypoints on the current path (read-only). */
-  get remainingWaypoints(): readonly IsoVec2[] {
-    return this._waypoints;
+    const mv = this.getComponent(MovementComponent);
+    if (mv) return mv.isMoving;
+    
+    // Fallback: check position delta
+    return Math.hypot(this.position.x - this._prevX, this.position.y - this._prevY) > 0.001;
   }
 
   // ── AABB ──────────────────────────────────────────────────────────────────
@@ -146,69 +108,17 @@ export class Character extends Entity {
 
   // ── Per-frame update ──────────────────────────────────────────────────────
 
-  update(ts?: number, collider?: TileCollider | null): void {
-    super.update(ts); // drive components
-
-    const now = ts ?? performance.now();
-    const dt = this._lastFrameTime === 0 ? 0.016 : Math.min((now - this._lastFrameTime) / 1000, 0.1);
-    this._lastFrameTime = now;
-
+  update(ts?: number): void {
     this._prevX = this.position.x;
     this._prevY = this.position.y;
 
-    if (this._target) {
-      const dx = this._target.x - this.position.x;
-      const dy = this._target.y - this.position.y;
-      const dz = this._target.z - this.position.z;
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      const step = this.speed * dt;
+    super.update(ts); // drive components (including MovementComponent)
 
-      if (dist < step) {
-        // Arrived at current waypoint
-        const r = 0.4;
-        if (!collider || collider.canOccupy(
-          this._target.x - r, this._target.y - r,
-          this._target.x + r, this._target.y + r,
-        )) {
-          this.position.x = this._target.x;
-          this.position.y = this._target.y;
-          this.position.z = this._target.z;
-        }
-
-        // Advance to next waypoint or stop
-        const next = this._waypoints.shift();
-        this._target = next ? { x: next.x, y: next.y, z: this._target.z } : null;
-      } else {
-        const stepDx = (dx / dist) * step;
-        const stepDy = (dy / dist) * step;
-
-        if (collider) {
-          const resolved = collider.resolveMove(
-            this.position.x, this.position.y, stepDx, stepDy,
-          );
-          if (resolved.dx === 0 && resolved.dy === 0) {
-            // Fully blocked — drop target and remaining path
-            this._target = null;
-            this._waypoints = [];
-          } else {
-            this.position.x += resolved.dx;
-            this.position.y += resolved.dy;
-          }
-        } else {
-          this.position.x += stepDx;
-          this.position.y += stepDy;
-        }
-        this.position.z += (dz / dist) * step;
-      }
-    }
-
-    // Drive animation state (walk/idle)
+    // Drive animation state (walk/idle) based on movement
     if (this._anim) {
-      const moveDx = this.position.x - this._prevX;
-      const moveDy = this.position.y - this._prevY;
-      const moving = Math.hypot(moveDx, moveDy) > 0.0005;
-
+      const moving = this.isMoving;
       const ctrl = this._anim.controller;
+      
       if (moving) {
         if (ctrl.currentClip.name !== 'walk' && ctrl.spriteSheet.hasClip('walk')) {
           ctrl.play('walk');
@@ -252,8 +162,6 @@ export class Character extends Entity {
     }
   }
 
-  // ── Sprite rendering ──────────────────────────────────────────────────────
-
   private drawSprite(ctx: CanvasRenderingContext2D, bx: number, by: number): void {
     const anim = this.anim!;
     const sheet = anim.spriteSheet;
@@ -266,8 +174,6 @@ export class Character extends Entity {
 
     ctx.drawImage(img, frame.x, frame.y, frame.w, frame.h, dx, dy, w, h);
   }
-
-  // ── Sphere fallback ───────────────────────────────────────────────────────
 
   private drawShadow(
     ctx: CanvasRenderingContext2D,
@@ -283,7 +189,6 @@ export class Character extends Entity {
     const offX = (dx / len) * this.radius * scale * 1.5;
     const offY = (dy / len) * this.radius * scale * 0.7;
 
-    // 用 getTransform 转换到真实屏幕坐标，避免 scale(1, 0.45) 压缩 translate 的 y
     const m = ctx.getTransform();
     const wx = gx + offX;
     const wy = gy + offY;
@@ -338,15 +243,5 @@ export class Character extends Entity {
     ctx.arc(bx, by, this.radius, 0, Math.PI * 2);
     ctx.fillStyle = glint;
     ctx.fill();
-  }
-
-  // ── Internal ──────────────────────────────────────────────────────────────
-
-  private _followWaypoints(waypoints: IsoVec2[], z: number): void {
-    if (waypoints.length === 0) return;
-    // First waypoint becomes the immediate target; rest go into the queue
-    const first = waypoints[0];
-    this._target = { x: first.x, y: first.y, z };
-    this._waypoints = waypoints.slice(1);
   }
 }

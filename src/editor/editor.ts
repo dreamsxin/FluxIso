@@ -15,19 +15,21 @@ canvas.width  = (COLS + ROWS) * (TILE_W / 2);
 canvas.height = (COLS + ROWS) * (TILE_H / 2) + 120;
 
 const toolBtns = document.querySelectorAll<HTMLButtonElement>('[data-tool]');
-const propPanel = document.getElementById('prop-panel')!;
-const propContent = document.getElementById('prop-content')!;
-const jsonOutput  = document.getElementById('json-output') as HTMLTextAreaElement;
-const exportBtn   = document.getElementById('btn-export')!;
-const importBtn   = document.getElementById('btn-import')!;
-const clearBtn    = document.getElementById('btn-clear')!;
-const deleteBtn   = document.getElementById('btn-delete')!;
-const undoBtn     = document.getElementById('btn-undo') as HTMLButtonElement;
-const redoBtn     = document.getElementById('btn-redo') as HTMLButtonElement;
+const propPanel    = document.getElementById('prop-panel')!;
+const propContent  = document.getElementById('prop-content')!;
+const jsonOutput   = document.getElementById('json-output') as HTMLTextAreaElement;
+const exportBtn    = document.getElementById('btn-export')!;
+const importBtn    = document.getElementById('btn-import')!;
+const clearBtn     = document.getElementById('btn-clear')!;
+const deleteBtn    = document.getElementById('btn-delete')!;
+const undoBtn      = document.getElementById('btn-undo') as HTMLButtonElement;
+const redoBtn      = document.getElementById('btn-redo') as HTMLButtonElement;
 const sceneNameInput = document.getElementById('scene-name') as HTMLInputElement;
 const sceneColsInput = document.getElementById('scene-cols') as HTMLInputElement;
 const sceneRowsInput = document.getElementById('scene-rows') as HTMLInputElement;
-const objectList  = document.getElementById('object-list')!;
+const objectList   = document.getElementById('object-list')!;
+const statusbar    = document.getElementById('statusbar')!;
+
 // ── State & renderer ──────────────────────────────────────────────────────────
 
 const state    = new EditorState();
@@ -49,7 +51,7 @@ function updateToolUI(): void {
 }
 updateToolUI();
 
-// ── Canvas interaction ────────────────────────────────────────────────────────
+// ── Coordinate helper ─────────────────────────────────────────────────────────
 
 function getCanvasPos(e: MouseEvent): { cx: number; cy: number } {
   const rect = canvas.getBoundingClientRect();
@@ -59,16 +61,156 @@ function getCanvasPos(e: MouseEvent): { cx: number; cy: number } {
   };
 }
 
+// ── Hit testing ───────────────────────────────────────────────────────────────
+
+function findObjectAt(wx: number, wy: number): string | undefined {
+  const all = state.allObjects();
+  // Iterate in reverse so topmost (last-placed) objects are preferred
+  for (let i = all.length - 1; i >= 0; i--) {
+    const obj = all[i];
+    const x = (obj as { x?: number }).x;
+    const y = (obj as { y?: number }).y;
+    if (x === undefined || y === undefined) continue;
+    // ~1.2 world units ≈ 0.6 tile — large enough to click on props/lights
+    if (Math.hypot(wx - x, wy - y) < 1.2) return obj.id;
+  }
+  return undefined;
+}
+
+// ── Canvas interaction ────────────────────────────────────────────────────────
+
+/** Current tile being painted (to avoid duplicate paints during drag). */
+let _lastPaintCol = -1, _lastPaintRow = -1;
+/** Drag tracking state. */
+let _isDragging = false;
+let _dragStartWorld: { x: number; y: number } | null = null;
+let _dragOriginWorld: { x: number; y: number } | null = null;
+
 canvas.addEventListener('mousemove', (e) => {
   const { cx, cy } = getCanvasPos(e);
-  renderer.hoverWorld = renderer.canvasToWorld(cx, cy);
+  const world = renderer.canvasToWorld(cx, cy);
+  renderer.hoverWorld = world;
+
+  const s = state.scene;
+  const col = Math.floor(world.x);
+  const row = Math.floor(world.y);
+
+  // Update status bar with tile coordinates
+  if (col >= 0 && col < s.cols && row >= 0 && row < s.rows) {
+    updateStatusTile(col, row);
+  }
+
+  const tool = state.activeTool;
+
+  // ── Walkable/blocked continuous paint on mousedown+drag ────────────────
+  if (e.buttons === 1 && (tool === 'walkable' || tool === 'blocked')) {
+    if (col !== _lastPaintCol || row !== _lastPaintRow) {
+      _lastPaintCol = col; _lastPaintRow = row;
+      state.paintWalkable(col, row, tool === 'walkable');
+    }
+    return;
+  }
+
+  // ── Drag object (select tool, mousedown on object) ─────────────────────
+  if (e.buttons === 1 && tool === 'select' && state.dragId) {
+    // Offset-corrected drag position
+    if (_dragStartWorld) {
+      const dx = world.x - _dragStartWorld.x;
+      const dy = world.y - _dragStartWorld.y;
+      if (_dragOriginWorld) {
+        const nx = _dragOriginWorld.x + dx;
+        const ny = _dragOriginWorld.y + dy;
+        state.dragObject(state.dragId, nx, ny);
+      }
+    }
+    _isDragging = true;
+  }
 });
 
 canvas.addEventListener('mouseleave', () => {
   renderer.hoverWorld = null;
+  _lastPaintCol = -1; _lastPaintRow = -1;
 });
 
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;           // left-button only for mousedown
+
+  const { cx, cy } = getCanvasPos(e);
+  const world = renderer.canvasToWorld(cx, cy);
+  const s = state.scene;
+  const col = Math.floor(world.x), row = Math.floor(world.y);
+  const tool = state.activeTool;
+
+  // ── Walkable/blocked: single-click paint ─────────────────────────────
+  if (tool === 'walkable' || tool === 'blocked') {
+    if (col >= 0 && col < s.cols && row >= 0 && row < s.rows) {
+      _lastPaintCol = col; _lastPaintRow = row;
+      state.paintWalkable(col, row, tool === 'walkable');
+    }
+    return;
+  }
+
+  // ── Select: start drag if clicking on object ──────────────────────────
+  if (tool === 'select') {
+    const hit = findObjectAt(world.x, world.y);
+    if (hit) {
+      const obj = state.getById(hit) as { x: number; y: number } | undefined;
+      state.dragId = hit;
+      state.select(hit);
+      updatePropPanel();
+      _dragStartWorld  = { ...world };
+      _dragOriginWorld = obj ? { x: obj.x, y: obj.y } : { ...world };
+    }
+  }
+});
+
+canvas.addEventListener('mouseup', (e) => {
+  if (e.button !== 0) return;
+  _lastPaintCol = -1; _lastPaintRow = -1;
+
+  if (state.dragId && _isDragging && _dragOriginWorld && _dragStartWorld) {
+    // Commit move (create undo entry)
+    const { cx, cy } = getCanvasPos(e);
+    const world = renderer.canvasToWorld(cx, cy);
+    const dx = world.x - _dragStartWorld.x;
+    const dy = world.y - _dragStartWorld.y;
+    const nx = _dragOriginWorld.x + dx;
+    const ny = _dragOriginWorld.y + dy;
+    const snapped = renderer.snapToTile(nx, ny);
+    // Restore pre-drag position first so moveObject creates correct undo
+    const obj = state.getById(state.dragId) as { x: number; y: number } | undefined;
+    if (obj) {
+      obj.x = _dragOriginWorld.x;
+      obj.y = _dragOriginWorld.y;
+    }
+    state.moveObject(state.dragId, snapped.x, snapped.y);
+    updatePropPanel();
+  }
+  state.dragId = null;
+  _isDragging = false;
+  _dragStartWorld = null;
+  _dragOriginWorld = null;
+});
+
+// ── Right-click = delete object under cursor ──────────────────────────────────
+
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const { cx, cy } = getCanvasPos(e);
+  const world = renderer.canvasToWorld(cx, cy);
+  const hit = findObjectAt(world.x, world.y);
+  if (hit) {
+    state.removeById(hit);
+    updatePropPanel();
+  }
+});
+
+// ── Click = place object ──────────────────────────────────────────────────────
+
 canvas.addEventListener('click', (e) => {
+  // Ignore if this was actually a drag release
+  if (_isDragging) { _isDragging = false; return; }
+
   const { cx, cy } = getCanvasPos(e);
   const world = renderer.canvasToWorld(cx, cy);
   const s = state.scene;
@@ -78,8 +220,10 @@ canvas.addEventListener('click', (e) => {
 
   const tool = state.activeTool;
 
+  // walkable/blocked handled in mousedown; wall/light/prop/select below
+  if (tool === 'walkable' || tool === 'blocked') return;
+
   if (tool === 'select') {
-    // Hit-test objects (simple distance check)
     const hit = findObjectAt(world.x, world.y);
     state.select(hit ?? null);
     updatePropPanel();
@@ -104,15 +248,32 @@ canvas.addEventListener('click', (e) => {
   }
 
   if (tool === 'omnilight') {
+    const snapped = renderer.snapToTile(world.x, world.y);
     const l: EditorLight = {
-      id: state.nextId('light'),
+      id: state.nextId('omni'),
       type: 'omni',
-      x: parseFloat(world.x.toFixed(2)),
-      y: parseFloat(world.y.toFixed(2)),
-      z: 120,
+      x: snapped.x,
+      y: snapped.y,
+      z: 0,
       color: '#ffd080',
       intensity: 1,
       radius: 320,
+    };
+    state.addLight(l);
+    return;
+  }
+
+  if (tool === 'dirlight') {
+    const snapped = renderer.snapToTile(world.x, world.y);
+    const l: EditorLight = {
+      id: state.nextId('dirlight'),
+      type: 'directional',
+      x: snapped.x,
+      y: snapped.y,
+      color: '#ffe8b0',
+      intensity: 0.9,
+      angle: -0.5,
+      elevation: 0.6,
     };
     state.addLight(l);
     return;
@@ -148,18 +309,6 @@ canvas.addEventListener('click', (e) => {
   }
 });
 
-// ── Hit testing ───────────────────────────────────────────────────────────────
-
-function findObjectAt(wx: number, wy: number): string | undefined {
-  const all = state.allObjects();
-  for (const obj of all) {
-    const x = (obj as { x: number }).x;
-    const y = (obj as { y: number }).y;
-    if (Math.hypot(wx - x, wy - y) < 0.7) return obj.id;
-  }
-  return undefined;
-}
-
 // ── Property panel ────────────────────────────────────────────────────────────
 
 function updatePropPanel(): void {
@@ -174,7 +323,6 @@ function updatePropPanel(): void {
   propPanel.classList.remove('hidden');
   propContent.innerHTML = buildPropForm(obj);
 
-  // Bind inputs
   propContent.querySelectorAll<HTMLInputElement>('[data-field]').forEach(input => {
     input.addEventListener('input', () => {
       const field = input.dataset.field!;
@@ -186,6 +334,11 @@ function updatePropPanel(): void {
 
 function buildPropForm(obj: ReturnType<EditorState['getById']>): string {
   if (!obj) return '';
+  // Show kind as a read-only badge
+  const kindBadge = 'kind' in obj
+    ? `<div class="obj-kind-badge">${(obj as { kind: string }).kind}</div>`
+    : '';
+
   const fields = Object.entries(obj)
     .filter(([k]) => k !== 'id' && k !== 'kind' && k !== 'type')
     .map(([k, v]) => {
@@ -200,7 +353,8 @@ function buildPropForm(obj: ReturnType<EditorState['getById']>): string {
             ${isNum ? `step="${step}"` : ''} />
         </div>`;
     }).join('');
-  return `<div class="obj-id">${obj.id}</div>${fields}`;
+
+  return `<div class="obj-id">${obj.id}</div>${kindBadge}${fields}`;
 }
 
 state.onChange(() => {
@@ -208,6 +362,8 @@ state.onChange(() => {
   else propPanel.classList.add('hidden');
   updateObjectList();
 });
+
+// ── Object list panel ─────────────────────────────────────────────────────────
 
 function updateObjectList(): void {
   const objs = state.allObjects();
@@ -221,6 +377,8 @@ function updateObjectList(): void {
     if ('type' in o) return (o as { type: string }).type;
     if ('radius' in o && 'color' in o) return 'char';
     if ('endX' in o) return 'wall';
+    if ('angle' in o || 'elevation' in o) return 'dirlight';
+    if ('radius' in o) return 'omni';
     return '?';
   };
   objectList.innerHTML = objs.map(o => `
@@ -279,7 +437,6 @@ function applySceneSize(): void {
   sceneColsInput.value = String(cols);
   sceneRowsInput.value = String(rows);
   state.setSceneSize(cols, rows);
-  // Resize canvas
   const s = state.scene;
   canvas.width  = (s.cols + s.rows) * (s.tileW / 2);
   canvas.height = (s.cols + s.rows) * (s.tileH / 2) + 120;
@@ -307,8 +464,9 @@ renderer.start();
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────
 
 const keyMap: Record<string, ToolType> = {
-  v: 'select', w: 'wall', l: 'omnilight',
+  v: 'select', w: 'wall', l: 'omnilight', d: 'dirlight',
   c: 'character', '1': 'crystal', '2': 'boulder', '3': 'chest',
+  b: 'blocked', p: 'walkable',
 };
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -323,21 +481,33 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// ── Statusbar ─────────────────────────────────────────────────────────────────
+// ── Status bar ────────────────────────────────────────────────────────────────
 
-const statusbar = document.getElementById('statusbar')!;
-const toolHints: Record<ToolType, string> = {
-  select:    'Click an object to select it. Delete key removes selection.',
-  move:      'Click and drag to reposition the selected object.',
-  wall:      'Click to set wall start, click again to set end.',
-  omnilight: 'Click to place an Omni Light.',
-  character: 'Click to place a Character.',
-  crystal:   'Click to place a Crystal.',
-  boulder:   'Click to place a Boulder.',
-  chest:     'Click to place a Chest.',
-  blocked:   'Click tiles to toggle blocked (unwalkable) areas.',
-  walkable:  'Click tiles to mark them as walkable.',
+const toolHints: Record<string, string> = {
+  select:    '[V] Click to select. Right-click to delete. Drag to move.',
+  wall:      '[W] Click start point, then end point to place a wall.',
+  omnilight: '[L] Click to place an Omni Light.',
+  dirlight:  '[D] Click to place a Directional Light.',
+  character: '[C] Click to place a Character.',
+  crystal:   '[1] Click to place a Crystal prop.',
+  boulder:   '[2] Click to place a Boulder prop.',
+  chest:     '[3] Click to place a Chest prop.',
+  blocked:   '[B] Click or drag tiles to mark as blocked.',
+  walkable:  '[P] Click or drag tiles to mark as walkable.',
 };
+
+let _statusTileText = '';
+
+function updateStatusTile(col: number, row: number): void {
+  _statusTileText = `  |  tile (${col}, ${row})`;
+  refreshStatus();
+}
+
+function refreshStatus(): void {
+  statusbar.textContent = (toolHints[state.activeTool] ?? '') + _statusTileText;
+}
+
 state.onChange(() => {
-  statusbar.textContent = toolHints[state.activeTool] ?? '';
+  _statusTileText = '';
+  refreshStatus();
 });

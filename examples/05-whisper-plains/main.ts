@@ -59,8 +59,7 @@ dayNight.setPhase(0.25);
 const { scene: plainsScene, portal, collider: plainsCollider } = buildPlainsScene();
 { const sa = dayNight.getSceneAmbient(); plainsScene.ambientColor = sa.color; plainsScene.ambientIntensity = sa.intensity; }
 const hero    = new CubeHero('hero', 3.5, 3.5);
-const heroMv  = new MovementComponent({ speed: 5.5, radius: 0.32, collider: plainsCollider });
-heroMv.onAttach(hero);
+const heroMv  = hero.addComponent(new MovementComponent({ speed: 5.5, radius: 0.32, collider: plainsCollider }));
 plainsScene.addObject(hero);
 plainsScene.camera.follow(hero);
 plainsScene.camera.lerpFactor = 0.06;
@@ -71,6 +70,7 @@ const plainsMover = new ClickMover({ cols: PLAINS_COLS, rows: PLAINS_ROWS, speed
 const LAKE_COLS = 13, LAKE_ROWS = 13;
 const { scene: lakeScene, lake: waveLake, portal: lakePortal } = buildLakeScene(LAKE_COLS, LAKE_ROWS);
 const lakeHero  = new CubeHero('hero-lake', LAKE_COLS / 2, LAKE_ROWS / 2);
+lakeHero.addComponent(new MovementComponent({ speed: 4.5, radius: 0.3 }));
 lakeScene.addObject(lakeHero);
 lakeScene.camera.follow(lakeHero);
 lakeScene.camera.lerpFactor = 0.05;
@@ -79,6 +79,7 @@ const lakeMover = new ClickMover({ cols: LAKE_COLS, rows: LAKE_ROWS, speed: 0.08
 // 深海
 const { scene: deepScene, portal: deepPortal } = buildDeepSeaScene();
 const deepHero  = new CubeHero('hero-deep', DEEP_COLS / 2, DEEP_ROWS / 2);
+deepHero.addComponent(new MovementComponent({ speed: 3.5, radius: 0.35 }));
 deepScene.addObject(deepHero);
 deepScene.camera.follow(deepHero);
 deepScene.camera.lerpFactor = 0.05;

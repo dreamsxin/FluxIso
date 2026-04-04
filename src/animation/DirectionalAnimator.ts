@@ -248,6 +248,7 @@ export class DirectionalAnimator {
       loop?: boolean;
     }>,
     scale = 1,
+    anchorY = 1,
   ): SpriteSheet {
     const DIRS: Direction[] = ['S', 'SW', 'W', 'NW', 'N', 'NE', 'E', 'SE'];
     const clips = [];
@@ -270,6 +271,6 @@ export class DirectionalAnimator {
       }
     }
 
-    return new SpriteSheet({ url, clips, scale, anchorY: 1 });
+    return new SpriteSheet({ url, clips, scale, anchorY });
   }
 }

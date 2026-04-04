@@ -32,9 +32,15 @@
 import { Engine } from './Engine';
 import { Scene } from './Scene';
 import { InputManager } from './InputManager';
+import { AssetLoader } from './AssetLoader';
 
 export interface ManagedScene {
   scene: Scene;
+  /**
+   * Optional per-scene asset loader. When provided, SceneManager automatically
+   * calls `assetLoader.clear()` after `onExit()` to release scene-specific resources.
+   */
+  assetLoader?: AssetLoader;
   /** Called when this scene becomes the active (top) scene. */
   onEnter?(): void | Promise<void>;
   /** Called when this scene is removed from the stack. */
@@ -142,6 +148,7 @@ export class SceneManager {
     try {
       const top = this._stack.pop()!;
       if (top.managed.onExit) await top.managed.onExit();
+      top.managed.assetLoader?.clear();
 
       const newTop = this._stack[this._stack.length - 1];
       if (newTop) {
@@ -166,6 +173,7 @@ export class SceneManager {
       // Exit all existing scenes
       for (let i = this._stack.length - 1; i >= 0; i--) {
         if (this._stack[i].managed.onExit) await this._stack[i].managed.onExit!();
+        this._stack[i].managed.assetLoader?.clear();
       }
       this._stack = [];
 
