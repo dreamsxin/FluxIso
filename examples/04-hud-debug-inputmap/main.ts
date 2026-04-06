@@ -169,6 +169,20 @@ engine.start(
     hud.draw(engine.ctx, canvas.width, canvas.height);
     debug.draw(engine.ctx, canvas.width, canvas.height, ts);
     transition.draw(canvas.width, canvas.height, ts);
+
+    // DEBUG overlay
+    const sortOrder = (globalThis as any).__lastTopoSort ?? '-';
+    const charPos = `char(${character.position.x.toFixed(2)},${character.position.y.toFixed(2)})`;
+    engine.ctx.save();
+    engine.ctx.setTransform(1,0,0,1,0,0);
+    engine.ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    engine.ctx.fillRect(0, canvas.height - 44, canvas.width, 44);
+    engine.ctx.fillStyle = '#00ff88';
+    engine.ctx.font = '11px monospace';
+    engine.ctx.fillText(`${charPos}  sort: ${sortOrder}`, 8, canvas.height - 26);
+    engine.ctx.fillStyle = '#aaa';
+    engine.ctx.fillText((globalThis as any).__lastAabbs ?? '', 8, canvas.height - 10);
+    engine.ctx.restore();
   },
   (ts) => {
     // Movement via InputMap

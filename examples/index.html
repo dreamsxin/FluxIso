@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LuxIso — Examples</title>
+  <title>FluxIso — Examples</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -170,6 +170,7 @@
     .bg-06   { background: linear-gradient(135deg, #020508 0%, #040c14 50%, #060f1c 100%); }
     .bg-07   { background: linear-gradient(135deg, #1a0e04 0%, #3a2008 50%, #1a0a00 100%); }
     .bg-08   { background: linear-gradient(135deg, #0d0503 0%, #2a0a04 50%, #4a1a08 100%); }
+    .bg-09   { background: linear-gradient(135deg, #081408 0%, #142814 50%, #0a1e0a 100%); }
     .bg-main { background: linear-gradient(135deg, #0a0a0f 0%, #141428 100%); }
     .bg-scene-editor  { background: linear-gradient(135deg, #080810 0%, #10102a 50%, #0a0a1a 100%); }
     .bg-sprite-editor { background: linear-gradient(135deg, #080c10 0%, #0c1828 50%, #080c18 100%); }
@@ -396,6 +397,24 @@
     </div>
   </a>
 
+  <a class="card" href="/examples/09-slopes/">
+    <div class="card-preview bg-09">
+      <div class="preview-dots" id="dots-09"></div>
+      <span>⛰️</span>
+    </div>
+    <div class="card-body">
+      <div class="card-num">09</div>
+      <div class="card-title">Slopes &amp; Terrain Height</div>
+      <div class="card-desc">HeightMap with per-corner heights, sloped floor rendering with cliff faces, and character Z following terrain via bilinear interpolation.</div>
+      <div class="card-tags">
+        <span class="tag">HeightMap</span>
+        <span class="tag">Slopes</span>
+        <span class="tag">Terrain</span>
+        <span class="tag">Bilinear</span>
+      </div>
+    </div>
+  </a>
+
 </div>
 
 <!-- ── Engine Demo ────────────────────────────────────────────────────────── -->
@@ -440,6 +459,7 @@
     'dots-06': { colors: ['#1040a0','#2060c0','#00a0c0'], count: 9 },
     'dots-07': { colors: ['#c08020','#e0a030','#a06010'], count: 9 },
     'dots-08': { colors: ['#ff4400','#ff8800','#cc2200'], count: 11 },
+    'dots-09': { colors: ['#306030','#508050','#204020'], count: 9 },
     'dots-main': { colors: ['#404060','#505080','#6060a0'], count: 9 },
   };
 

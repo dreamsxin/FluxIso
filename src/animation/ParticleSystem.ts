@@ -9,16 +9,29 @@ export enum ParticleBlend { ADD, ALPHA, MULTIPLY }
 export interface EmitterConfig {
   rate: number;
   max?: number;
-  maxParticles?: number; // legacy
+  maxParticles?: number;
   shape?: EmitterShape | string;
   radius?: number;
-  life: [number, number];
-  speed: [number, number];
+  spawnRadius?: number;
+  // accept both 'life' and 'lifetime' tuple forms
+  life?: [number, number];
+  lifetime?: [number, number];
+  // accept both 'speed' tuple and separate vz
+  speed?: [number, number];
+  vz?: [number, number];
+  angle?: [number, number];
   size: [number, number];
+  sizeFinal?: number;
   color?: string | string[];
+  colorStart?: string;
+  colorEnd?: string;
+  alphaStart?: number;
+  alphaEnd?: number;
   gravity?: number;
   spriteClip?: string;
   blend?: ParticleBlend | string;
+  rotSpeed?: [number, number];
+  particleShape?: string;
 }
 
 export interface ParticleOptions {
@@ -34,6 +47,7 @@ export class ParticleSystem extends IsoObject {
   private static _pool: Particle[] = [];
   private _emitters: { config: EmitterConfig, accumulator: number }[] = [];
   onExhausted: (() => void) | null = null;
+  private _lastTs = 0;
 
   static presets: any = {
     crystalShatter: (_o?: any) => ({ rate: 0, life: [0.4, 0.8], speed: [2, 5], size: [4, 8], color: ['#00ffff', '#ffffff'], gravity: 10 }),
@@ -81,7 +95,11 @@ export class ParticleSystem extends IsoObject {
     return { minX, minY, maxX, maxY, baseZ: this.position.z };
   }
 
-  update(dt: number): void {
+  update(ts?: number): void {
+    const now = ts ?? performance.now();
+    const dt  = this._lastTs === 0 ? 1 / 60 : Math.min((now - this._lastTs) / 1000, 0.1);
+    this._lastTs = now;
+
     for (const e of this._emitters) {
       if (e.config.rate <= 0) continue;
       e.accumulator += dt;
@@ -104,16 +122,26 @@ export class ParticleSystem extends IsoObject {
   }
 
   private spawnFromEmitter(c: EmitterConfig, randomness = 1.0): void {
-    const rx = (Math.random() - 0.5) * (c.radius ?? 0);
-    const ry = (Math.random() - 0.5) * (c.radius ?? 0);
-    const life = c.life[0] + Math.random() * (c.life[1] - c.life[0]);
-    const speed = (c.speed[0] + Math.random() * (c.speed[1] - c.speed[0])) * randomness;
+    const limit = c.maxParticles ?? c.max;
+    if (limit !== undefined && this.particles.length >= limit) return;
+
+    const rx = (Math.random() - 0.5) * (c.spawnRadius ?? c.radius ?? 0);
+    const ry = (Math.random() - 0.5) * (c.spawnRadius ?? c.radius ?? 0);
+    const lifeRange = c.life ?? c.lifetime ?? [0.5, 1.0];
+    const life = lifeRange[0] + Math.random() * (lifeRange[1] - lifeRange[0]);
+    const speedRange = c.speed ?? [1, 2];
+    const speed = (speedRange[0] + Math.random() * (speedRange[1] - speedRange[0])) * randomness;
     const size = c.size[0] + Math.random() * (c.size[1] - c.size[0]);
-    const angle = Math.random() * Math.PI * 2;
-    const color = Array.isArray(c.color) ? c.color[Math.floor(Math.random() * c.color.length)] : (c.color ?? '#fff');
+    const angleRange = c.angle ?? [0, Math.PI * 2];
+    const angle = angleRange[0] + Math.random() * (angleRange[1] - angleRange[0]);
+    const vzRange = c.vz;
+    const vzVal = vzRange ? vzRange[0] + Math.random() * (vzRange[1] - vzRange[0]) : speed;
+    const color = Array.isArray(c.color)
+      ? c.color[Math.floor(Math.random() * c.color.length)]
+      : (c.color ?? c.colorStart ?? '#fff');
     this.spawn({
       x: this.position.x + rx, y: this.position.y + ry, z: this.position.z,
-      vx: Math.cos(angle) * speed * 0.2, vy: Math.sin(angle) * speed * 0.2, vz: speed,
+      vx: Math.cos(angle) * speed * 0.2, vy: Math.sin(angle) * speed * 0.2, vz: vzVal,
       life, size, color, gravity: c.gravity, spriteClip: c.spriteClip
     });
   }

@@ -52,6 +52,20 @@ export abstract class IsoObject {
    */
   visible: boolean = true;
 
+  /**
+   * Mark this object as a "ground layer" — a large flat terrain surface
+   * (e.g. a custom rock/lava tilemap) that should be drawn on top of the
+   * floor lightmap but below all 3-D objects.
+   *
+   * Ground-layer objects are drawn in addObject() order and do NOT
+   * participate in topoSort, avoiding spurious depth-sort cycles with
+   * other ground-covering objects.
+   *
+   * Default false.  Set to true in objects like RockLayer or LavaRiver
+   * that cover the entire map at z ≈ 0.
+   */
+  isGroundLayer: boolean = false;
+
   constructor(id: string, x: number, y: number, z: number) {
     this.id = id;
     this.position = { x, y, z };

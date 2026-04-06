@@ -50,8 +50,9 @@ export class Scene {
 
   // ── Performance: pre-allocated partition buffers ───────────────────────────
   // Reused every frame to avoid per-frame array allocation.
-  private _floorBuf: Floor[]     = [];
-  private _cullBuf:  IsoObject[] = [];
+  private _floorBuf:  Floor[]     = [];
+  private _groundBuf: IsoObject[] = [];   // isGroundLayer objects (drawn above floor, below topoSort)
+  private _cullBuf:   IsoObject[] = [];
 
   readonly tileW: number;
   readonly tileH: number;
@@ -264,12 +265,14 @@ export class Scene {
       (ab / 255) * ai,
     ];
 
-    // ── Partition into floor vs non-floor (single pass, reuse buffers) ──
-    this._floorBuf.length = 0;
-    this._cullBuf.length  = 0;
+    // ── Partition into floor / ground-layer / non-floor (single pass, reuse buffers) ──
+    this._floorBuf.length  = 0;
+    this._groundBuf.length = 0;
+    this._cullBuf.length   = 0;
     for (const o of this.objects) {
-      if (o instanceof Floor) this._floorBuf.push(o);
-      else if (o.visible)     this._cullBuf.push(o);
+      if (o instanceof Floor)    this._floorBuf.push(o);
+      else if (o.isGroundLayer)  this._groundBuf.push(o);
+      else if (o.visible)        this._cullBuf.push(o);
     }
     const floorObjects = this._floorBuf;
 
@@ -345,6 +348,13 @@ export class Scene {
       ambientRgb,
       view: this.view,
     };
+
+    // ── Ground-layer objects (drawn above floor lightmap, below topoSort objects) ──
+    // These are large terrain surfaces (RockLayer, LavaRiver, etc.) that cover the
+    // whole map and must never participate in topoSort to avoid depth-sort cycles.
+    for (const obj of this._groundBuf) {
+      if (obj.visible) obj.draw(dc);
+    }
 
     // Cast ground shadows from each OmniLight before drawing objects
     // NOTE: shadows are now baked into the lightmap offscreen canvas above,

@@ -57,12 +57,19 @@ export class Wall extends IsoObject {
   }
 
   get aabb(): AABB {
+    const worldH = this.wallHeight / 16;
+    // Give walls a minimum thickness of 0.1 so depth sort has a proper Y extent
+    const minX = Math.min(this.position.x, this.endX);
+    const minY = Math.min(this.position.y, this.endY);
+    const maxX = Math.max(this.position.x, this.endX);
+    const maxY = Math.max(this.position.y, this.endY);
     return {
-      minX: Math.min(this.position.x, this.endX),
-      minY: Math.min(this.position.y, this.endY),
-      maxX: Math.max(this.position.x, this.endX),
-      maxY: Math.max(this.position.y, this.endY),
+      minX,
+      minY: minY === maxY ? minY - 0.1 : minY,
+      maxX: minX === maxX ? maxX + 0.1 : maxX,
+      maxY: minY === maxY ? maxY + 0.1 : maxY,
       baseZ: 0,
+      maxZ: worldH,
     };
   }
 

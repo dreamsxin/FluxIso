@@ -31,6 +31,7 @@ export class LavaRiver extends IsoObject {
   constructor(id: string) {
     super(id, 0, 0, 0);
     this.castsShadow = false;
+    this.isGroundLayer = true;   // full-map lava overlay → drawn above RockLayer, below topoSort objects
 
     for (const [wx, wy] of LAVA_TILES) {
       this._voxels.push({ wx, wy, phase: (wx * 0.37 + wy * 0.53) * Math.PI * 2 });

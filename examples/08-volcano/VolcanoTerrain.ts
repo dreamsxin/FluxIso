@@ -1,11 +1,11 @@
 /**
- * VolcanoTerrain — 暗红色岩层地面 + 火山锥
+ * VolcanoTerrain  暗红色岩层地面 + 火山锥
  */
 import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
 import { AABB } from '../../src/math/depthSort';
 import { project, drawIsoCube } from '../../src/math/IsoProjection';
 
-// ── 岩层地面 ──────────────────────────────────────────────────────────────────
+//  岩层地面 ─
 
 export class RockLayer extends IsoObject {
   readonly cols: number;
@@ -16,6 +16,7 @@ export class RockLayer extends IsoObject {
     this.cols = cols;
     this.rows = rows;
     this.castsShadow = false;
+    this.isGroundLayer = true;   // full-map terrain → drawn above floor, below topoSort
   }
 
   get aabb(): AABB {
@@ -27,11 +28,10 @@ export class RockLayer extends IsoObject {
       Math.sin(col * 0.8 + row * 0.5) * 0.35 +
       Math.cos(col * 0.4 - row * 0.7) * 0.25 +
       Math.sin(col * 1.2 + row * 1.0) * 0.1
-    ) * 0.8; // range ~0..0.8
+    ) * 0.8;
   }
 
   private _color(h: number, dark: boolean): string {
-    // h in ~-0.56..0.56, normalize to 0-1
     const t = (h + 0.56) / 1.12;
     const r = Math.round(0x3a + t * (0x6a - 0x3a));
     const g = Math.round(0x1a + t * (0x2a - 0x1a));
@@ -56,7 +56,7 @@ export class RockLayer extends IsoObject {
   }
 }
 
-// ── 火山锥 ────────────────────────────────────────────────────────────────────
+//  火山锥 
 
 export class VolcanoCone extends IsoObject {
   constructor(id: string, x: number, y: number) {
@@ -66,7 +66,8 @@ export class VolcanoCone extends IsoObject {
   }
 
   get aabb(): AABB {
-    return { minX: this.position.x - 1, minY: this.position.y - 1, maxX: this.position.x + 4, maxY: this.position.y + 4, baseZ: 0 };
+    // 8 layers × layerH(0.55) = 4.4 world-Z units tall
+    return { minX: this.position.x - 1, minY: this.position.y - 1, maxX: this.position.x + 4, maxY: this.position.y + 4, baseZ: 0, maxZ: 4.4 };
   }
 
   draw(dc: DrawContext): void {

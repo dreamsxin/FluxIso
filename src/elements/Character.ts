@@ -97,12 +97,18 @@ export class Character extends Entity {
 
   get aabb(): AABB {
     const r = 0.5;
+    // maxZ reflects the character's actual visual height in world-Z units.
+    // radius is in screen pixels; AABB Z unit ≈ tileH/2 (≈ 16 px for tileH=32).
+    // A sphere of radius 22 px spans ~44 px = 2.75 AABB-Z units.
+    // Use radius / 8 as a reasonable approximation (22/8 ≈ 2.75).
+    const zHeight = Math.max(1, this.radius / 8);
     return {
       minX: this.position.x - r,
       minY: this.position.y - r,
       maxX: this.position.x + r,
       maxY: this.position.y + r,
       baseZ: this.position.z,
+      maxZ: this.position.z + zHeight,
     };
   }
 
