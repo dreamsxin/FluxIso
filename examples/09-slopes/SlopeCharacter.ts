@@ -116,25 +116,31 @@ export class SlopeCharacter extends IsoObject {
       ctx.fill();
     }
 
-    // Ground point (z=0) for shadow anchor
-    const gp = toScreen(x, y, 0);
+    // Shadow & indicator anchor = terrain surface directly below character
+    const groundZ = this.terrain.sampleHeight(x, y);  // world units
+    const gp = toScreen(x, y, groundZ);
 
-    // ── Blob shadow on z=0 plane ──────────────────────────────────────────
-    const shadowFade  = Math.max(0, 1 - z / (this.terrain.maxH * 1.2));
-    const shadowScale = 0.35 + 0.65 * shadowFade;
+    // Gap between character and ground (spring lag, usually small but visible on jump/slope edge)
+    const gap = Math.max(0, z - groundZ);
+
+    // ── Blob shadow on terrain surface ────────────────────────────────────
+    // Scale/fade with the spring-lag gap (not absolute z, since character
+    // rides the terrain — the gap is nearly 0 when settled).
+    const shadowFade  = Math.max(0, 1 - gap * 0.8);
+    const shadowScale = 0.55 + 0.45 * shadowFade;
     ctx.save();
-    ctx.globalAlpha = 0.40 * shadowFade;
+    ctx.globalAlpha = 0.45 * shadowFade;
     ctx.beginPath();
     ctx.ellipse(gp.x, gp.y, this.radius * shadowScale, this.radius * shadowScale * 0.38, 0, 0, Math.PI * 2);
     ctx.fillStyle = '#000';
     ctx.fill();
     ctx.restore();
 
-    // ── Elevation indicator line (ground → body) ──────────────────────────
+    // ── Elevation indicator line (terrain surface → body) ─────────────────
     const bp = toScreen(x, y, z);   // body position on screen
-    if (z > 0.08) {
+    if (gap > 0.05) {
       ctx.save();
-      ctx.strokeStyle = 'rgba(200,220,255,0.25)';
+      ctx.strokeStyle = 'rgba(200,220,255,0.30)';
       ctx.lineWidth   = 1;
       ctx.setLineDash([3, 4]);
       ctx.beginPath();
@@ -175,12 +181,12 @@ export class SlopeCharacter extends IsoObject {
 
     ctx.restore();
 
-    // ── HUD: elevation label ──────────────────────────────────────────────
+    // ── HUD: terrain height label above character ─────────────────────────
     ctx.save();
     ctx.font = '9px monospace';
     ctx.fillStyle = 'rgba(200,230,255,0.75)';
     ctx.textAlign = 'center';
-    ctx.fillText(`z ${z.toFixed(2)}`, bp.x, bp.y - this.radius - 4);
+    ctx.fillText(`h ${groundZ.toFixed(2)}`, bp.x, bp.y - this.radius - 4);
     ctx.textAlign = 'left';
     ctx.restore();
   }
