@@ -28,9 +28,9 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 - **Audio** — `AudioManager`; one-shot SFX, looping BGM with crossfade, spatial distance attenuation, 3-bus volume (master/sfx/bgm)
 - **JSON scene loader** — `engine.loadScene(url)`; floor, walls, lights, characters, props, clouds, walkable collision map
 - **Scene validator** — `validateSceneJson()`; runtime JSON schema check + ECS component assertions
-- **Scene editor** — visual editor (`editor.ts`); undo/redo, collision paint, object list, JSON export/copy
-- **Sprite editor** — sprite sheet frame inspector and animation clip builder (`sprite-editor.ts`); 8-direction preview; JSON export
-- **AssetLoader** — instanceable image preloader; per-scene isolation; `unload(url)`; `size` getter; static API delegates to `AssetLoader.default` (backwards-compatible)
+- **Scene editor** — visual editor (`editor.ts`); undo/redo, walkable/blocked drag-paint, object list, property panel, JSON export/import; right-click delete; DirectionalLight placement; keyboard shortcuts (`V/W/L/D/C/1/2/3/B/P`); `camera.screenToWorld` for zoom/pan-accurate picking
+- **Sprite editor** — sprite sheet frame inspector and animation clip builder (`sprite-editor.ts`); 8-direction live preview (cached `Map<Direction,DirCell>`); `anchorY` control; click-frame inspection with action/dir hint; JSON export + import; data URL upload support
+- **AssetLoader** — instanceable image preloader; per-scene isolation; `unload(url)`; `size` getter; `register(url, img)` for data-URL injection (sprite editor); static API delegates to `AssetLoader.default` (backwards-compatible)
 - **PathCache** — per-scene A* result cache; `new PathCache(capacity)`; `invalidate()`; pass to `Pathfinder.find()` for zero cross-scene pollution
 - **Lib build** — `npm run build:lib` → ESM + CJS dual output; `luxiso.d.ts` rollup
 
@@ -510,7 +510,7 @@ anim.playOnce('attack', 'idle', onComplete?)
 anim.update(dt)
 anim.currentFrame(): { frame: FrameRect; image: HTMLImageElement } | null
 
-DirectionalAnimator.buildSheet(url, frameW, frameH, actions, scale)
+DirectionalAnimator.buildSheet(url, frameW, frameH, actions, scale, anchorY?)
 DirectionalAnimator.auditSheet(sheet, action)   // { present, missing }
 ```
 
@@ -600,8 +600,12 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 | JSON scene loader: floor/walls/lights/chars/props/clouds | |
 | Scene.toJSON(): full round-trip serialization | |
 | Validator: scene JSON + ECS component assertions | |
-| Scene editor: object list, undo/redo, collision paint, JSON export/copy | |
-| Sprite editor: frame inspector, clip builder, 8-direction preview, JSON export | |
+| Scene editor: object list, undo/redo, walkable drag-paint, property panel, JSON export/import; DirectionalLight; right-click delete; keyboard shortcuts | |
+| Sprite editor: frame inspector, clip builder, 8-direction live preview (Map cache), anchorY, JSON export+import, data URL upload | |
+| AssetLoader.register(url, img) — data-URL injection for sprite editor | |
+| DirectionalAnimator.buildSheet: anchorY parameter | |
+| Floor tile diamond: 4 corner grid-points (correct isometric alignment, eliminates tileH/2 offset bug) | |
+| Editor coordinate system: camera.screenToWorld for zoom/pan-accurate picking; overlay z-aware projection | |
 | Minimap: OffscreenCanvas HUD overlay, walkable grid + object dots | |
 | Precise AABB frustum culling — in-place write-pointer compaction, zero per-frame allocation | |
 | AssetLoader: instanceable; unload(url); size getter; static delegates to .default | |
@@ -632,6 +636,8 @@ See [FRAMEWORK_ANALYSIS.md](FRAMEWORK_ANALYSIS.md) for a detailed comparison wit
 | P3 | No System layer (batch component processing) | `scene.addSystem(new MovementSystem())` |
 | P3 | `ParticleSystem` allocates new particles each frame | Integrate `ObjectPool<Particle>` |
 | P3 | Spatial audio uses linear falloff calc, not `PannerNode` | Use Web Audio `PannerNode` + HRTF |
+| P3 | Editor: snap/grid toggle for fine-grained object placement | Sub-tile precision mode |
+| P3 | Sprite editor: multi-sheet support, frame-range trimming | Advanced animation authoring |
 
 ## License
 
