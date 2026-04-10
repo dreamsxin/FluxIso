@@ -1,8 +1,8 @@
 /**
- * SandDust — 沙尘粒子系统（使用框架 ParticleSystem.presets.ambientDrift）
+ * SandDust — ambient sand-dust particle system for the desert scene.
  */
 import { IsoObject, DrawContext } from '../../src/elements/IsoObject';
-import { ParticleSystem } from '../../src/animation/ParticleSystem';
+import { ParticleSystem, EmitterConfig } from '../../src/animation/ParticleSystem';
 import { AABB } from '../../src/math/depthSort';
 
 export class SandDustSystem extends IsoObject {
@@ -17,34 +17,35 @@ export class SandDustSystem extends IsoObject {
     this.rows = rows;
     this.castsShadow = false;
 
-    // 在场景中心生成，用大 spawnRadius 覆盖整个场景
+    // Place emitter at scene centre; large spawnRadius covers whole scene.
     this._ps = new ParticleSystem(`${id}-ps`, cols / 2, rows / 2, 0);
-    this._ps.autoRemove = false;
+
+    const preset = ParticleSystem.presets.ambientDrift({
+      color: ['#e8c870', '#d4a850', '#f0d890'],
+      count: 60,
+      speed: [0.1, 0.4],
+      size:  [2, 5],
+      alpha: 0.3,
+      blend: 'screen',
+    }) as EmitterConfig;
+
     this._ps.addEmitter({
-      ...ParticleSystem.presets.ambientDrift({
-        color: '#e8c870',
-        count: 60,
-        speed: [0.1, 0.5],
-        size: [2, 5],
-        alpha: 0.3,
-        blend: 'screen',
-        shape: 'square',
-      }),
-      shape: 'circle',
-      spawnRadius: Math.max(cols, rows) * 0.6,  // 覆盖整个场景
+      ...preset,
+      shape:       'circle',
+      spawnRadius: Math.max(cols, rows) * 0.6,
     });
   }
 
   get aabb(): AABB {
-    return { minX: 0, minY: 0, maxX: this.cols, maxY: this.rows, baseZ: 0, maxZ: 4 };
+    return { minX: 0, minY: 0, maxX: this.cols, maxY: this.rows, baseZ: 0 };
   }
 
   update(ts?: number): void {
-    const cfg = (this._ps as any)._emitters[0]?.cfg;
-    if (cfg) {
-      cfg.rate = Math.round(60 * this.speedMult);
-      // 调整速度
-      cfg.speed = [0.1 * this.speedMult, 0.5 * this.speedMult];
+    // Adjust emitter rate & speed based on speedMult
+    const e = (this._ps as any)._emitters[0] as { config: EmitterConfig } | undefined;
+    if (e?.config) {
+      e.config.rate  = Math.round(60 * this.speedMult);
+      e.config.speed = [0.1 * this.speedMult, 0.4 * this.speedMult];
     }
     this._ps.update(ts);
   }

@@ -54,6 +54,29 @@ export class ParticleSystem extends IsoObject {
     dustPuff:       (_o?: any) => ({ rate: 0, life: [0.6, 1.0], speed: [0.5, 2], size: [8, 20], color: ['#887766'], gravity: 0 }),
     coinSpill:      (_o?: any) => ({ rate: 0, life: [0.8, 1.5], speed: [1, 4], size: [5, 10], color: ['#ffff00', '#ffd700'], gravity: 12 }),
     sparkBurst:     (_o?: any) => ({ rate: 0, life: [0.3, 0.6], speed: [4, 8], size: [2, 5], color: ['#ffffff', '#ffffcc'], gravity: 5 }),
+    /** Ambient floating dust/motes that drift slowly across the scene. */
+    ambientDrift: (o?: {
+      color?: string | string[];
+      count?: number;
+      speed?: [number, number];
+      size?: [number, number];
+      alpha?: number;
+      blend?: string;
+      shape?: string;
+    }) => ({
+      rate:  o?.count ?? 40,
+      life:  [2.0, 5.0] as [number, number],
+      speed: o?.speed ?? [0.05, 0.25] as [number, number],
+      angle: [0, Math.PI * 2] as [number, number],
+      vz:    [0.02, 0.10] as [number, number],
+      size:  o?.size  ?? [2, 6] as [number, number],
+      color: o?.color ?? ['#d4b060', '#e8c880', '#c09840'],
+      gravity: -0.05,
+      alphaStart: o?.alpha ?? 0.35,
+      alphaEnd:   0,
+      blend: o?.blend ?? 'screen',
+      shape: o?.shape ?? 'circle',
+    }),
     FIRE:   { rate: 40, life: [0.5, 1.2], speed: [0.5, 1.5], size: [4, 12], color: ['#ff4400', '#ffaa00'], gravity: 2 },
     SMOKE:  { rate: 10, life: [1.5, 3.0], speed: [0.2, 0.6], size: [10, 30], color: ['#333', '#666'], gravity: -1 },
   };

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LuxIso — 09 Slopes</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0f0a;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #aaa;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 1rem; font-weight: 400; letter-spacing: 0.15em;
+      text-transform: uppercase; color: #4a6a4a; margin-bottom: 12px;
+    }
+    canvas {
+      border: 1px solid #1a2a1a;
+      border-radius: 4px;
+      image-rendering: pixelated;
+    }
+    .desc {
+      margin-top: 12px; max-width: 700px;
+      font-size: 0.75rem; color: #4a6a4a; line-height: 1.7;
+      text-align: center;
+    }
+    .controls {
+      margin-top: 8px;
+      display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+    }
+    .controls span {
+      background: #0d180d; border: 1px solid #1a2a1a;
+      border-radius: 3px; padding: 3px 10px;
+      font-size: 0.70rem; color: #6a8a6a; font-family: monospace;
+    }
+    .nav { margin-top: 16px; font-size: 0.72rem; color: #334433; }
+    .nav a { color: #4a6a4a; text-decoration: none; margin: 0 6px; }
+    .nav a:hover { color: #8aaa8a; }
+  </style>
+</head>
+<body>
+  <h1>LuxIso &mdash; 09 Slopes</h1>
+  <canvas id="canvas"></canvas>
+
+  <div class="desc">
+    Height-map terrain with smooth isometric voxel hills. The character's
+    <code>z</code> follows the terrain surface via bilinear interpolation.
+    Uphill movement is slower; downhill is faster (gradient-based speed factor).
+    Blob shadow scales with elevation; a dashed vertical line shows height above ground.
+  </div>
+
+  <div class="controls">
+    <span>WASD / ↑↓←→ — move</span>
+    <span>C — toggle contour</span>
+  </div>
+
+  <div class="nav">
+    <a href="../08-volcano/index.html">← 08 Volcano</a>
+    <a href="/examples/index.html">All Examples</a>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
