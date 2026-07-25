@@ -15,7 +15,7 @@ body {
   background: #101419;
 }
 
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 
 .topbar {
   height: 48px;
@@ -204,6 +204,27 @@ h2 {
   color: #778390;
   font: 10px/1 Consolas, monospace;
   text-align: right;
+}
+
+.fixture-row {
+  grid-template-columns: 58px minmax(0, 1fr) !important;
+  margin-bottom: 7px;
+}
+
+.fixture-row select {
+  min-width: 0;
+  width: 100%;
+  height: 26px;
+  padding: 0 7px;
+  border: 1px solid #343c46;
+  border-radius: 4px;
+  color: #c6cdd5;
+  background: #12171d;
+}
+
+.fixture-row select:focus-visible {
+  outline: 2px solid #64d39a;
+  outline-offset: 1px;
 }
 
 .toggle-row { grid-template-columns: 1fr auto !important; }

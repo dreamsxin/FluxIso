@@ -70,6 +70,7 @@ The current preview implements the first runnable Phase 0-4 slice:
 - a polished lantern-garden fixture covering compact foliage, deterministic flowers,
   warm practical lights, and seam-free multi-face crystal geometry.
 - fixed-step A* click movement with collision-aware waypoints and a renderer-neutral target marker.
+- a deterministic nine-case camera/light fixture matrix for golden screenshot capture.
 
 The shadow implementation traces the analytic rays needed to project each 2D
 occluder onto the ground plane. It is not hardware path tracing; WebGL2 remains
@@ -87,7 +88,11 @@ the portable path and will not market compute-shader path tracing as hardware
 ray tracing. See [Phase 7](./ROADMAP.md#phase-7---hardware-ray-tracing-research-conditional)
 for the capability gates and primary specification links.
 
-Run the preview with `npm run dev`, then open `/webgl-next/`.
+Run the preview with `npm run dev`, then open `/webgl-next/`. Golden inputs use
+`/webgl-next/?fixture=<id>`; for example, `day-ne`, `night-lanterns`,
+`global-only`, or `lights-off`. A fixed fixture pauses scene simulation and
+light orbiting until the user interacts with the scene or changes a camera or
+light control.
 
 ## Versioning
 

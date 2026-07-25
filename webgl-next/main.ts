@@ -21,6 +21,11 @@ import { SceneExtractor } from './src/extraction/SceneExtractor';
 import { DomOverlayRenderer } from './src/overlays/DomOverlayRenderer';
 import { MinimapRenderer } from './src/overlays/MinimapRenderer';
 import { WebGLRenderer, WebGLUnavailableError } from './src/renderer/WebGLRenderer';
+import {
+  applyPreviewLightingFixture,
+  getPreviewLightingFixture,
+  PREVIEW_LIGHTING_FIXTURES,
+} from './src/testing/PreviewLightingFixtures';
 
 type ViewMode = 'webgl' | 'compare' | 'canvas';
 
@@ -30,6 +35,15 @@ const referenceCanvas = required<HTMLCanvasElement>('canvas-reference');
 const referenceContext = getCanvasContext(referenceCanvas);
 
 const scene = await createScene();
+const fixtureSelect = required<HTMLSelectElement>('fixture');
+populateFixtureSelect(fixtureSelect);
+const requestedFixtureId = new URL(window.location.href).searchParams.get('fixture');
+const initialFixture = getPreviewLightingFixture(requestedFixtureId);
+let activeFixtureId = initialFixture?.id ?? '';
+if (initialFixture) applyPreviewLightingFixture(scene, initialFixture);
+else if (requestedFixtureId) updateFixtureUrl(null);
+fixtureSelect.value = activeFixtureId;
+required<HTMLInputElement>('orbit').checked = !activeFixtureId;
 const orbitLight = scene.getLightById('work-light') as OmniLight;
 const runner = requirePreviewRunner(scene);
 const runnerMovement = requireRunnerMovement(runner);
@@ -63,6 +77,8 @@ try {
     ? 'WebGL 2 不可用 · Canvas fallback'
     : `初始化失败 · ${error instanceof Error ? error.message : String(error)}`;
 }
+
+if (initialFixture) required('selection').textContent = `校验夹具 · ${initialFixture.label}`;
 
 syncControls();
 bindControls();
@@ -179,6 +195,10 @@ async function createScene(): Promise<Scene> {
 }
 
 function bindControls(): void {
+  fixtureSelect.addEventListener('change', () => {
+    navigateToFixture(fixtureSelect.value || null);
+  });
+
   for (const button of document.querySelectorAll<HTMLButtonElement>('.mode')) {
     button.addEventListener('click', () => {
       if (button.disabled) return;
@@ -209,6 +229,9 @@ function bindControls(): void {
     orbitLight.intensity = value;
     return value.toFixed(2);
   });
+  required<HTMLInputElement>('orbit').addEventListener('change', (event) => {
+    if ((event.currentTarget as HTMLInputElement).checked) clearActiveFixture();
+  });
 }
 
 function syncControls(): void {
@@ -233,6 +256,7 @@ function bindViewportInput(): void {
   });
   webglCanvas.addEventListener('pointermove', (event) => {
     if (!pointerStart || !(event.buttons & 1)) return;
+    clearActiveFixture();
     const dx = (event.clientX - pointerStart.x) / (scene.tileW * scene.camera.zoom);
     const dy = (event.clientY - pointerStart.y) / (scene.tileH * scene.camera.zoom);
     scene.camera.x = pointerStart.cameraX - dx - dy;
@@ -261,6 +285,7 @@ function bindViewportInput(): void {
   });
   webglCanvas.addEventListener('wheel', (event) => {
     event.preventDefault();
+    clearActiveFixture();
     scene.camera.setZoom(scene.camera.zoom * (event.deltaY > 0 ? 0.92 : 1.08));
     const zoom = required<HTMLInputElement>('zoom');
     zoom.value = String(scene.camera.zoom);
@@ -269,6 +294,7 @@ function bindViewportInput(): void {
 }
 
 function requestRunnerMove(screenX: number, screenY: number, rect: DOMRect): void {
+  clearActiveFixture();
   const world = scene.camera.screenToWorld(
     screenX,
     screenY,
@@ -327,17 +353,21 @@ function frame(now: number): void {
     fpsWindowStart = now;
   }
 
-  if (required<HTMLInputElement>('orbit').checked) {
-    const angle = now * 0.00038;
-    orbitLight.position.x = 6 + Math.cos(angle) * 3.4;
-    orbitLight.position.y = 5 + Math.sin(angle) * 2.6;
+  if (!activeFixtureId) {
+    if (required<HTMLInputElement>('orbit').checked) {
+      const angle = now * 0.00038;
+      orbitLight.position.x = 6 + Math.cos(angle) * 3.4;
+      orbitLight.position.y = 5 + Math.sin(angle) * 2.6;
+    }
+    fixedAccumulator += dt;
+    while (fixedAccumulator >= 1 / 60) {
+      scene.fixedUpdate(1 / 60);
+      fixedAccumulator -= 1 / 60;
+    }
+    scene.update(now);
+  } else {
+    fixedAccumulator = 0;
   }
-  fixedAccumulator += dt;
-  while (fixedAccumulator >= 1 / 60) {
-    scene.fixedUpdate(1 / 60);
-    fixedAccumulator -= 1 / 60;
-  }
-  scene.update(now);
   const moving = runnerMovement.isMoving;
   if (movementWasActive && !moving && moveTarget) {
     const distance = Math.hypot(runner.position.x - moveTarget.x, runner.position.y - moveTarget.y);
@@ -430,7 +460,38 @@ function bindRange(
 ): void {
   const input = required<HTMLInputElement>(inputId);
   const output = required<HTMLOutputElement>(outputId);
-  input.addEventListener('input', () => { output.value = apply(Number(input.value)); });
+  input.addEventListener('input', () => {
+    clearActiveFixture();
+    output.value = apply(Number(input.value));
+  });
+}
+
+function populateFixtureSelect(select: HTMLSelectElement): void {
+  select.replaceChildren(new Option('交互默认', ''));
+  for (const fixture of PREVIEW_LIGHTING_FIXTURES) {
+    select.add(new Option(fixture.label, fixture.id));
+  }
+}
+
+function navigateToFixture(id: string | null): void {
+  const url = new URL(window.location.href);
+  if (id) url.searchParams.set('fixture', id);
+  else url.searchParams.delete('fixture');
+  window.location.replace(url.toString());
+}
+
+function updateFixtureUrl(id: string | null): void {
+  const url = new URL(window.location.href);
+  if (id) url.searchParams.set('fixture', id);
+  else url.searchParams.delete('fixture');
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+function clearActiveFixture(): void {
+  if (!activeFixtureId) return;
+  activeFixtureId = '';
+  fixtureSelect.value = '';
+  updateFixtureUrl(null);
 }
 
 function required<T extends HTMLElement = HTMLElement>(id: string): T {

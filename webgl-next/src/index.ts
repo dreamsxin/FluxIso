@@ -18,3 +18,14 @@ export { MinimapRenderer } from './overlays/MinimapRenderer';
 export { renderPointToScreen } from './overlays/cameraTransform';
 export { WebGLRenderer, WebGLUnavailableError } from './renderer/WebGLRenderer';
 export { computeShadowMaskCacheKey } from './renderer/ShadowMaskCacheKey';
+export {
+  applyPreviewLightingFixture,
+  DEFAULT_PREVIEW_LIGHTING_FIXTURE_ID,
+  getPreviewLightingFixture,
+  PREVIEW_LIGHTING_FIXTURES,
+} from './testing/PreviewLightingFixtures';
+export type {
+  PreviewDirectionalLightFixture,
+  PreviewLightingFixture,
+  PreviewOmniLightFixture,
+} from './testing/PreviewLightingFixtures';
