@@ -49,6 +49,24 @@ Scene / ECS / physics / animation / input / serialization
 - [ACCEPTANCE.md](./ACCEPTANCE.md): visual, performance, browser, API, and release
   gates.
 
+## Implemented Preview Slice
+
+The current preview implements the first runnable Phase 0-3 slice:
+
+- renderer-neutral `RenderSnapshot` contracts and a reusable numeric geometry arena;
+- extraction for Floor, Wall openings, Character, Crystal, Boulder, Chest, and Cloud;
+- canonical world-Z conversion at the extraction boundary;
+- WebGL2 resource lifecycle, dynamic batching, GPU ambient/directional/omni lighting;
+- projected blob shadows, transparent cloud/light layers, and 24-bit GPU ID picking;
+- context loss/restore handling, capability reporting, and live render diagnostics;
+- WebGL, side-by-side comparison, and Canvas2D fallback modes at `/webgl-next/`.
+
+Particles, sprite textures/atlases, editor selection overlays, and advanced shadow
+passes remain on the later roadmap phases. Unsupported custom objects render as
+visible diagnostics and are reported in the preview metrics.
+
+Run the preview with `npm run dev`, then open `/webgl-next/`.
+
 ## Versioning
 
 - Preview package/version: `0.2.0-webgl.x`.

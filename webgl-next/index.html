@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>LuxIso WebGL Next</title>
+    <link rel="stylesheet" href="/webgl-next/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">LuxIso</a>
+      <span class="branch">WebGL Next</span>
+      <div class="segmented" aria-label="渲染后端">
+        <button class="mode active" data-mode="webgl" type="button">WebGL 2</button>
+        <button class="mode" data-mode="compare" type="button">对照</button>
+        <button class="mode" data-mode="canvas" type="button">Canvas 2D</button>
+      </div>
+      <span class="status" id="backend-status">初始化</span>
+    </header>
+
+    <main>
+      <section class="viewport" id="viewport" data-mode="webgl">
+        <div class="surface webgl-surface">
+          <canvas id="webgl-canvas" aria-label="WebGL 2 场景"></canvas>
+          <span class="surface-label">WebGL 2</span>
+        </div>
+        <div class="surface canvas-surface">
+          <canvas id="canvas-reference" aria-label="Canvas 2D 参考场景"></canvas>
+          <span class="surface-label">Canvas 2D</span>
+        </div>
+        <div class="selection" id="selection">未选择对象</div>
+      </section>
+
+      <aside class="inspector">
+        <section class="control-group">
+          <h2>视图</h2>
+          <label>
+            <span>旋转</span>
+            <input id="rotation" type="range" min="0" max="360" step="1" value="0" />
+            <output id="rotation-value">0°</output>
+          </label>
+          <label>
+            <span>俯角</span>
+            <input id="elevation" type="range" min="0.25" max="0.9" step="0.01" value="0.5" />
+            <output id="elevation-value">0.50</output>
+          </label>
+          <label>
+            <span>缩放</span>
+            <input id="zoom" type="range" min="0.55" max="1.8" step="0.01" value="1" />
+            <output id="zoom-value">1.00</output>
+          </label>
+        </section>
+
+        <section class="control-group">
+          <h2>光照</h2>
+          <label>
+            <span>环境光</span>
+            <input id="ambient" type="range" min="0" max="1" step="0.01" value="0.38" />
+            <output id="ambient-value">0.38</output>
+          </label>
+          <label>
+            <span>点光源</span>
+            <input id="light-intensity" type="range" min="0" max="2.5" step="0.05" value="1.3" />
+            <output id="light-value">1.30</output>
+          </label>
+          <label class="toggle-row">
+            <span>灯光轨道</span>
+            <input id="orbit" type="checkbox" checked />
+          </label>
+        </section>
+
+        <section class="metrics" aria-live="polite">
+          <h2>帧诊断</h2>
+          <dl>
+            <div><dt>FPS</dt><dd id="fps">0</dd></div>
+            <div><dt>CPU</dt><dd id="cpu">0.00 ms</dd></div>
+            <div><dt>Draw calls</dt><dd id="draw-calls">0</dd></div>
+            <div><dt>Triangles</dt><dd id="triangles">0</dd></div>
+            <div><dt>Buffer</dt><dd id="buffer">0 KB</dd></div>
+            <div><dt>Lights</dt><dd id="lights">0</dd></div>
+            <div><dt>Fallbacks</dt><dd id="fallbacks">0</dd></div>
+          </dl>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module" src="/webgl-next/main.ts"></script>
+  </body>
+</html>
