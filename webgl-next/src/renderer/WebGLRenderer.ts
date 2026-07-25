@@ -6,6 +6,7 @@ import {
 } from '../contracts/RenderSnapshot';
 import { GLResourceRegistry } from '../device/GLResourceRegistry';
 import { decodePickId } from '../extraction/GeometryBuilder';
+import { TextureRegistry } from '../resources/TextureRegistry';
 import { pickingFragmentShader, vertexShader, visualFragmentShader } from './shaders';
 
 const MAX_DIRECTIONAL_LIGHTS = 4;
@@ -19,6 +20,7 @@ interface ProgramState {
   elevation: WebGLUniformLocation;
   rotation: WebGLUniformLocation;
   aspect: WebGLUniformLocation;
+  texture: WebGLUniformLocation;
 }
 
 interface VisualProgramState extends ProgramState {
@@ -52,6 +54,7 @@ export class WebGLRenderer implements RenderBackend {
   private _picking!: ProgramState;
   private _pickTexture!: WebGLTexture;
   private _pickFramebuffer!: WebGLFramebuffer;
+  private _textures!: TextureRegistry;
   private _bufferCapacity = 0;
   private _pickWidth = 0;
   private _pickHeight = 0;
@@ -74,6 +77,9 @@ export class WebGLRenderer implements RenderBackend {
     vertices: 0,
     bufferBytes: 0,
     omniLights: 0,
+    segments: 0,
+    textures: 0,
+    textOverlays: 0,
     unsupportedObjects: 0,
     contextLost: false,
   };
@@ -156,20 +162,23 @@ export class WebGLRenderer implements RenderBackend {
     gl.useProgram(this._visual.program);
     this._setTransformUniforms(this._visual, snapshot);
     this._setLightUniforms(snapshot);
-    gl.drawArrays(gl.TRIANGLES, 0, geometry.vertexCount);
+    const visualDrawCalls = this._drawSegments(this._visual, snapshot, false);
 
-    this._renderPicking(snapshot);
+    const pickingDrawCalls = this._renderPicking(snapshot);
     gl.bindVertexArray(null);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     this._lastSnapshot = snapshot;
     this._statsValue.frame = snapshot.frame;
     this._statsValue.cpuMs = performance.now() - startedAt;
-    this._statsValue.drawCalls = 2;
+    this._statsValue.drawCalls = visualDrawCalls + pickingDrawCalls;
     this._statsValue.triangles = geometry.vertexCount / 3;
     this._statsValue.vertices = geometry.vertexCount;
     this._statsValue.bufferBytes = byteLength;
     this._statsValue.omniLights = Math.min(MAX_OMNI_LIGHTS, snapshot.omniLights.length);
+    this._statsValue.segments = snapshot.geometry.segments.length;
+    this._statsValue.textures = this._textures.size;
+    this._statsValue.textOverlays = snapshot.textOverlays.length;
     this._statsValue.unsupportedObjects = snapshot.unsupported.length;
   }
 
@@ -207,6 +216,7 @@ export class WebGLRenderer implements RenderBackend {
     this._picking = this._createProgram(pickingFragmentShader);
     this._pickTexture = this._resources.texture();
     this._pickFramebuffer = this._resources.framebuffer();
+    this._textures = new TextureRegistry(gl, this._resources);
 
     gl.bindVertexArray(this._vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, this._buffer);
@@ -217,6 +227,8 @@ export class WebGLRenderer implements RenderBackend {
     this._attribute(3, 2, stride, 8);
     this._attribute(4, 1, stride, 10);
     this._attribute(5, 3, stride, 11);
+    this._attribute(6, 2, stride, 14);
+    this._attribute(7, 1, stride, 16);
     gl.bindVertexArray(null);
     this._resizePickTarget(Math.max(1, this.canvas.width), Math.max(1, this.canvas.height));
   }
@@ -261,6 +273,7 @@ export class WebGLRenderer implements RenderBackend {
       elevation: this._uniform(program, 'uElevation'),
       rotation: this._uniform(program, 'uRotation'),
       aspect: this._uniform(program, 'uAspect'),
+      texture: this._uniform(program, 'uTexture'),
     };
   }
 
@@ -282,6 +295,7 @@ export class WebGLRenderer implements RenderBackend {
     gl.uniform1f(program.elevation, camera.elevation);
     gl.uniform1f(program.rotation, camera.rotation * Math.PI / 180);
     gl.uniform1f(program.aspect, snapshot.tileW / snapshot.tileH);
+    gl.uniform1i(program.texture, 0);
   }
 
   private _setLightUniforms(snapshot: RenderSnapshot): void {
@@ -346,7 +360,7 @@ export class WebGLRenderer implements RenderBackend {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, data, 0, byteLength / Float32Array.BYTES_PER_ELEMENT);
   }
 
-  private _renderPicking(snapshot: RenderSnapshot): void {
+  private _renderPicking(snapshot: RenderSnapshot): number {
     const gl = this._gl;
     if (this._pickWidth !== this.canvas.width || this._pickHeight !== this.canvas.height) {
       this._resizePickTarget(this.canvas.width, this.canvas.height);
@@ -359,7 +373,44 @@ export class WebGLRenderer implements RenderBackend {
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(this._picking.program);
     this._setTransformUniforms(this._picking, snapshot);
-    gl.drawArrays(gl.TRIANGLES, 0, snapshot.geometry.vertexCount);
+    return this._drawSegments(this._picking, snapshot, true);
+  }
+
+  private _drawSegments(
+    _program: ProgramState,
+    snapshot: RenderSnapshot,
+    picking: boolean,
+  ): number {
+    const gl = this._gl;
+    const segments = snapshot.geometry.segments.length > 0
+      ? snapshot.geometry.segments
+      : [{ first: 0, count: snapshot.geometry.vertexCount, blend: 'alpha' as const }];
+    let drawCalls = 0;
+    gl.activeTexture(gl.TEXTURE0);
+    for (const segment of segments) {
+      let texture = this._textures.white;
+      if (segment.textureUrl) {
+        const resolved = this._textures.resolve(segment.textureUrl);
+        if (!resolved) continue;
+        texture = resolved;
+      }
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      if (!picking) this._setBlendMode(segment.blend);
+      gl.drawArrays(gl.TRIANGLES, segment.first, segment.count);
+      drawCalls++;
+    }
+    return drawCalls;
+  }
+
+  private _setBlendMode(blend: 'alpha' | 'add' | 'multiply'): void {
+    const gl = this._gl;
+    if (blend === 'add') {
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    } else if (blend === 'multiply') {
+      gl.blendFunc(gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA);
+    } else {
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    }
   }
 
   private _resizePickTarget(width: number, height: number): void {

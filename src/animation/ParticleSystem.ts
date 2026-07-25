@@ -2,6 +2,7 @@ import { IsoObject, DrawContext } from '../elements/IsoObject';
 import { project, Z_UNITS_PER_PX } from '../math/IsoProjection';
 import { AABB } from '../math/depthSort';
 import { SpriteSheet } from './SpriteSheet';
+import { lerpColor } from '../math/color';
 
 export enum EmitterShape { POINT, CIRCLE, SQUARE }
 export enum ParticleBlend { ADD, ALPHA, MULTIPLY }
@@ -40,6 +41,31 @@ export interface ParticleOptions {
   life: number; size: number;
   color?: string; gravity?: number;
   spriteSheet?: SpriteSheet; spriteClip?: string;
+  blend?: ParticleBlend | string;
+  shape?: string;
+  sizeFinal?: number;
+  colorEnd?: string;
+  alphaStart?: number;
+  alphaEnd?: number;
+  rotation?: number;
+  rotSpeed?: number;
+}
+
+/** Allocation-free read-only view consumed by renderer backends. */
+export interface ParticleRenderState {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly size: number;
+  readonly color: string;
+  readonly colorEnd?: string;
+  readonly alpha: number;
+  readonly progress: number;
+  readonly blend: ParticleBlend;
+  readonly shape: string;
+  readonly rotation: number;
+  readonly spriteSheet?: SpriteSheet;
+  readonly spriteClip?: string;
 }
 
 export class ParticleSystem extends IsoObject {
@@ -88,6 +114,14 @@ export class ParticleSystem extends IsoObject {
 
   addEmitter(config: EmitterConfig): void {
     this._emitters.push({ config, accumulator: 0 });
+  }
+
+  get particleCount(): number {
+    return this.particles.length;
+  }
+
+  forEachParticle(visitor: (particle: ParticleRenderState) => void): void {
+    for (const particle of this.particles) visitor(particle);
   }
 
   spawn(opts: ParticleOptions): void {
@@ -168,7 +202,20 @@ export class ParticleSystem extends IsoObject {
     this.spawn({
       x: this.position.x + rx, y: this.position.y + ry, z: this.position.z,
       vx: Math.cos(angle) * speed * 0.2, vy: Math.sin(angle) * speed * 0.2, vz: vzVal,
-      life, size, color, gravity: c.gravity, spriteClip: c.spriteClip
+      life,
+      size,
+      color,
+      gravity: c.gravity,
+      spriteClip: c.spriteClip,
+      blend: c.blend,
+      shape: c.particleShape ?? (typeof c.shape === 'string' ? c.shape : undefined),
+      sizeFinal: c.sizeFinal,
+      colorEnd: c.colorEnd,
+      alphaStart: c.alphaStart,
+      alphaEnd: c.alphaEnd,
+      rotSpeed: c.rotSpeed
+        ? c.rotSpeed[0] + Math.random() * (c.rotSpeed[1] - c.rotSpeed[0])
+        : 0,
     });
   }
 
@@ -178,22 +225,54 @@ export class ParticleSystem extends IsoObject {
       const { sx, sy } = project(p.x, p.y, p.z, tileW, tileH);
       const bx = originX + sx;
       const by = originY + sy;
-      ctx.beginPath();
-      ctx.arc(bx, by, p.size * (tileW / 32), 0, Math.PI * 2);
-      ctx.fillStyle = p.color;
+      const radius = p.size * (tileW / 32);
+      ctx.save();
+      ctx.globalCompositeOperation = particleCompositeOperation(p.blend);
+      ctx.translate(bx, by);
+      ctx.rotate(p.rotation);
+      const image = p.spriteSheet?.image;
+      const clip = p.spriteSheet && p.spriteClip ? p.spriteSheet.clips.get(p.spriteClip) : undefined;
+      const frame = clip?.frames[Math.min(
+        clip.frames.length - 1,
+        Math.floor(p.progress * clip.frames.length),
+      )];
       ctx.globalAlpha = p.alpha;
-      ctx.fill();
-      ctx.globalAlpha = 1.0;
+      if (image && frame) {
+        const height = radius * 2;
+        const width = height * (frame.w / frame.h);
+        ctx.drawImage(image, frame.x, frame.y, frame.w, frame.h, -width / 2, -height / 2, width, height);
+      } else {
+        ctx.beginPath();
+        if (p.shape === 'square') {
+          ctx.rect(-radius, -radius, radius * 2, radius * 2);
+        } else {
+          ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = p.colorEnd ? lerpColor(p.color, p.colorEnd, p.progress) : p.color;
+        ctx.fill();
+      }
+      ctx.restore();
     }
   }
 }
 
-class Particle {
+class Particle implements ParticleRenderState {
   x: number; y: number; z: number;
   vx: number; vy: number; vz: number;
   life: number; maxLife: number;
   size: number; color: string; gravity: number;
+  colorEnd?: string;
+  blend = ParticleBlend.ALPHA;
+  shape = 'circle';
+  rotation = 0;
+  spriteSheet?: SpriteSheet;
+  spriteClip?: string;
   alpha = 1.0;
+  private _sizeStart = 0;
+  private _sizeFinal = 0;
+  private _alphaStart = 1;
+  private _alphaEnd = 0;
+  private _rotSpeed = 0;
   constructor(opts: ParticleOptions) {
     this.x = 0; this.y = 0; this.z = 0; this.vx = 0; this.vy = 0; this.vz = 0;
     this.life = 0; this.maxLife = 0; this.size = 0; this.color = '#fff'; this.gravity = 0;
@@ -204,16 +283,55 @@ class Particle {
     this.vx = opts.vx; this.vy = opts.vy; this.vz = opts.vz;
     this.life = opts.life; this.maxLife = opts.life;
     this.size = opts.size;
+    this._sizeStart = opts.size;
+    this._sizeFinal = opts.sizeFinal ?? opts.size;
     this.color = opts.color ?? '#fff';
+    this.colorEnd = opts.colorEnd;
     this.gravity = opts.gravity ?? 0;
-    this.alpha = 1.0;
+    this._alphaStart = opts.alphaStart ?? 1;
+    this._alphaEnd = opts.alphaEnd ?? 0;
+    this.alpha = this._alphaStart;
+    this.blend = normalizeParticleBlend(opts.blend);
+    this.shape = opts.shape ?? 'circle';
+    this.rotation = opts.rotation ?? 0;
+    this._rotSpeed = opts.rotSpeed ?? 0;
+    this.spriteSheet = opts.spriteSheet;
+    this.spriteClip = opts.spriteClip;
   }
   update(dt: number): boolean {
     this.life -= dt;
     if (this.life <= 0) return false;
     this.x += this.vx * dt; this.y += this.vy * dt; this.z += this.vz * dt;
     this.vz -= this.gravity * dt;
-    this.alpha = this.life / this.maxLife;
+    this.rotation += this._rotSpeed * dt;
+    const t = this.progress;
+    this.alpha = this._alphaStart + (this._alphaEnd - this._alphaStart) * t;
+    this.size = this._sizeStart + (this._sizeFinal - this._sizeStart) * t;
     return true;
   }
+
+  get progress(): number {
+    return this.maxLife <= 0 ? 1 : Math.max(0, Math.min(1, 1 - this.life / this.maxLife));
+  }
+}
+
+function normalizeParticleBlend(value?: ParticleBlend | string): ParticleBlend {
+  if (typeof value === 'number') return value;
+  switch (value?.toLowerCase()) {
+    case 'add':
+    case 'additive':
+    case 'lighter':
+    case 'screen':
+      return ParticleBlend.ADD;
+    case 'multiply':
+      return ParticleBlend.MULTIPLY;
+    default:
+      return ParticleBlend.ALPHA;
+  }
+}
+
+function particleCompositeOperation(blend: ParticleBlend): GlobalCompositeOperation {
+  if (blend === ParticleBlend.ADD) return 'lighter';
+  if (blend === ParticleBlend.MULTIPLY) return 'multiply';
+  return 'source-over';
 }

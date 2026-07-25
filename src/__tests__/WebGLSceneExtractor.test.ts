@@ -29,7 +29,8 @@ describe('WebGL Next SceneExtractor', () => {
     expect(ranges.opaque.first).toBe(ranges.shadows.first + ranges.shadows.count);
     expect(ranges.transparent.first).toBe(ranges.opaque.first + ranges.opaque.count);
     expect(ranges.transparent.first + ranges.transparent.count).toBe(ranges.vertexCount);
-    expect(snapshot.pickLookup.size).toBe(scene.allObjects.length);
+    expect(snapshot.pickLookup.size).toBe(scene.allObjects.length + 1);
+    expect([...snapshot.pickLookup.values()]).toContain('omni');
     expect(snapshot.unsupported).toEqual([]);
     expect(snapshot.omniLights).toHaveLength(1);
     expect(snapshot.directionalLights).toHaveLength(1);

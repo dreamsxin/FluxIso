@@ -7,6 +7,8 @@ layout(location = 2) in vec4 aColor;
 layout(location = 3) in vec2 aNormal;
 layout(location = 4) in float aLit;
 layout(location = 5) in vec3 aPick;
+layout(location = 6) in vec2 aUv;
+layout(location = 7) in float aTextured;
 
 uniform vec2 uViewport;
 uniform vec2 uOrigin;
@@ -21,6 +23,8 @@ out vec4 vColor;
 out vec2 vNormal;
 out float vLit;
 out vec3 vPick;
+out vec2 vUv;
+out float vTextured;
 
 void main() {
   vec2 p = aPosition - uCameraIso;
@@ -36,6 +40,8 @@ void main() {
   vNormal = aNormal;
   vLit = aLit;
   vPick = aPick;
+  vUv = aUv;
+  vTextured = aTextured;
 }
 `;
 
@@ -46,6 +52,8 @@ in vec2 vSample;
 in vec4 vColor;
 in vec2 vNormal;
 in float vLit;
+in vec2 vUv;
+in float vTextured;
 
 uniform vec3 uAmbientColor;
 uniform float uAmbientIntensity;
@@ -57,6 +65,7 @@ uniform int uDirectionalCount;
 uniform vec2 uDirectionalDirection[4];
 uniform vec3 uDirectionalColor[4];
 uniform float uDirectionalIntensity[4];
+uniform sampler2D uTexture;
 
 out vec4 outColor;
 
@@ -83,9 +92,12 @@ void main() {
     light += uOmniColor[i] * uOmniParams[i].w * attenuation;
   }
 
-  vec3 litColor = vColor.rgb * clamp(light, vec3(0.0), vec3(1.45));
-  vec3 color = mix(vColor.rgb, litColor, clamp(vLit, 0.0, 1.0));
-  outColor = vec4(color, vColor.a);
+  vec4 texel = vTextured > 0.5 ? texture(uTexture, vUv) : vec4(1.0);
+  if (vTextured > 0.5 && texel.a < 0.05) discard;
+  vec4 base = vColor * texel;
+  vec3 litColor = base.rgb * clamp(light, vec3(0.0), vec3(1.45));
+  vec3 color = mix(base.rgb, litColor, clamp(vLit, 0.0, 1.0));
+  outColor = vec4(color, base.a);
 }
 `;
 
@@ -93,9 +105,13 @@ export const pickingFragmentShader = `#version 300 es
 precision highp float;
 
 in vec3 vPick;
+in vec2 vUv;
+in float vTextured;
+uniform sampler2D uTexture;
 out vec4 outColor;
 
 void main() {
+  if (vTextured > 0.5 && texture(uTexture, vUv).a < 0.05) discard;
   outColor = vec4(vPick, 1.0);
 }
 `;

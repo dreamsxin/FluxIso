@@ -4,10 +4,15 @@
  */
 import { EditorState, ToolType, EditorWall, EditorLight, EditorCharacter, EditorProp } from './EditorState';
 import { EditorRenderer } from './EditorRenderer';
+import { EditorWebGLPreview } from '../../webgl-next/src/editor/EditorWebGLPreview';
+import { WebGLUnavailableError } from '../../webgl-next/src/renderer/WebGLRenderer';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 
 const canvas   = document.getElementById('editor-canvas') as HTMLCanvasElement;
+const webglCanvas = document.getElementById('editor-webgl-canvas') as HTMLCanvasElement;
+const canvasStack = document.getElementById('canvas-stack')!;
+const rendererButtons = document.querySelectorAll<HTMLButtonElement>('[data-renderer]');
 
 // Size canvas to match the default 10×10 scene
 const COLS = 10, ROWS = 10, TILE_W = 64, TILE_H = 32;
@@ -34,6 +39,30 @@ const statusbar    = document.getElementById('statusbar')!;
 
 const state    = new EditorState();
 const renderer = new EditorRenderer(canvas, state);
+let webglPreview: EditorWebGLPreview | null = null;
+let rendererBackend: 'canvas' | 'webgl' = 'canvas';
+
+try {
+  webglPreview = new EditorWebGLPreview(webglCanvas, state, renderer);
+} catch (error) {
+  const button = document.querySelector<HTMLButtonElement>('[data-renderer="webgl"]');
+  if (button) {
+    button.disabled = true;
+    button.title = error instanceof WebGLUnavailableError ? 'WebGL2 is unavailable' : String(error);
+  }
+}
+
+rendererButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    const requested = button.dataset.renderer as 'canvas' | 'webgl';
+    if (requested === 'webgl' && !webglPreview) return;
+    rendererBackend = requested;
+    canvasStack.dataset.backend = rendererBackend;
+    webglPreview?.setEnabled(rendererBackend === 'webgl');
+    rendererButtons.forEach((candidate) => candidate.classList.toggle('active', candidate === button));
+    refreshStatus();
+  });
+});
 
 // ── Tool buttons ──────────────────────────────────────────────────────────────
 
@@ -75,6 +104,17 @@ function findObjectAt(wx: number, wy: number): string | undefined {
     if (Math.hypot(wx - x, wy - y) < 1.2) return obj.id;
   }
   return undefined;
+}
+
+function findObjectAtCanvas(cx: number, cy: number, wx: number, wy: number): string | undefined {
+  if (rendererBackend === 'webgl' && webglPreview) {
+    const rect = canvas.getBoundingClientRect();
+    const screenX = cx * (rect.width / canvas.width);
+    const screenY = cy * (rect.height / canvas.height);
+    const picked = webglPreview.pick(screenX, screenY);
+    return picked && state.getById(picked) ? picked : undefined;
+  }
+  return findObjectAt(wx, wy);
 }
 
 // ── Canvas interaction ────────────────────────────────────────────────────────
@@ -152,7 +192,7 @@ canvas.addEventListener('mousedown', (e) => {
 
   // ── Select: start drag if clicking on object ──────────────────────────
   if (tool === 'select') {
-    const hit = findObjectAt(world.x, world.y);
+    const hit = findObjectAtCanvas(cx, cy, world.x, world.y);
     if (hit) {
       const obj = state.getById(hit) as { x: number; y: number } | undefined;
       state.dragId = hit;
@@ -198,7 +238,7 @@ canvas.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   const { cx, cy } = getCanvasPos(e);
   const world = renderer.canvasToWorld(cx, cy);
-  const hit = findObjectAt(world.x, world.y);
+  const hit = findObjectAtCanvas(cx, cy, world.x, world.y);
   if (hit) {
     state.removeById(hit);
     updatePropPanel();
@@ -224,7 +264,7 @@ canvas.addEventListener('click', (e) => {
   if (tool === 'walkable' || tool === 'blocked') return;
 
   if (tool === 'select') {
-    const hit = findObjectAt(world.x, world.y);
+    const hit = findObjectAtCanvas(cx, cy, world.x, world.y);
     state.select(hit ?? null);
     updatePropPanel();
     return;
@@ -460,6 +500,8 @@ state.onChange(updateUndoRedo);
 // ── Start rendering ───────────────────────────────────────────────────────────
 
 renderer.start();
+webglPreview?.start();
+window.addEventListener('beforeunload', () => webglPreview?.dispose());
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────
 
@@ -504,7 +546,10 @@ function updateStatusTile(col: number, row: number): void {
 }
 
 function refreshStatus(): void {
-  statusbar.textContent = (toolHints[state.activeTool] ?? '') + _statusTileText;
+  const backend = rendererBackend === 'webgl'
+    ? `  |  WebGL ${webglPreview?.stats.drawCalls ?? 0} draws`
+    : '  |  Canvas 2D';
+  statusbar.textContent = (toolHints[state.activeTool] ?? '') + _statusTileText + backend;
 }
 
 state.onChange(() => {

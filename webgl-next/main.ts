@@ -1,4 +1,7 @@
 import { Scene } from '../src/core/Scene';
+import { AssetLoader } from '../src/core/AssetLoader';
+import { ParticleBlend, ParticleSystem } from '../src/animation/ParticleSystem';
+import { SpriteSheet } from '../src/animation/SpriteSheet';
 import { Character } from '../src/elements/Character';
 import { Floor } from '../src/elements/Floor';
 import { Wall } from '../src/elements/Wall';
@@ -6,9 +9,13 @@ import { Boulder } from '../src/elements/props/Boulder';
 import { Chest } from '../src/elements/props/Chest';
 import { Cloud } from '../src/elements/props/Cloud';
 import { Crystal } from '../src/elements/props/Crystal';
+import { FloatingText } from '../src/elements/props/FloatingText';
 import { DirectionalLight } from '../src/lighting/DirectionalLight';
 import { OmniLight } from '../src/lighting/OmniLight';
+import { TileCollider } from '../src/physics/TileCollider';
 import { SceneExtractor } from './src/extraction/SceneExtractor';
+import { DomOverlayRenderer } from './src/overlays/DomOverlayRenderer';
+import { MinimapRenderer } from './src/overlays/MinimapRenderer';
 import { WebGLRenderer, WebGLUnavailableError } from './src/renderer/WebGLRenderer';
 
 type ViewMode = 'webgl' | 'compare' | 'canvas';
@@ -18,9 +25,11 @@ const webglCanvas = required<HTMLCanvasElement>('webgl-canvas');
 const referenceCanvas = required<HTMLCanvasElement>('canvas-reference');
 const referenceContext = getCanvasContext(referenceCanvas);
 
-const scene = createScene();
+const scene = await createScene();
 const orbitLight = scene.getLightById('work-light') as OmniLight;
 const extractor = new SceneExtractor();
+const domOverlays = new DomOverlayRenderer(required('dom-overlays'));
+const minimap = new MinimapRenderer(required<HTMLCanvasElement>('minimap'));
 let renderer: WebGLRenderer | null = null;
 let mode: ViewMode = 'webgl';
 let selectedId = '';
@@ -52,7 +61,7 @@ new ResizeObserver(resizeSurfaces).observe(viewport);
 resizeSurfaces();
 requestAnimationFrame(frame);
 
-function createScene(): Scene {
+async function createScene(): Promise<Scene> {
   const next = new Scene({ name: 'WebGL Next Lab', tileW: 64, tileH: 32, cols: 12, rows: 10 });
   next.ambientColor = '#d9e6ef';
   next.ambientIntensity = 0.38;
@@ -74,13 +83,57 @@ function createScene(): Scene {
     id: 'divider', x: 7.5, y: 3, endX: 7.5, endY: 7.5, height: 48, color: '#4d5963',
   }));
 
-  next.addObject(new Character({ id: 'runner', x: 4.2, y: 5.1, radius: 20, color: '#d96355' }));
+  const runner = new Character({ id: 'runner', x: 4.2, y: 5.1, radius: 20, color: '#d96355' });
+  runner.setSpriteSheet(await createPreviewSpriteSheet());
+  next.addObject(runner);
   next.addObject(new Crystal('violet-crystal', 3.1, 3.4, '#7c62d9', 54));
   next.addObject(new Crystal('cyan-crystal', 8.6, 6.7, '#3ab5b0', 42));
   next.addObject(new Boulder('boulder-a', 5.8, 7.3, '#69727a', 21));
   next.addObject(new Boulder('boulder-b', 9.1, 3.3, '#777066', 17));
   next.addObject(new Chest('supply-chest', 6.1, 3.2, '#a86526'));
   next.addObject(new Cloud({ id: 'cloud-a', x: 2.2, y: 6.7, altitude: 5.2, speed: 0.22, angle: -0.18, scale: 0.85, seed: 0.42 }));
+
+  const sparks = new ParticleSystem('forge-sparks', 7.7, 4.7, 18);
+  sparks.addEmitter({
+    rate: 22,
+    maxParticles: 70,
+    life: [0.45, 1.1],
+    speed: [0.5, 1.5],
+    vz: [12, 25],
+    size: [1.2, 2.8],
+    sizeFinal: 0.3,
+    color: ['#ffd36a', '#ff7a38'],
+    colorEnd: '#e64228',
+    alphaStart: 0.9,
+    alphaEnd: 0,
+    gravity: 24,
+    blend: ParticleBlend.ADD,
+  });
+  next.addObject(sparks);
+
+  const dust = new ParticleSystem('ambient-dust', 5.5, 5.0, 30);
+  dust.addEmitter({
+    rate: 7,
+    maxParticles: 24,
+    spawnRadius: 5,
+    life: [2, 4],
+    speed: [0.08, 0.25],
+    vz: [0.3, 1.2],
+    size: [0.8, 1.6],
+    color: ['#bcd8c8', '#d7e8d8'],
+    alphaStart: 0.28,
+    alphaEnd: 0,
+    blend: ParticleBlend.ALPHA,
+  });
+  next.addObject(dust);
+  next.addObject(new FloatingText({
+    id: 'phase-label', x: 6.1, y: 3.2, z: 74, text: 'WEBGL NEXT', color: '#ffe08a', duration: 1_000_000, speed: 0, fontSize: 12,
+  }));
+
+  next.collider = new TileCollider(12, 10);
+  for (const [col, row] of [[7, 5], [7, 6], [8, 5], [3, 7]] as const) {
+    next.collider.setWalkable(col, row, false);
+  }
 
   next.addLight(new DirectionalLight({ id: 'sun', angle: 220, elevation: 48, color: '#e8f3ff', intensity: 0.48 }));
   next.addLight(new OmniLight({
@@ -205,10 +258,15 @@ function frame(now: number): void {
       viewportHeight: rect.height,
       originX: rect.width / 2,
       originY: sceneOriginY(rect.height),
+      selectedId,
+      showCollision: required<HTMLInputElement>('collision-overlay').checked,
     });
     renderer.render(snapshot);
+    domOverlays.render(snapshot);
+    minimap.render(snapshot);
   }
   if (mode !== 'webgl') renderCanvasReference();
+  if (mode === 'canvas') domOverlays.clear();
   updateMetrics(dt);
   requestAnimationFrame(frame);
 }
@@ -231,6 +289,9 @@ function updateMetrics(_dt: number): void {
   required('triangles').textContent = Math.round(stats.triangles).toLocaleString();
   required('buffer').textContent = `${(stats.bufferBytes / 1024).toFixed(1)} KB`;
   required('lights').textContent = String(stats.omniLights);
+  required('segments').textContent = String(stats.segments);
+  required('textures').textContent = String(stats.textures);
+  required('text-overlays').textContent = String(stats.textOverlays);
   required('fallbacks').textContent = String(stats.unsupportedObjects);
 }
 
@@ -254,6 +315,48 @@ function getCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Canvas 2D is unavailable.');
   return context;
+}
+
+async function createPreviewSpriteSheet(): Promise<SpriteSheet> {
+  const atlas = document.createElement('canvas');
+  atlas.width = 128;
+  atlas.height = 40;
+  const context = getCanvasContext(atlas);
+  for (let frame = 0; frame < 4; frame++) {
+    const x = frame * 32;
+    const bob = frame % 2;
+    context.fillStyle = '#17212a';
+    context.fillRect(x + 9, 29, 14, 5);
+    context.fillStyle = '#d96355';
+    context.fillRect(x + 10, 13 + bob, 12, 16);
+    context.fillStyle = '#f0b47c';
+    context.fillRect(x + 12, 6 + bob, 8, 8);
+    context.fillStyle = '#ebeff3';
+    context.fillRect(x + 9 + (frame % 2) * 2, 29 + bob, 5, 8);
+    context.fillRect(x + 18 - (frame % 2) * 2, 29 - bob, 5, 8);
+    context.fillStyle = '#355b76';
+    context.fillRect(x + 7, 15 + bob, 4, 11);
+    context.fillRect(x + 21, 15 + bob, 4, 11);
+  }
+  const url = atlas.toDataURL('image/png');
+  const image = new Image();
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('Failed to build preview sprite atlas.'));
+    image.src = url;
+  });
+  AssetLoader.register(url, image);
+  return new SpriteSheet({
+    url,
+    scale: 1.35,
+    anchorY: 0.92,
+    clips: [{
+      name: 'idle',
+      fps: 6,
+      loop: true,
+      frames: [0, 1, 2, 3].map((frame) => ({ x: frame * 32, y: 0, w: 32, h: 40 })),
+    }],
+  });
 }
 
 function sceneOriginY(height: number): number {

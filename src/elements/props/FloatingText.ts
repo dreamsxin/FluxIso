@@ -55,6 +55,10 @@ export class FloatingText extends IsoObject {
     return this._elapsed >= this.duration;
   }
 
+  get alpha(): number {
+    return this._alpha;
+  }
+
   update(ts?: number): void {
     const now = ts ?? performance.now();
     const dt = this._lastTs === 0 ? 0.016 : Math.min((now - this._lastTs) / 1000, 0.1);

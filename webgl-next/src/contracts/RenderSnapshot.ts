@@ -1,4 +1,4 @@
-export const RENDER_VERTEX_FLOATS = 14;
+export const RENDER_VERTEX_FLOATS = 17;
 export const MAX_OMNI_LIGHTS = 8;
 
 export interface RenderRange {
@@ -13,6 +13,15 @@ export interface RenderGeometry {
   shadows: RenderRange;
   opaque: RenderRange;
   transparent: RenderRange;
+  debug: RenderRange;
+  segments: RenderDrawSegment[];
+}
+
+export type RenderBlendMode = 'alpha' | 'add' | 'multiply';
+
+export interface RenderDrawSegment extends RenderRange {
+  blend: RenderBlendMode;
+  textureUrl?: string;
 }
 
 export interface RenderCamera {
@@ -56,6 +65,30 @@ export interface UnsupportedRenderObject {
   reason: string;
 }
 
+export interface RenderTextOverlay {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  color: string;
+  alpha: number;
+  fontSize: number;
+}
+
+export interface RenderMinimapItem {
+  id: string;
+  x: number;
+  y: number;
+  character: boolean;
+}
+
+export interface RenderMinimapSource {
+  cols: number;
+  rows: number;
+  walkable: Uint8Array;
+  items: RenderMinimapItem[];
+}
+
 export interface RenderSnapshot {
   frame: number;
   tileW: number;
@@ -65,6 +98,8 @@ export interface RenderSnapshot {
   geometry: RenderGeometry;
   omniLights: RenderOmniLight[];
   directionalLights: RenderDirectionalLight[];
+  textOverlays: RenderTextOverlay[];
+  minimap: RenderMinimapSource;
   pickLookup: ReadonlyMap<number, string>;
   unsupported: UnsupportedRenderObject[];
 }

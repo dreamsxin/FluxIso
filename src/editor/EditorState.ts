@@ -286,24 +286,22 @@ export class EditorState {
   undo(): void {
     const cmd = this._undoStack.pop();
     if (!cmd) return;
-    cmd.undo();
     this._redoStack.push(cmd);
-    this.emit();
+    cmd.undo();
   }
 
   redo(): void {
     const cmd = this._redoStack.pop();
     if (!cmd) return;
-    cmd.execute();
     this._undoStack.push(cmd);
-    this.emit();
+    cmd.execute();
   }
 
   private _execute(cmd: Command): void {
-    cmd.execute();
     this._undoStack.push(cmd);
     this._redoStack = [];          // clear redo on new action
     if (this._undoStack.length > 100) this._undoStack.shift();
+    cmd.execute();
   }
 
   // ── Serialization ─────────────────────────────────────────────────────────

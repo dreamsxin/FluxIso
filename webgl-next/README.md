@@ -51,7 +51,7 @@ Scene / ECS / physics / animation / input / serialization
 
 ## Implemented Preview Slice
 
-The current preview implements the first runnable Phase 0-3 slice:
+The current preview implements the first runnable Phase 0-4 slice:
 
 - renderer-neutral `RenderSnapshot` contracts and a reusable numeric geometry arena;
 - extraction for Floor, Wall openings, Character, Crystal, Boulder, Chest, and Cloud;
@@ -59,11 +59,16 @@ The current preview implements the first runnable Phase 0-3 slice:
 - WebGL2 resource lifecycle, dynamic batching, GPU ambient/directional/omni lighting;
 - projected blob shadows, transparent cloud/light layers, and 24-bit GPU ID picking;
 - context loss/restore handling, capability reporting, and live render diagnostics;
+- lazy texture resources, sprite-sheet frame UVs, floor textures, and ordered draw segments;
+- alpha/add/multiply particles, DOM floating-text bridge, minimap source data, and debug overlays;
+- camera frustum extraction for floor tiles and world objects;
+- an editor Canvas/WebGL toggle with ID-buffer selection and Canvas input fallback;
 - WebGL, side-by-side comparison, and Canvas2D fallback modes at `/webgl-next/`.
 
-Particles, sprite textures/atlases, editor selection overlays, and advanced shadow
-passes remain on the later roadmap phases. Unsupported custom objects render as
-visible diagnostics and are reported in the preview metrics.
+Advanced shadow caching, all-example WebGL adapters, golden-image CI, forced
+context-loss automation, package publication, and the browser release matrix
+remain on the later roadmap phases. Unsupported custom objects render as visible
+diagnostics and are reported in the preview metrics.
 
 Run the preview with `npm run dev`, then open `/webgl-next/`.
 

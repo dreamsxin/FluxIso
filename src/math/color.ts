@@ -12,7 +12,9 @@ export function hexToRgb(hex: string): [number, number, number] {
     if (m) return [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
     return [0, 0, 0];
   }
-  const n = parseInt(hex.replace('#', ''), 16);
+  let value = hex.replace('#', '');
+  if (value.length === 3) value = value.split('').map((channel) => channel + channel).join('');
+  const n = parseInt(value, 16);
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 

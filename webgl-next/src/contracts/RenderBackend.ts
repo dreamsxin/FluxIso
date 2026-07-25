@@ -8,6 +8,9 @@ export interface RenderStats {
   vertices: number;
   bufferBytes: number;
   omniLights: number;
+  segments: number;
+  textures: number;
+  textOverlays: number;
   unsupportedObjects: number;
   contextLost: boolean;
 }

@@ -23,6 +23,8 @@
       <section class="viewport" id="viewport" data-mode="webgl">
         <div class="surface webgl-surface">
           <canvas id="webgl-canvas" aria-label="WebGL 2 场景"></canvas>
+          <div class="dom-overlays webgl-only" id="dom-overlays" aria-live="polite"></div>
+          <canvas class="minimap webgl-only" id="minimap" aria-label="场景小地图"></canvas>
           <span class="surface-label">WebGL 2</span>
         </div>
         <div class="surface canvas-surface">
@@ -68,6 +70,10 @@
             <span>灯光轨道</span>
             <input id="orbit" type="checkbox" checked />
           </label>
+          <label class="toggle-row">
+            <span>碰撞层</span>
+            <input id="collision-overlay" type="checkbox" />
+          </label>
         </section>
 
         <section class="metrics" aria-live="polite">
@@ -79,6 +85,9 @@
             <div><dt>Triangles</dt><dd id="triangles">0</dd></div>
             <div><dt>Buffer</dt><dd id="buffer">0 KB</dd></div>
             <div><dt>Lights</dt><dd id="lights">0</dd></div>
+            <div><dt>Segments</dt><dd id="segments">0</dd></div>
+            <div><dt>Textures</dt><dd id="textures">0</dd></div>
+            <div><dt>DOM labels</dt><dd id="text-overlays">0</dd></div>
             <div><dt>Fallbacks</dt><dd id="fallbacks">0</dd></div>
           </dl>
         </section>

@@ -37,6 +37,8 @@ export class EditorRenderer {
     const s = this._state.scene;
     const scene = this.engine.buildScene({
       name: s.name,
+      ambientColor: '#ffffff',
+      ambientIntensity: 0.55,
       cols: s.cols, rows: s.rows,
       tileW: s.tileW, tileH: s.tileH,
       floor: {

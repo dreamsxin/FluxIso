@@ -6,6 +6,7 @@ describe('hexToRgb', () => {
   it('parses black', () => expect(hexToRgb('#000000')).toEqual([0, 0, 0]));
   it('parses arbitrary color', () => expect(hexToRgb('#a05c18')).toEqual([160, 92, 24]));
   it('works without leading #', () => expect(hexToRgb('ff0000')).toEqual([255, 0, 0]));
+  it('expands three-digit CSS hex colors', () => expect(hexToRgb('#3af')).toEqual([51, 170, 255]));
 });
 
 describe('hexToRgba', () => {

@@ -3,6 +3,18 @@
 Each phase must leave `main` releasable. Canvas2D is the rollback path until the
 final cutover gate.
 
+## Implementation Status (2026-07-25)
+
+| Phase | Status | Remaining gate work |
+|---|---|---|
+| 0 - Baseline/contracts | Implemented | Persist deterministic golden fixtures and benchmark reports |
+| 1 - Device/resources | Implemented | Automated forced context-loss and leak harness |
+| 2 - Geometry parity | Implemented preview | Golden diff approval and large-scene performance recording |
+| 3 - Lighting/shadows | Implemented preview | Static shadow cache and full camera/light fixture matrix |
+| 4 - Effects/editor | In progress | All examples, editor move parity screenshots, and sprite-editor integration |
+| 5 - Preview release | Not started | Browser matrix, package checks, and `0.2.0-webgl.0` publication |
+| 6 - Default cutover | Not started | Requires two accepted preview iterations |
+
 ## Phase 0 - Baseline and Contracts
 
 - Capture deterministic reference scenes and screenshots.

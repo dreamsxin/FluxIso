@@ -9,4 +9,7 @@ export type {
 } from './contracts/RenderSnapshot';
 export { SceneExtractor } from './extraction/SceneExtractor';
 export { legacyPixelsToWorldZ, projectLegacy, projectWorld } from './extraction/projection';
+export { DomOverlayRenderer } from './overlays/DomOverlayRenderer';
+export { MinimapRenderer } from './overlays/MinimapRenderer';
+export { renderPointToScreen } from './overlays/cameraTransform';
 export { WebGLRenderer, WebGLUnavailableError } from './renderer/WebGLRenderer';

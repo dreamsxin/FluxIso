@@ -43,6 +43,10 @@
     .topbar button:disabled { opacity: 0.3; cursor: default; }
     .topbar button.danger { border-color: #4a2222; color: #aa5555; }
     .topbar button.danger:hover { border-color: #883333; color: #dd7777; }
+    .renderer-switch { display: flex; height: 26px; border: 1px solid #333348; border-radius: 4px; overflow: hidden; }
+    .renderer-switch button { border: 0; border-right: 1px solid #333348; border-radius: 0; min-width: 72px; }
+    .renderer-switch button:last-child { border-right: 0; }
+    .renderer-switch button.active { background: #2d7052; color: #e6fff1; }
 
     /* ── Layout ── */
     .workspace { display: flex; flex: 1; overflow: hidden; }
@@ -76,10 +80,15 @@
       flex: 1; display: flex; align-items: center; justify-content: center;
       overflow: auto; background: #111118; padding: 16px;
     }
-    #editor-canvas {
+    .canvas-stack { position: relative; flex-shrink: 0; line-height: 0; }
+    #editor-canvas, #editor-webgl-canvas {
       display: block; cursor: crosshair; border-radius: 4px;
       box-shadow: 0 0 40px rgba(60,80,160,0.15); flex-shrink: 0;
     }
+    #editor-canvas { position: relative; z-index: 2; transition: opacity 0.12s; }
+    #editor-webgl-canvas { position: absolute; inset: 0; z-index: 1; }
+    .canvas-stack[data-backend="canvas"] #editor-webgl-canvas { visibility: hidden; }
+    .canvas-stack[data-backend="webgl"] #editor-canvas { opacity: 0; box-shadow: none; }
 
     /* ── Right panel ── */
     .right-panel {
@@ -155,6 +164,10 @@
       <span>Cols</span><input type="number" id="scene-cols" value="10" min="2" max="32" />
       <span>Rows</span><input type="number" id="scene-rows" value="10" min="2" max="32" />
     </div>
+    <div class="renderer-switch" aria-label="Renderer backend">
+      <button type="button" data-renderer="canvas" class="active">Canvas 2D</button>
+      <button type="button" data-renderer="webgl">WebGL 2</button>
+    </div>
     <div class="spacer"></div>
     <button id="btn-undo" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
     <button id="btn-redo" title="Redo (Ctrl+Y)" disabled>↪ Redo</button>
@@ -184,7 +197,10 @@
 
     <!-- Canvas -->
     <div class="canvas-area">
-      <canvas id="editor-canvas"></canvas>
+      <div class="canvas-stack" id="canvas-stack" data-backend="canvas">
+        <canvas id="editor-webgl-canvas" aria-label="WebGL editor preview"></canvas>
+        <canvas id="editor-canvas"></canvas>
+      </div>
     </div>
 
     <!-- Right panel -->

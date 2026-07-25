@@ -2,12 +2,13 @@ import {
   RENDER_VERTEX_FLOATS,
   type RenderGeometry,
   type RenderRange,
+  type RenderDrawSegment,
 } from '../contracts/RenderSnapshot';
 
 export type RenderColor = readonly [number, number, number, number];
 export type RenderPoint = readonly [number, number];
 
-interface VertexStyle {
+export interface VertexStyle {
   color: RenderColor;
   sample: RenderPoint;
   normal?: RenderPoint;
@@ -42,6 +43,8 @@ export class GeometryBuilder {
     shadows: RenderRange = EMPTY_RANGE,
     opaque: RenderRange = EMPTY_RANGE,
     transparent: RenderRange = EMPTY_RANGE,
+    debug: RenderRange = EMPTY_RANGE,
+    segments: RenderDrawSegment[] = [],
   ): RenderGeometry {
     return {
       data: this._data,
@@ -50,6 +53,8 @@ export class GeometryBuilder {
       shadows,
       opaque,
       transparent,
+      debug,
+      segments,
     };
   }
 
@@ -62,6 +67,34 @@ export class GeometryBuilder {
   quad(a: RenderPoint, b: RenderPoint, c: RenderPoint, d: RenderPoint, style: VertexStyle): void {
     this.triangle(a, b, c, style);
     this.triangle(a, c, d, style);
+  }
+
+  texturedQuad(
+    a: RenderPoint,
+    b: RenderPoint,
+    c: RenderPoint,
+    d: RenderPoint,
+    uv: readonly [number, number, number, number],
+    style: VertexStyle,
+  ): void {
+    const [u0, v0, u1, v1] = uv;
+    this._texturedTriangle(a, b, c, [u0, v0], [u1, v0], [u1, v1], style);
+    this._texturedTriangle(a, c, d, [u0, v0], [u1, v1], [u0, v1], style);
+  }
+
+  line(a: RenderPoint, b: RenderPoint, width: number, style: VertexStyle): void {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const length = Math.hypot(dx, dy) || 1;
+    const ox = (-dy / length) * width * 0.5;
+    const oy = (dx / length) * width * 0.5;
+    this.quad(
+      [a[0] + ox, a[1] + oy],
+      [b[0] + ox, b[1] + oy],
+      [b[0] - ox, b[1] - oy],
+      [a[0] - ox, a[1] - oy],
+      style,
+    );
   }
 
   polygon(points: readonly RenderPoint[], style: VertexStyle): void {
@@ -92,6 +125,29 @@ export class GeometryBuilder {
   }
 
   private _push(point: RenderPoint, style: VertexStyle): void {
+    this._pushVertex(point, style, [0, 0], false);
+  }
+
+  private _texturedTriangle(
+    a: RenderPoint,
+    b: RenderPoint,
+    c: RenderPoint,
+    uvA: RenderPoint,
+    uvB: RenderPoint,
+    uvC: RenderPoint,
+    style: VertexStyle,
+  ): void {
+    this._pushVertex(a, style, uvA, true);
+    this._pushVertex(b, style, uvB, true);
+    this._pushVertex(c, style, uvC, true);
+  }
+
+  private _pushVertex(
+    point: RenderPoint,
+    style: VertexStyle,
+    uv: RenderPoint,
+    textured: boolean,
+  ): void {
     this._ensure(1);
     const offset = this._vertexCount * RENDER_VERTEX_FLOATS;
     const normal = style.normal ?? [0, -1];
@@ -111,6 +167,9 @@ export class GeometryBuilder {
     this._data[offset + 11] = pick[0];
     this._data[offset + 12] = pick[1];
     this._data[offset + 13] = pick[2];
+    this._data[offset + 14] = uv[0];
+    this._data[offset + 15] = uv[1];
+    this._data[offset + 16] = textured ? 1 : 0;
     this._vertexCount++;
   }
 
