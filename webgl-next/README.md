@@ -57,7 +57,8 @@ The current preview implements the first runnable Phase 0-4 slice:
 - extraction for Floor, Wall openings, Character, Crystal, Boulder, Chest, Tree, FlowerPatch, Lantern, and Cloud;
 - canonical world-Z conversion at the extraction boundary;
 - WebGL2 resource lifecycle, dynamic batching, GPU ambient/directional/omni lighting;
-- projected blob shadows, transparent cloud/light layers, and 24-bit GPU ID picking;
+- analytic ground-plane ray projection for moving omni/directional lights and moving casters;
+- contact shadows, transparent cloud/light layers, and 24-bit GPU ID picking;
 - context loss/restore handling, capability reporting, and live render diagnostics;
 - lazy texture resources, sprite-sheet frame UVs, floor textures, and ordered draw segments;
 - alpha/add/multiply particles, DOM floating-text bridge, minimap source data, and debug overlays;
@@ -66,6 +67,11 @@ The current preview implements the first runnable Phase 0-4 slice:
 - WebGL, side-by-side comparison, and Canvas2D fallback modes at `/webgl-next/`.
 - a polished lantern-garden fixture covering compact foliage, deterministic flowers,
   warm practical lights, and seam-free multi-face crystal geometry.
+- fixed-step A* click movement with collision-aware waypoints and a renderer-neutral target marker.
+
+The shadow implementation traces the analytic rays needed to project each 2D
+occluder onto the ground plane. It is not hardware path tracing; WebGL2 remains
+a raster renderer with explicit light, shadow, and composition stages.
 
 Advanced shadow caching, all-example WebGL adapters, golden-image CI, forced
 context-loss automation, package publication, and the browser release matrix

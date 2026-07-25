@@ -53,6 +53,11 @@ built-in object types.
 - Cache static shadow geometry and invalidate by revisions.
 - Match current view rotation/elevation and light halo behavior.
 
+Preview status: omni and directional lights now project caster silhouettes from
+the same AABB/world-Z contract used by Canvas2D, and moving lights/casters update
+the shadow geometry every frame. Static shadow caching and golden fixture
+approval remain open.
+
 Exit: lighting fixtures pass tolerance at all supported camera views; moving a
 caster/light cannot leave stale shadows.
 
@@ -62,6 +67,10 @@ caster/light cannot leave stale shadows.
   selection, minimap source data, and debug overlays.
 - Add ID-buffer picking, editor backend toggle, and selection parity tests.
 - Keep editor panels and accessibility-sensitive controls in DOM.
+
+Preview status: the WebGL fixture now exercises fixed-step, collision-aware A*
+movement from playfield clicks while preserving GPU picking for interactive
+objects. Editor move parity across all fixtures remains open.
 
 Exit: the demo, editor, and every example load with WebGL2; editor place/select/
 delete/import/export flows pass.

@@ -40,6 +40,7 @@ export class MovementComponent implements Component {
   private _bus:      EventEmitter<MovementEventMap> | null;
   private _collider: TileCollider | null;
   private _lastTs  = 0;
+  private _fixedStepActive = false;
 
   constructor(opts: MovementOptions = {}) {
     this.speed     = opts.speed    ?? 2.0;
@@ -68,7 +69,14 @@ export class MovementComponent implements Component {
       return true;
     }
     const path = Pathfinder.find(this._collider, this._owner.position, { x, y });
-    if (!path) return false;
+    if (!path) {
+      this.stopMoving();
+      return false;
+    }
+    if (path.length === 1) {
+      this.moveTo(path[0].x, path[0].y, z);
+      return true;
+    }
     this._waypoints = path.slice(1); // skip current tile
     this._advanceWaypoint(z);
     return true;
@@ -117,6 +125,11 @@ export class MovementComponent implements Component {
    * Called by Engine/Scene automatically if attached to an Entity.
    */
   fixedUpdate(dt: number): void {
+    this._fixedStepActive = true;
+    this._integrate(dt);
+  }
+
+  private _integrate(dt: number): void {
     if (!this._owner || !this._target) return;
 
     const pos  = this._owner.position;
@@ -168,9 +181,13 @@ export class MovementComponent implements Component {
   update(ts?: number): void {
     if (ts === undefined) return; 
     const now = ts;
+    if (this._fixedStepActive) {
+      this._lastTs = now;
+      return;
+    }
     const dt  = this._lastTs === 0 ? 0 : Math.min((now - this._lastTs) / 1000, 0.1);
     this._lastTs = now;
-    if (dt > 0) this.fixedUpdate(dt);
+    if (dt > 0) this._integrate(dt);
   }
 
   // ── Internal ───────────────────────────────────────────────────────────────

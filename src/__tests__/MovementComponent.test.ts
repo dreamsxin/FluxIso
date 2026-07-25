@@ -3,6 +3,8 @@ import { MovementComponent } from '../ecs/components/MovementComponent';
 import { TileCollider } from '../physics/TileCollider';
 import { EventBus } from '../ecs/EventBus';
 import { IsoObject } from '../elements/IsoObject';
+import { Scene } from '../core/Scene';
+import { Character } from '../elements/Character';
 
 function makeOwner(x = 0, y = 0, z = 0): IsoObject {
   return { id: 'e', position: { x, y, z }, aabb: { minX: 0, minY: 0, maxX: 1, maxY: 1, baseZ: 0 }, draw: () => {} } as unknown as IsoObject;
@@ -77,5 +79,26 @@ describe('MovementComponent — collision', () => {
 
     // Should not have crossed into col 2
     expect(owner.position.x).toBeLessThan(2);
+  });
+});
+
+describe('MovementComponent — fixed timestep integration', () => {
+  it('does not integrate twice when Scene drives fixed and variable updates', () => {
+    const scene = new Scene({ cols: 8, rows: 8 });
+    const character = new Character({ id: 'runner', x: 1.5, y: 1.5 });
+    const movement = character.addComponent(new MovementComponent({ speed: 2 }));
+    scene.addObject(character);
+    movement.moveTo(5.5, 1.5);
+
+    scene.fixedUpdate(1 / 60);
+    const afterFixed = character.position.x;
+    scene.update(1000);
+
+    expect(character.position.x).toBe(afterFixed);
+    scene.update(1008.33);
+    expect(character.position.x).toBe(afterFixed);
+    scene.fixedUpdate(1 / 60);
+    scene.update(1016.67);
+    expect(character.position.x).toBeGreaterThan(afterFixed);
   });
 });

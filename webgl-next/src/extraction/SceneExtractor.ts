@@ -26,6 +26,12 @@ import type {
 } from '../contracts/RenderSnapshot';
 import { GeometryBuilder, type RenderColor, type RenderPoint } from './GeometryBuilder';
 import { legacyPixelsToWorldZ, projectLegacy, projectWorld } from './projection';
+import {
+  clipShadowHullToScene,
+  projectDirectionalShadow,
+  projectOmniShadow,
+  type ProjectedShadow,
+} from './ShadowProjector';
 
 export interface ExtractOptions {
   viewportWidth: number;
@@ -43,7 +49,7 @@ export interface DebugMarker {
   x: number;
   y: number;
   color?: string;
-  kind?: 'omni' | 'directional' | 'object';
+  kind?: 'omni' | 'directional' | 'object' | 'target';
 }
 
 interface VisibleBounds {
@@ -100,9 +106,9 @@ export class SceneExtractor {
     const floorRange = this._builder.range(floorStart);
 
     const shadowStart = this._builder.mark();
-    for (const object of sorted) this._extractShadow(object, scene.tileW, scene.tileH);
+    for (const object of sorted) this._extractShadow(object, scene, scene.tileW, scene.tileH);
     const shadowRange = this._builder.range(shadowStart);
-    this._recordSegment(shadowStart, 'alpha');
+    this._recordSegment(shadowStart, 'multiply');
 
     const opaqueStart = this._builder.mark();
     for (const object of sorted) {
@@ -226,7 +232,7 @@ export class SceneExtractor {
     }
   }
 
-  private _extractShadow(object: IsoObject, tileW: number, tileH: number): void {
+  private _extractShadow(object: IsoObject, scene: Scene, tileW: number, tileH: number): void {
     if (!(object.castsShadow || object instanceof Character || object instanceof Cloud)) return;
 
     const ground = point(projectWorld(object.position.x, object.position.y, 0, tileW, tileH));
@@ -235,12 +241,45 @@ export class SceneExtractor {
       : object instanceof Cloud
         ? 28 * object.scale * (tileW / 64)
         : Math.max(8, (object.shadowRadius ?? 0.3) * tileW);
-    const alpha = object instanceof Cloud ? 0.11 : 0.28;
+    const alpha = object instanceof Cloud ? 0.11 : 0.13;
     this._builder.ellipse(ground, radius, radius * 0.38, {
       color: [0.02, 0.03, 0.05, alpha],
       sample: ground,
       lit: false,
     }, 18);
+
+    if (object instanceof Cloud) return;
+    let strongestOmni: ProjectedShadow | null = null;
+    for (const light of scene.omniLights) {
+      const shadow = projectOmniShadow(object, light, tileW, tileH);
+      if (shadow && (!strongestOmni || shadow.alpha > strongestOmni.alpha)) strongestOmni = shadow;
+    }
+    this._appendProjectedShadow(strongestOmni, scene, tileW, tileH, ground, 0.46);
+
+    let strongestDirectional: ProjectedShadow | null = null;
+    for (const light of scene.dirLights) {
+      const shadow = projectDirectionalShadow(object, light, tileW, tileH);
+      if (shadow && (!strongestDirectional || shadow.alpha > strongestDirectional.alpha)) strongestDirectional = shadow;
+    }
+    this._appendProjectedShadow(strongestDirectional, scene, tileW, tileH, ground, 0.34);
+  }
+
+  private _appendProjectedShadow(
+    shadow: ProjectedShadow | null,
+    scene: Scene,
+    tileW: number,
+    tileH: number,
+    sample: RenderPoint,
+    alphaScale: number,
+  ): void {
+    if (!shadow) return;
+    const clipped = clipShadowHullToScene(shadow.hull, scene.cols, scene.rows, tileW, tileH);
+    if (clipped.length < 3) return;
+    this._builder.polygon(clipped, {
+      color: [0.015, 0.02, 0.025, shadow.alpha * alphaScale],
+      sample,
+      lit: false,
+    });
   }
 
   private _extractObject(object: IsoObject, tileW: number, tileH: number): string | undefined {
@@ -780,10 +819,21 @@ export class SceneExtractor {
 
     for (const marker of options.debugMarkers ?? []) {
       const center = point(projectWorld(marker.x, marker.y, 0, tileW, tileH));
-      const pickId = this._pickExternalId(marker.id);
+      const pickId = marker.kind === 'target' ? 0 : this._pickExternalId(marker.id);
       const color = rgba(marker.color ?? (marker.kind === 'directional' ? '#f6d46b' : '#ffd080'), 0.9);
       const radius = marker.id === options.selectedId ? 18 : 12;
-      if (marker.kind === 'directional') {
+      if (marker.kind === 'target') {
+        this._builder.ellipse(center, 11, 5, {
+          color: rgba(marker.color ?? '#8fe8b5', 0.28), sample: center, lit: false,
+        }, 18);
+        this._builder.quad(
+          [center[0], center[1] - 5],
+          [center[0] + 9, center[1]],
+          [center[0], center[1] + 5],
+          [center[0] - 9, center[1]],
+          { color, sample: center, lit: false },
+        );
+      } else if (marker.kind === 'directional') {
         this._builder.quad(
           [center[0], center[1] - radius],
           [center[0] + radius, center[1]],

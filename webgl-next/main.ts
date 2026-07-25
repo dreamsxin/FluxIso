@@ -16,6 +16,7 @@ import { FloatingText } from '../src/elements/props/FloatingText';
 import { DirectionalLight } from '../src/lighting/DirectionalLight';
 import { OmniLight } from '../src/lighting/OmniLight';
 import { TileCollider } from '../src/physics/TileCollider';
+import { MovementComponent } from '../src/ecs/components/MovementComponent';
 import { SceneExtractor } from './src/extraction/SceneExtractor';
 import { DomOverlayRenderer } from './src/overlays/DomOverlayRenderer';
 import { MinimapRenderer } from './src/overlays/MinimapRenderer';
@@ -30,13 +31,18 @@ const referenceContext = getCanvasContext(referenceCanvas);
 
 const scene = await createScene();
 const orbitLight = scene.getLightById('work-light') as OmniLight;
+const runner = requirePreviewRunner(scene);
+const runnerMovement = requireRunnerMovement(runner);
 const extractor = new SceneExtractor();
 const domOverlays = new DomOverlayRenderer(required('dom-overlays'));
 const minimap = new MinimapRenderer(required<HTMLCanvasElement>('minimap'));
 let renderer: WebGLRenderer | null = null;
 let mode: ViewMode = 'webgl';
 let selectedId = '';
+let moveTarget: { x: number; y: number } | null = null;
+let movementWasActive = false;
 let lastFrame = performance.now();
+let fixedAccumulator = 0;
 let fpsWindowStart = lastFrame;
 let fpsFrames = 0;
 let currentFps = 0;
@@ -154,6 +160,7 @@ async function createScene(): Promise<Scene> {
   for (const [col, row] of [[1, 1], [9, 1], [1, 7], [10, 7], [8, 6], [6, 7]] as const) {
     next.collider.setWalkable(col, row, false);
   }
+  runner.addComponent(new MovementComponent({ speed: 2.4, radius: 0.24, collider: next.collider }));
 
   next.addLight(new DirectionalLight({ id: 'sun', angle: 220, elevation: 48, color: '#f0f6e8', intensity: 0.5 }));
   next.addLight(new OmniLight({
@@ -235,13 +242,22 @@ function bindViewportInput(): void {
     if (!pointerStart) return;
     const moved = Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y);
     pointerStart = null;
+    if (webglCanvas.hasPointerCapture(event.pointerId)) webglCanvas.releasePointerCapture(event.pointerId);
     if (moved > 5 || !renderer) return;
     const rect = webglCanvas.getBoundingClientRect();
     const result = renderer.pick(event.clientX - rect.left, event.clientY - rect.top);
-    selectedId = result?.objectId ?? '';
-    required('selection').textContent = selectedId ? `已选择 · ${selectedId}` : '未选择对象';
-    const chest = scene.getById(selectedId);
-    if (chest instanceof Chest) chest.toggle();
+    if (result && result.objectId !== 'floor') {
+      selectedId = result.objectId;
+      required('selection').textContent = `已选择 · ${selectedId}`;
+      const chest = scene.getById(selectedId);
+      if (chest instanceof Chest) chest.toggle();
+    } else {
+      requestRunnerMove(event.clientX - rect.left, event.clientY - rect.top, rect);
+    }
+  });
+  webglCanvas.addEventListener('pointercancel', (event) => {
+    pointerStart = null;
+    if (webglCanvas.hasPointerCapture(event.pointerId)) webglCanvas.releasePointerCapture(event.pointerId);
   });
   webglCanvas.addEventListener('wheel', (event) => {
     event.preventDefault();
@@ -250,6 +266,34 @@ function bindViewportInput(): void {
     zoom.value = String(scene.camera.zoom);
     required<HTMLOutputElement>('zoom-value').value = scene.camera.zoom.toFixed(2);
   }, { passive: false });
+}
+
+function requestRunnerMove(screenX: number, screenY: number, rect: DOMRect): void {
+  const world = scene.camera.screenToWorld(
+    screenX,
+    screenY,
+    rect.width,
+    rect.height,
+    scene.tileW,
+    scene.tileH,
+    rect.width / 2,
+    sceneOriginY(rect.height),
+    scene.view,
+  );
+  const target = {
+    x: Math.max(0.5, Math.min(scene.cols - 0.5, Math.floor(world.x) + 0.5)),
+    y: Math.max(0.5, Math.min(scene.rows - 0.5, Math.floor(world.y) + 0.5)),
+  };
+  selectedId = '';
+  if (runnerMovement.pathTo(target.x, target.y)) {
+    moveTarget = target;
+    movementWasActive = runnerMovement.isMoving;
+    required('selection').textContent = `移动至 · ${target.x.toFixed(1)}, ${target.y.toFixed(1)}`;
+  } else {
+    moveTarget = null;
+    movementWasActive = false;
+    required('selection').textContent = `路径不可达 · ${target.x.toFixed(1)}, ${target.y.toFixed(1)}`;
+  }
 }
 
 function resizeSurfaces(): void {
@@ -288,7 +332,21 @@ function frame(now: number): void {
     orbitLight.position.x = 6 + Math.cos(angle) * 3.4;
     orbitLight.position.y = 5 + Math.sin(angle) * 2.6;
   }
+  fixedAccumulator += dt;
+  while (fixedAccumulator >= 1 / 60) {
+    scene.fixedUpdate(1 / 60);
+    fixedAccumulator -= 1 / 60;
+  }
   scene.update(now);
+  const moving = runnerMovement.isMoving;
+  if (movementWasActive && !moving && moveTarget) {
+    const distance = Math.hypot(runner.position.x - moveTarget.x, runner.position.y - moveTarget.y);
+    required('selection').textContent = distance < 0.15
+      ? `已到达 · ${moveTarget.x.toFixed(1)}, ${moveTarget.y.toFixed(1)}`
+      : '移动已停止';
+    moveTarget = null;
+  }
+  movementWasActive = moving;
 
   if (renderer && mode !== 'canvas') {
     const rect = webglCanvas.getBoundingClientRect();
@@ -300,6 +358,7 @@ function frame(now: number): void {
       clearColor: '#111a18',
       selectedId,
       showCollision: required<HTMLInputElement>('collision-overlay').checked,
+      debugMarkers: moveTarget ? [{ id: 'move-target', ...moveTarget, kind: 'target', color: '#8fe8b5' }] : undefined,
     });
     renderer.render(snapshot);
     domOverlays.render(snapshot);
@@ -318,6 +377,32 @@ function renderCanvasReference(): void {
   referenceContext.fillStyle = '#111a18';
   referenceContext.fillRect(0, 0, rect.width, rect.height);
   scene.draw(referenceContext, rect.width, rect.height, rect.width / 2, sceneOriginY(rect.height));
+  if (moveTarget) drawCanvasMoveTarget(referenceContext, rect, moveTarget);
+}
+
+function drawCanvasMoveTarget(
+  context: CanvasRenderingContext2D,
+  rect: DOMRect,
+  target: { x: number; y: number },
+): void {
+  const screen = scene.camera.worldToScreen(
+    target.x, target.y, 0, scene.tileW, scene.tileH, rect.width / 2, sceneOriginY(rect.height), scene.view,
+  );
+  context.save();
+  context.beginPath();
+  context.ellipse(screen.sx, screen.sy, 11, 5, 0, 0, Math.PI * 2);
+  context.fillStyle = 'rgba(143,232,181,0.28)';
+  context.fill();
+  context.beginPath();
+  context.moveTo(screen.sx, screen.sy - 5);
+  context.lineTo(screen.sx + 9, screen.sy);
+  context.lineTo(screen.sx, screen.sy + 5);
+  context.lineTo(screen.sx - 9, screen.sy);
+  context.closePath();
+  context.strokeStyle = '#8fe8b5';
+  context.lineWidth = 1.5;
+  context.stroke();
+  context.restore();
 }
 
 function updateMetrics(_dt: number): void {
@@ -349,6 +434,18 @@ function required<T extends HTMLElement = HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) throw new Error(`Missing required element #${id}.`);
   return element as T;
+}
+
+function requirePreviewRunner(currentScene: Scene): Character {
+  const object = currentScene.getById('runner');
+  if (!(object instanceof Character)) throw new Error('Preview runner is missing.');
+  return object;
+}
+
+function requireRunnerMovement(character: Character): MovementComponent {
+  const movement = character.getComponent(MovementComponent);
+  if (!movement) throw new Error('Preview runner movement is missing.');
+  return movement;
 }
 
 function getCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
@@ -386,16 +483,15 @@ async function createPreviewSpriteSheet(): Promise<SpriteSheet> {
     image.src = url;
   });
   AssetLoader.register(url, image);
+  const frames = [0, 1, 2, 3].map((frame) => ({ x: frame * 32, y: 0, w: 32, h: 40 }));
   return new SpriteSheet({
     url,
     scale: 1.35,
     anchorY: 0.92,
-    clips: [{
-      name: 'idle',
-      fps: 6,
-      loop: true,
-      frames: [0, 1, 2, 3].map((frame) => ({ x: frame * 32, y: 0, w: 32, h: 40 })),
-    }],
+    clips: [
+      { name: 'idle', fps: 6, loop: true, frames },
+      { name: 'walk', fps: 9, loop: true, frames },
+    ],
   });
 }
 

@@ -9,6 +9,8 @@ export type {
 } from './contracts/RenderSnapshot';
 export { SceneExtractor } from './extraction/SceneExtractor';
 export { legacyPixelsToWorldZ, projectLegacy, projectWorld } from './extraction/projection';
+export { clipShadowHullToScene, projectDirectionalShadow, projectOmniShadow } from './extraction/ShadowProjector';
+export type { ProjectedShadow, ShadowPoint } from './extraction/ShadowProjector';
 export { DomOverlayRenderer } from './overlays/DomOverlayRenderer';
 export { MinimapRenderer } from './overlays/MinimapRenderer';
 export { renderPointToScreen } from './overlays/cameraTransform';
