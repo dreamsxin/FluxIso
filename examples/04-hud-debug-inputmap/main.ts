@@ -46,8 +46,7 @@ scene.collider = collider;
 const character = new Character({ id: 'player', x: 2, y: 2 });
 scene.addObject(character);
 
-const mv = new MovementComponent({ speed: 4, radius: 0.35, collider });
-mv.onAttach(character);
+const mv = character.addComponent(new MovementComponent({ speed: 4, radius: 0.35, collider }));
 
 // ── Crystal prop ───────────────────────────────────────────────────────────
 
@@ -136,7 +135,7 @@ canvas.addEventListener('click', (e) => {
     TILE_W, TILE_H, engine.originX, engine.originY,
   );
   if (Math.hypot(cx - sx, cy - sy) < 32) {
-    const hp = crystal.getComponent<HealthComponent>('health');
+    const hp = crystal.getComponent(HealthComponent);
     if (hp && !hp.isDead) {
       hp.takeDamage(10);
       score += 10;
@@ -162,7 +161,7 @@ engine.start(
     // Update HUD values
     const playerHp = 1; // placeholder — add HealthComponent to player if needed
     hpBar.value = playerHp;
-    const gemHp = crystal.getComponent<HealthComponent>('health');
+    const gemHp = crystal.getComponent(HealthComponent);
     gemBar.value = gemHp ? gemHp.fraction : 0;
     scoreLabel.text = `Score: ${score}`;
 
@@ -184,7 +183,7 @@ engine.start(
     engine.ctx.fillText((globalThis as any).__lastAabbs ?? '', 8, canvas.height - 10);
     engine.ctx.restore();
   },
-  (ts) => {
+  (_ts) => {
     // Movement via InputMap
     const { x, y } = map.axis('move_right', 'move_left', 'move_down', 'move_up');
     const SPEED = 0.08;
@@ -196,7 +195,7 @@ engine.start(
 
     // Attack action
     if (map.wasPressed('attack')) {
-      const gemHp = crystal.getComponent<HealthComponent>('health');
+      const gemHp = crystal.getComponent(HealthComponent);
       if (gemHp && !gemHp.isDead) {
         gemHp.takeDamage(20);
         score += 20;
@@ -204,7 +203,6 @@ engine.start(
       }
     }
 
-    mv.update(ts);
     input.flush();
   },
 );

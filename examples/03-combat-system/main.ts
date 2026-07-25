@@ -99,7 +99,7 @@ canvas.addEventListener('click', (e) => {
       TILE_W, TILE_H, engine.originX, engine.originY,
     );
     if (Math.hypot(cx - sx, cy - sy) < 32) {
-      const hp = prop.getComponent<HealthComponent>('health');
+      const hp = prop.getComponent(HealthComponent);
       if (hp && !hp.isDead) {
         hp.takeDamage(20);
         scene.spawnFloatingText({

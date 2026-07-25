@@ -163,7 +163,10 @@ engine.start(
             particleShape: 'square',
           });
           burst.burst(30);
-          burst.autoRemove = true;
+          // ParticleSystem has no autoRemove field; remove explicitly when
+          // all particles have died so bursts don't accumulate in the scene.
+          const burstId = burst.id;
+          burst.onExhausted = () => { scene.removeById(burstId); };
           scene.addObject(burst);
         }
       }

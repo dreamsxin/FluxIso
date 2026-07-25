@@ -17,7 +17,6 @@ export class SmokePlumeSystem extends IsoObject {
     this.castsShadow = false;
 
     this._ps = new ParticleSystem(`${id}-ps`, x, y, 0);
-    this._ps.autoRemove = false;
     this._ps.addEmitter({
       maxParticles: 60,
       rate: 18,
@@ -49,8 +48,8 @@ export class SmokePlumeSystem extends IsoObject {
   }
 
   update(ts?: number): void {
-    // 根据 densityMult 动态调整发射率（通过直接访问内部 emitter cfg）
-    const cfg = (this._ps as any)._emitters[0]?.cfg;
+    // 根据 densityMult 动态调整发射率（emitter 内部字段为 .config，非 .cfg）
+    const cfg = (this._ps as any)._emitters[0]?.config;
     if (cfg) cfg.rate = Math.round(18 * this.densityMult);
     this._ps.update(ts);
   }
@@ -80,7 +79,6 @@ export class LavaCrack extends IsoObject {
     this.castsShadow = false;
 
     this._sparkPs = new ParticleSystem(`${id}-sparks`, x, y, 0);
-    this._sparkPs.autoRemove = false;
     this._sparkPs.addEmitter({
       maxParticles: 40,
       rate: 0,            // 只 burst，不连续发射
