@@ -20,4 +20,25 @@ describe('EditorState command notifications', () => {
     expect(state.getById('player-1')).toBeDefined();
     expect(observed[observed.length - 1]).toEqual({ canUndo: true, canRedo: false });
   });
+
+  it('preserves editable fields for the common garden props', () => {
+    const state = new EditorState();
+    state.addProp({
+      id: 'tree-1', kind: 'tree', x: 2.5, y: 3.5, color: '#4f9d68',
+      trunkColor: '#80583f', heightPx: 72, scale: 1.1,
+    });
+    state.addProp({
+      id: 'flowers-1', kind: 'flowers', x: 4.5, y: 3.5, color: '#f47ca5',
+      accentColor: '#fff0a6', count: 8, seed: 4.2,
+    });
+    state.addProp({
+      id: 'lantern-1', kind: 'lantern', x: 5.5, y: 3.5, color: '#ffd166',
+      postColor: '#40504b', heightPx: 52,
+    });
+
+    const restored = new EditorState();
+    restored.loadJSON(state.toJSON());
+
+    expect(restored.scene.props).toEqual(state.scene.props);
+  });
 });

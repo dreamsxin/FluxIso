@@ -54,7 +54,7 @@ Scene / ECS / physics / animation / input / serialization
 The current preview implements the first runnable Phase 0-4 slice:
 
 - renderer-neutral `RenderSnapshot` contracts and a reusable numeric geometry arena;
-- extraction for Floor, Wall openings, Character, Crystal, Boulder, Chest, and Cloud;
+- extraction for Floor, Wall openings, Character, Crystal, Boulder, Chest, Tree, FlowerPatch, Lantern, and Cloud;
 - canonical world-Z conversion at the extraction boundary;
 - WebGL2 resource lifecycle, dynamic batching, GPU ambient/directional/omni lighting;
 - projected blob shadows, transparent cloud/light layers, and 24-bit GPU ID picking;
@@ -64,6 +64,8 @@ The current preview implements the first runnable Phase 0-4 slice:
 - camera frustum extraction for floor tiles and world objects;
 - an editor Canvas/WebGL toggle with ID-buffer selection and Canvas input fallback;
 - WebGL, side-by-side comparison, and Canvas2D fallback modes at `/webgl-next/`.
+- a polished lantern-garden fixture covering compact foliage, deterministic flowers,
+  warm practical lights, and seam-free multi-face crystal geometry.
 
 Advanced shadow caching, all-example WebGL adapters, golden-image CI, forced
 context-loss automation, package publication, and the browser release matrix

@@ -330,13 +330,15 @@ canvas.addEventListener('click', (e) => {
     return;
   }
 
-  const propKinds: Record<string, 'crystal' | 'boulder' | 'chest'> = {
+  const propKinds: Record<string, EditorProp['kind']> = {
     crystal: 'crystal', boulder: 'boulder', chest: 'chest',
+    tree: 'tree', flowers: 'flowers', lantern: 'lantern',
   };
   if (tool in propKinds) {
     const snapped = renderer.snapToTile(world.x, world.y);
     const defaultColors: Record<string, string> = {
       crystal: '#8060e0', boulder: '#7a7a8a', chest: '#a05c18',
+      tree: '#4f9d68', flowers: '#f47ca5', lantern: '#ffd166',
     };
     const p: EditorProp = {
       id: state.nextId(tool),
@@ -344,6 +346,11 @@ canvas.addEventListener('click', (e) => {
       x: snapped.x, y: snapped.y,
       color: defaultColors[tool],
     };
+    if (p.kind === 'crystal') p.heightPx = 48;
+    if (p.kind === 'boulder') p.radius = 18;
+    if (p.kind === 'tree') Object.assign(p, { trunkColor: '#80583f', heightPx: 72, scale: 1 });
+    if (p.kind === 'flowers') Object.assign(p, { accentColor: '#fff0a6', count: 7, seed: 1 });
+    if (p.kind === 'lantern') Object.assign(p, { postColor: '#40504b', heightPx: 50 });
     state.addProp(p);
     return;
   }
@@ -508,6 +515,7 @@ window.addEventListener('beforeunload', () => webglPreview?.dispose());
 const keyMap: Record<string, ToolType> = {
   v: 'select', w: 'wall', l: 'omnilight', d: 'dirlight',
   c: 'character', '1': 'crystal', '2': 'boulder', '3': 'chest',
+  '4': 'tree', '5': 'flowers', '6': 'lantern',
   b: 'blocked', p: 'walkable',
 };
 window.addEventListener('keydown', (e) => {
@@ -534,6 +542,9 @@ const toolHints: Record<string, string> = {
   crystal:   '[1] Click to place a Crystal prop.',
   boulder:   '[2] Click to place a Boulder prop.',
   chest:     '[3] Click to place a Chest prop.',
+  tree:      '[4] Click to place a Tree prop.',
+  flowers:   '[5] Click to place a Flower Patch prop.',
+  lantern:   '[6] Click to place a Lantern prop.',
   blocked:   '[B] Click or drag tiles to mark as blocked.',
   walkable:  '[P] Click or drag tiles to mark as walkable.',
 };

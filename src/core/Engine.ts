@@ -9,6 +9,9 @@ import { Cloud } from '../elements/props/Cloud';
 import { Crystal } from '../elements/props/Crystal';
 import { Boulder } from '../elements/props/Boulder';
 import { Chest } from '../elements/props/Chest';
+import { Tree } from '../elements/props/Tree';
+import { FlowerPatch } from '../elements/props/FlowerPatch';
+import { Lantern } from '../elements/props/Lantern';
 import { HealthComponent } from '../ecs/components/HealthComponent';
 import { TileCollider } from '../physics/TileCollider';
 import { IsoObject } from '../elements/IsoObject';
@@ -26,8 +29,14 @@ export interface PropJson {
   x: number;
   y: number;
   color?: string;
+  accentColor?: string;
+  trunkColor?: string;
+  postColor?: string;
   radius?: number;
   heightPx?: number;
+  scale?: number;
+  count?: number;
+  seed?: number;
   health?: number;
   [key: string]: unknown;
 }
@@ -278,7 +287,7 @@ export class Engine {
       }
       const prop = propFactory(p);
       if (p.health) {
-        // All built-in props (Crystal/Boulder/Chest) extend Entity which has addComponent.
+        // Built-in props extend Entity, which owns the component lifecycle.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (prop as any).addComponent(new HealthComponent({ max: p.health }));
       }
@@ -393,6 +402,29 @@ Engine._propRegistry.set('boulder',
   (p) => new Boulder(p.id, p.x, p.y, p.color, p.radius as number | undefined));
 Engine._propRegistry.set('chest',
   (p) => new Chest(p.id, p.x, p.y, p.color));
+Engine._propRegistry.set('tree',
+  (p) => new Tree({
+    id: p.id, x: p.x, y: p.y,
+    canopyColor: p.color,
+    trunkColor: p.trunkColor,
+    heightPx: p.heightPx,
+    scale: p.scale,
+  }));
+Engine._propRegistry.set('flowers',
+  (p) => new FlowerPatch({
+    id: p.id, x: p.x, y: p.y,
+    color: p.color,
+    accentColor: p.accentColor,
+    count: p.count,
+    seed: p.seed,
+  }));
+Engine._propRegistry.set('lantern',
+  (p) => new Lantern({
+    id: p.id, x: p.x, y: p.y,
+    glowColor: p.color,
+    postColor: p.postColor,
+    heightPx: p.heightPx,
+  }));
 
 Engine._lightRegistry.set('omni',
   (l) => new OmniLight({

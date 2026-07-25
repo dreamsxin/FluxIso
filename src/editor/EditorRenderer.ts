@@ -2,9 +2,6 @@
  * EditorRenderer — drives the Engine to preview the current EditorState.
  */
 import { Engine } from '../core/Engine';
-import { Crystal } from '../elements/props/Crystal';
-import { Boulder } from '../elements/props/Boulder';
-import { Chest } from '../elements/props/Chest';
 import { project, unproject } from '../math/IsoProjection';
 import { EditorState, EditorObject } from './EditorState';
 
@@ -53,12 +50,8 @@ export class EditorRenderer {
       characters: s.characters.map(c => ({
         id: c.id, x: c.x, y: c.y, z: c.z, radius: c.radius, color: c.color,
       })),
+      props: s.props.map(({ kind, ...prop }) => ({ ...prop, type: kind })),
     });
-    for (const p of s.props) {
-      if (p.kind === 'crystal') scene.addObject(new Crystal(p.id, p.x, p.y, p.color));
-      else if (p.kind === 'boulder') scene.addObject(new Boulder(p.id, p.x, p.y, p.color));
-      else if (p.kind === 'chest')   scene.addObject(new Chest(p.id, p.x, p.y, p.color));
-    }
     this.engine.setScene(scene);
   }
 

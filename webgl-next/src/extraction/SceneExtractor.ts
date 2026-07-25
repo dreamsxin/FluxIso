@@ -9,6 +9,9 @@ import { Chest } from '../../../src/elements/props/Chest';
 import { Cloud } from '../../../src/elements/props/Cloud';
 import { Crystal } from '../../../src/elements/props/Crystal';
 import { FloatingText } from '../../../src/elements/props/FloatingText';
+import { Tree } from '../../../src/elements/props/Tree';
+import { FlowerPatch } from '../../../src/elements/props/FlowerPatch';
+import { Lantern } from '../../../src/elements/props/Lantern';
 import { hexToRgb, shiftColor } from '../../../src/math/color';
 import { topoSort } from '../../../src/math/depthSort';
 import type {
@@ -251,6 +254,12 @@ export class SceneExtractor {
       this._extractBoulder(object, tileW, tileH);
     } else if (object instanceof Chest) {
       this._extractChest(object, tileW, tileH);
+    } else if (object instanceof Tree) {
+      this._extractTree(object, tileW, tileH);
+    } else if (object instanceof FlowerPatch) {
+      this._extractFlowerPatch(object, tileW, tileH);
+    } else if (object instanceof Lantern) {
+      this._extractLantern(object, tileW, tileH);
     } else {
       this._unsupported.push({
         id: object.id,
@@ -357,25 +366,185 @@ export class SceneExtractor {
     const pickId = this._pickId(crystal);
     const height = crystal.propHeightPx;
     const width = tileW * 0.28;
-    const tip: RenderPoint = [center[0], center[1] - height * 1.15];
-    const middle: RenderPoint = [center[0], center[1] - height * 0.6];
-    this._builder.polygon([
-      center,
-      [center[0] - width * 0.9, center[1] - height * 0.5],
-      [center[0] - width * 0.4, center[1] - height],
-      middle,
-    ], { color: rgba(shiftColor(crystal.propColor, -52)), sample: center, normal: [-0.8, -0.4], pickId });
-    this._builder.polygon([
-      center,
-      middle,
-      [center[0] + width * 0.35, center[1] - height],
-      [center[0] + width * 0.9, center[1] - height * 0.4],
-    ], { color: rgba(crystal.propColor), sample: center, normal: [0.8, -0.4], pickId });
+    const leftShoulder: RenderPoint = [center[0] - width * 0.92, center[1] - height * 0.44];
+    const leftUpper: RenderPoint = [center[0] - width * 0.38, center[1] - height * 0.9];
+    const ridge: RenderPoint = [center[0], center[1] - height * 0.58];
+    const rightUpper: RenderPoint = [center[0] + width * 0.38, center[1] - height * 0.9];
+    const rightShoulder: RenderPoint = [center[0] + width * 0.92, center[1] - height * 0.42];
+    const tip: RenderPoint = [center[0], center[1] - height * 1.18];
+
+    this._builder.quad(center, leftShoulder, leftUpper, ridge, {
+      color: rgba(shiftColor(crystal.propColor, -52)), sample: center, normal: [-0.8, -0.4], pickId,
+    });
+    this._builder.quad(center, ridge, rightUpper, rightShoulder, {
+      color: rgba(crystal.propColor), sample: center, normal: [0.8, -0.4], pickId,
+    });
+    this._builder.triangle(leftUpper, tip, ridge, {
+      color: rgba(shiftColor(crystal.propColor, 58)), sample: center, normal: [-0.25, -0.97], pickId,
+    });
+    this._builder.triangle(tip, rightUpper, ridge, {
+      color: rgba(shiftColor(crystal.propColor, 38)), sample: center, normal: [0.25, -0.97], pickId,
+    });
+
+    // Slightly overlap the shared ridge so rasterization cannot expose the clear color.
     this._builder.triangle(
-      [center[0] - width * 0.4, center[1] - height],
-      [center[0] + width * 0.35, center[1] - height],
+      [ridge[0] - 0.85, ridge[1] + 0.6],
       tip,
-      { color: rgba(shiftColor(crystal.propColor, 58)), sample: center, normal: [0, -1], pickId },
+      [ridge[0] + 0.85, ridge[1] + 0.6],
+      { color: rgba(shiftColor(crystal.propColor, 68)), sample: center, normal: [0, -1], pickId },
+    );
+    this._builder.triangle(
+      [ridge[0] - 0.8, ridge[1] - 0.5],
+      [ridge[0] + 0.8, ridge[1] - 0.5],
+      center,
+      { color: rgba(shiftColor(crystal.propColor, -18)), sample: center, normal: [0, -1], pickId },
+    );
+
+    const secondaryBase: RenderPoint = [center[0] + width * 0.72, center[1] - height * 0.04];
+    const secondaryHeight = height * 0.55;
+    const secondaryWidth = width * 0.48;
+    const secondaryTip: RenderPoint = [secondaryBase[0], secondaryBase[1] - secondaryHeight];
+    const secondaryRidge: RenderPoint = [secondaryBase[0], secondaryBase[1] - secondaryHeight * 0.48];
+    this._builder.quad(
+      secondaryBase,
+      [secondaryBase[0] - secondaryWidth, secondaryBase[1] - secondaryHeight * 0.34],
+      [secondaryBase[0] - secondaryWidth * 0.32, secondaryBase[1] - secondaryHeight * 0.72],
+      secondaryRidge,
+      { color: rgba(shiftColor(crystal.propColor, -30)), sample: center, normal: [-0.8, -0.4], pickId },
+    );
+    this._builder.triangle(
+      secondaryRidge,
+      secondaryTip,
+      [secondaryBase[0] + secondaryWidth * 0.7, secondaryBase[1] - secondaryHeight * 0.3],
+      { color: rgba(shiftColor(crystal.propColor, 28)), sample: center, normal: [0.65, -0.76], pickId },
+    );
+  }
+
+  private _extractTree(tree: Tree, tileW: number, tileH: number): void {
+    const center = point(projectWorld(tree.position.x, tree.position.y, 0, tileW, tileH));
+    const pickId = this._pickId(tree);
+    const scale = tree.propScale;
+    const height = tree.propHeightPx * scale;
+    const canopyRadius = tileW * 0.31 * scale;
+    const trunkWidth = Math.max(5, tileW * 0.09 * scale);
+    const trunkTop = center[1] - height * 0.72;
+    this._builder.quad(
+      [center[0] - trunkWidth * 0.72, center[1]],
+      [center[0] + trunkWidth * 0.82, center[1]],
+      [center[0] + trunkWidth * 0.42, trunkTop],
+      [center[0] - trunkWidth * 0.45, trunkTop],
+      { color: rgba(shiftColor(tree.propTrunkColor, -16)), sample: center, normal: [-0.25, -0.97], pickId },
+    );
+
+    const canopyY = center[1] - height * 0.78;
+    const puffs: ReadonlyArray<readonly [number, number, number, string, RenderPoint]> = [
+      [-0.58, 0.15, 0.64, shiftColor(tree.propCanopyColor, -28), [-0.72, -0.69]],
+      [0.58, 0.12, 0.62, shiftColor(tree.propCanopyColor, -16), [0.72, -0.69]],
+      [0, -0.38, 0.72, shiftColor(tree.propCanopyColor, 12), [0, -1]],
+      [-0.2, 0.2, 0.82, tree.propCanopyColor, [-0.3, -0.95]],
+      [0.28, 0.22, 0.75, shiftColor(tree.propCanopyColor, 5), [0.35, -0.94]],
+    ];
+    for (const [dx, dy, puffScale, color, normal] of puffs) {
+      this._builder.ellipse(
+        [center[0] + canopyRadius * dx, canopyY + canopyRadius * dy],
+        canopyRadius * puffScale,
+        canopyRadius * puffScale * 0.8,
+        { color: rgba(color), sample: center, normal, pickId },
+        14,
+      );
+    }
+    this._builder.ellipse(
+      [center[0] - canopyRadius * 0.2, canopyY - canopyRadius * 0.42],
+      canopyRadius * 0.24,
+      canopyRadius * 0.13,
+      { color: rgba(shiftColor(tree.propCanopyColor, 56)), sample: center, normal: [0, -1], pickId },
+      10,
+    );
+  }
+
+  private _extractFlowerPatch(flowers: FlowerPatch, tileW: number, tileH: number): void {
+    const center = point(projectWorld(flowers.position.x, flowers.position.y, 0, tileW, tileH));
+    const pickId = this._pickId(flowers);
+    for (const flower of flowers.flowerOffsets) {
+      const x = center[0] + flower.x * tileW * 0.5;
+      const baseY = center[1] + flower.y * tileH * 1.15;
+      const stemHeight = (7 + (flower.y + 0.5) * 4) * flower.scale;
+      const headY = baseY - stemHeight;
+      const radius = 2.2 * flower.scale;
+      const petalColor = flower.accent ? flowers.propAccentColor : flowers.propColor;
+      const style = { color: rgba('#659c55'), sample: center, normal: [0, -1] as RenderPoint, pickId };
+      this._builder.line([x, baseY], [x, headY], Math.max(1, flower.scale), style);
+      this._builder.ellipse(
+        [x - 2.2 * flower.scale, baseY - stemHeight * 0.38],
+        2.5 * flower.scale,
+        1.1 * flower.scale,
+        { ...style, color: rgba('#70a95a') },
+        8,
+      );
+      for (let petal = 0; petal < 5; petal++) {
+        const angle = petal * Math.PI * 2 / 5 - Math.PI / 2;
+        this._builder.ellipse(
+          [x + Math.cos(angle) * radius, headY + Math.sin(angle) * radius],
+          radius * 0.75,
+          radius * 0.75,
+          { ...style, color: rgba(petalColor) },
+          8,
+        );
+      }
+      this._builder.ellipse(
+        [x, headY],
+        radius * 0.72,
+        radius * 0.72,
+        { ...style, color: rgba(flower.accent ? '#ef8f59' : '#ffe18a') },
+        8,
+      );
+    }
+  }
+
+  private _extractLantern(lantern: Lantern, tileW: number, tileH: number): void {
+    const center = point(projectWorld(lantern.position.x, lantern.position.y, 0, tileW, tileH));
+    const pickId = this._pickId(lantern);
+    const lampY = center[1] - lantern.propHeightPx;
+    const bodyWidth = tileW * 0.16;
+    const bodyHeight = tileH * 0.44;
+    const sample: RenderPoint = [center[0], lampY];
+
+    this._builder.ellipse(sample, bodyWidth * 2.7, bodyHeight * 2.3, {
+      color: rgba(lantern.propGlowColor, 0.1), sample, lit: false, pickId,
+    }, 18);
+    this._builder.quad(
+      [center[0], center[1] + tileH * 0.1],
+      [center[0] + tileW * 0.12, center[1]],
+      [center[0], center[1] - tileH * 0.1],
+      [center[0] - tileW * 0.12, center[1]],
+      { color: rgba(shiftColor(lantern.propPostColor, -22)), sample, normal: [0, -1], pickId },
+    );
+    this._builder.line(
+      [center[0], center[1]],
+      [center[0], lampY + bodyHeight * 0.5],
+      Math.max(3, tileW * 0.05),
+      { color: rgba(lantern.propPostColor), sample, normal: [-0.25, -0.97], pickId },
+    );
+    this._builder.polygon([
+      [center[0], lampY - bodyHeight * 0.72],
+      [center[0] + bodyWidth * 0.75, lampY - bodyHeight * 0.35],
+      [center[0] + bodyWidth * 0.62, lampY + bodyHeight * 0.48],
+      [center[0], lampY + bodyHeight * 0.7],
+      [center[0] - bodyWidth * 0.62, lampY + bodyHeight * 0.48],
+      [center[0] - bodyWidth * 0.75, lampY - bodyHeight * 0.35],
+    ], { color: rgba(lantern.propGlowColor), sample, lit: false, pickId });
+    this._builder.triangle(
+      [center[0] - bodyWidth * 0.92, lampY - bodyHeight * 0.5],
+      [center[0], lampY - bodyHeight * 0.95],
+      [center[0] + bodyWidth * 0.92, lampY - bodyHeight * 0.5],
+      { color: rgba(shiftColor(lantern.propPostColor, -8)), sample, normal: [0, -1], pickId },
+    );
+    this._builder.ellipse(
+      [center[0] - bodyWidth * 0.2, lampY - bodyHeight * 0.15],
+      bodyWidth * 0.13,
+      bodyWidth * 0.13,
+      { color: rgba('#fff7cf'), sample, lit: false, pickId },
+      8,
     );
   }
 
@@ -408,20 +577,93 @@ export class SceneExtractor {
     const lift = (p: RenderPoint): RenderPoint => [p[0], p[1] - height];
     const sample = point(projectWorld(x, y, 0, tileW, tileH));
     const pickId = this._pickId(chest);
-    this._builder.quad(west, south, lift(south), lift(west), {
+    const topEast = lift(east);
+    const topSouth = lift(south);
+    const topWest = lift(west);
+    this._builder.quad(west, south, topSouth, topWest, {
       color: rgba(shiftColor(chest.propColor, -18)), sample, normal: [-0.8944, -0.4472], pickId,
     });
-    this._builder.quad(south, east, lift(east), lift(south), {
+    this._builder.quad(south, east, topEast, topSouth, {
       color: rgba(shiftColor(chest.propColor, -38)), sample, normal: [0.8944, -0.4472], pickId,
     });
+
+    const metal = shiftColor('#596268', -8);
+    const metalDark = shiftColor(metal, -24);
+    for (const fraction of [0.14, 0.68]) {
+      const end = fraction + 0.1;
+      this._builder.quad(
+        lerpPoint(west, south, fraction, 0),
+        lerpPoint(west, south, end, 0),
+        lerpPoint(west, south, end, height),
+        lerpPoint(west, south, fraction, height),
+        { color: rgba(metal), sample, normal: [-0.8944, -0.4472], pickId },
+      );
+      this._builder.quad(
+        lerpPoint(south, east, fraction, 0),
+        lerpPoint(south, east, end, 0),
+        lerpPoint(south, east, end, height),
+        lerpPoint(south, east, fraction, height),
+        { color: rgba(metalDark), sample, normal: [0.8944, -0.4472], pickId },
+      );
+    }
+    for (const fraction of [0.34, 0.67]) {
+      this._builder.line(
+        lerpPoint(west, west, 0, height * fraction),
+        lerpPoint(south, south, 0, height * fraction),
+        0.8,
+        { color: rgba(shiftColor(chest.propColor, -48)), sample, normal: [-0.8944, -0.4472], pickId },
+      );
+      this._builder.line(
+        lerpPoint(south, south, 0, height * fraction),
+        lerpPoint(east, east, 0, height * fraction),
+        0.8,
+        { color: rgba(shiftColor(chest.propColor, -58)), sample, normal: [0.8944, -0.4472], pickId },
+      );
+    }
+
+    const latch = lerpPoint(west, south, 0.52, height * 0.52);
+    this._builder.ellipse(latch, 5.2, 3.8, {
+      color: rgba('#d8a92f'), sample, normal: [-0.8944, -0.4472], pickId,
+    }, 12);
+    this._builder.ellipse([latch[0], latch[1] + 0.4], 1.5, 1.8, {
+      color: rgba('#252a29'), sample, lit: false, pickId,
+    }, 8);
+    for (const [u, z] of [[0.08, 0.16], [0.9, 0.16], [0.08, 0.84], [0.9, 0.84]] as const) {
+      this._builder.ellipse(lerpPoint(west, south, u, height * z), 1.3, 1.1, {
+        color: rgba('#cbd2ce'), sample, normal: [-0.8944, -0.4472], pickId,
+      }, 8);
+    }
+
     const lidLift = chest.isOpen ? height + tileH * 0.7 : height + tileH * 0.24;
+    const lidNorth: RenderPoint = [north[0], north[1] - lidLift];
+    const lidEast: RenderPoint = [east[0], east[1] - lidLift];
+    if (chest.isOpen) {
+      this._builder.ellipse([sample[0], sample[1] - height * 0.92], tileW * 0.42, tileH * 0.7, {
+        color: rgba('#ffd86b', 0.22), sample, lit: false, pickId,
+      }, 18);
+      this._builder.line(topWest, topSouth, 2, { color: rgba('#ffe88c'), sample, lit: false, pickId });
+      this._builder.line(topSouth, topEast, 2, { color: rgba('#ffd45c'), sample, lit: false, pickId });
+    }
     this._builder.quad(
-      [north[0], north[1] - lidLift],
-      [east[0], east[1] - lidLift],
-      [south[0], south[1] - height],
-      [west[0], west[1] - height],
+      lidNorth,
+      lidEast,
+      topSouth,
+      topWest,
       { color: rgba(shiftColor(chest.propColor, 24)), sample, normal: [0, -1], pickId },
     );
+    this._builder.quad(
+      lerpPoint(lidNorth, lidEast, 0.43, 0),
+      lerpPoint(lidNorth, lidEast, 0.57, 0),
+      lerpPoint(topWest, topSouth, 0.57, 0),
+      lerpPoint(topWest, topSouth, 0.43, 0),
+      { color: rgba(shiftColor(metal, 14)), sample, normal: [0, -1], pickId },
+    );
+    this._builder.line(lidEast, topSouth, 1.4, {
+      color: rgba('#d4d9d5'), sample, normal: [0, -1], pickId,
+    });
+    this._builder.line(topSouth, topWest, 1.4, {
+      color: rgba(metalDark), sample, normal: [0, -1], pickId,
+    });
   }
 
   private _extractCloud(cloud: Cloud, tileW: number, tileH: number): void {

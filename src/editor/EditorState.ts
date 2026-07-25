@@ -5,7 +5,7 @@
 export type ToolType =
   | 'select'
   | 'wall' | 'omnilight' | 'dirlight' | 'character'
-  | 'crystal' | 'boulder' | 'chest'
+  | 'crystal' | 'boulder' | 'chest' | 'tree' | 'flowers' | 'lantern'
   | 'walkable' | 'blocked';
 
 export interface EditorFloor {
@@ -49,10 +49,18 @@ export interface EditorCharacter {
 export interface EditorProp {
   id: string;
   /** Internal kind for the editor; exported as `type` in JSON. */
-  kind: 'crystal' | 'boulder' | 'chest';
+  kind: 'crystal' | 'boulder' | 'chest' | 'tree' | 'flowers' | 'lantern';
   x: number; y: number;
   color: string;
   health?: number;
+  radius?: number;
+  heightPx?: number;
+  scale?: number;
+  trunkColor?: string;
+  accentColor?: string;
+  postColor?: string;
+  count?: number;
+  seed?: number;
 }
 
 export type EditorObject = EditorWall | EditorLight | EditorCharacter | EditorProp;
@@ -329,13 +337,7 @@ export class EditorState {
       }),
       characters: characters.map(c => ({ ...c })),
       // props: use 'type' not 'kind' so Engine._buildScene can load them
-      props: props.map(p => ({
-        id: p.id,
-        type: p.kind,   // Engine expects `type` field
-        x: p.x, y: p.y,
-        color: p.color,
-        ...(p.health !== undefined ? { health: p.health } : {}),
-      })),
+      props: props.map(({ kind, ...prop }) => ({ ...prop, type: kind })),
     };
     return JSON.stringify(out, null, 2);
   }
@@ -375,10 +377,18 @@ export class EditorState {
         // Support both 'kind' (editor-internal) and 'type' (engine JSON format)
         props: (data.props ?? data.objects ?? []).map((p: any) => ({
           id:    p.id,
-          kind:  (p.kind ?? p.type) as 'crystal' | 'boulder' | 'chest',
+          kind:  (p.kind ?? p.type) as EditorProp['kind'],
           x: p.x, y: p.y,
           color: p.color ?? '#888',
           ...(p.health !== undefined ? { health: p.health } : {}),
+          ...(p.radius !== undefined ? { radius: p.radius } : {}),
+          ...(p.heightPx !== undefined ? { heightPx: p.heightPx } : {}),
+          ...(p.scale !== undefined ? { scale: p.scale } : {}),
+          ...(p.trunkColor !== undefined ? { trunkColor: p.trunkColor } : {}),
+          ...(p.accentColor !== undefined ? { accentColor: p.accentColor } : {}),
+          ...(p.postColor !== undefined ? { postColor: p.postColor } : {}),
+          ...(p.count !== undefined ? { count: p.count } : {}),
+          ...(p.seed !== undefined ? { seed: p.seed } : {}),
         })).filter((p: EditorProp) => p.kind),
       };
       this.selectedId = null;

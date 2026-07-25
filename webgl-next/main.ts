@@ -9,6 +9,9 @@ import { Boulder } from '../src/elements/props/Boulder';
 import { Chest } from '../src/elements/props/Chest';
 import { Cloud } from '../src/elements/props/Cloud';
 import { Crystal } from '../src/elements/props/Crystal';
+import { Tree } from '../src/elements/props/Tree';
+import { FlowerPatch } from '../src/elements/props/FlowerPatch';
+import { Lantern } from '../src/elements/props/Lantern';
 import { FloatingText } from '../src/elements/props/FloatingText';
 import { DirectionalLight } from '../src/lighting/DirectionalLight';
 import { OmniLight } from '../src/lighting/OmniLight';
@@ -55,6 +58,7 @@ try {
     : `初始化失败 · ${error instanceof Error ? error.message : String(error)}`;
 }
 
+syncControls();
 bindControls();
 bindViewportInput();
 new ResizeObserver(resizeSurfaces).observe(viewport);
@@ -62,56 +66,72 @@ resizeSurfaces();
 requestAnimationFrame(frame);
 
 async function createScene(): Promise<Scene> {
-  const next = new Scene({ name: 'WebGL Next Lab', tileW: 64, tileH: 32, cols: 12, rows: 10 });
-  next.ambientColor = '#d9e6ef';
-  next.ambientIntensity = 0.38;
+  const next = new Scene({ name: 'Lantern Garden', tileW: 64, tileH: 32, cols: 12, rows: 10 });
+  next.ambientColor = '#dcebe4';
+  next.ambientIntensity = 0.44;
   next.camera.x = 6;
   next.camera.y = 4.8;
 
   next.addObject(new Floor({
-    id: 'floor', cols: 12, rows: 10, color: '#355d4b', altColor: '#3c6752',
+    id: 'floor', cols: 12, rows: 10, color: '#3f7358', altColor: '#477d60',
   }));
   next.addObject(new Wall({
-    id: 'north-wall', x: 1, y: 1, endX: 10.5, endY: 1, height: 72, color: '#58636d',
-    openings: [{ type: 'window', offsetX: 0.3, width: 0.15, height: 0.32, offsetY: 0.42 }],
+    id: 'north-wall', x: 1, y: 1, endX: 10.7, endY: 1, height: 50, color: '#819084',
+    openings: [{ type: 'window', offsetX: 0.34, width: 0.14, height: 0.3, offsetY: 0.45 }],
   }));
   next.addObject(new Wall({
-    id: 'west-wall', x: 1, y: 1, endX: 1, endY: 8.5, height: 72, color: '#65717c',
-    openings: [{ type: 'door', offsetX: 0.58, width: 0.18, height: 0.72 }],
+    id: 'west-wall', x: 1, y: 1, endX: 1, endY: 8.7, height: 50, color: '#89998b',
+    openings: [{ type: 'door', offsetX: 0.6, width: 0.18, height: 0.78 }],
   }));
   next.addObject(new Wall({
-    id: 'divider', x: 7.5, y: 3, endX: 7.5, endY: 7.5, height: 48, color: '#4d5963',
+    id: 'garden-wall', x: 8.2, y: 5.9, endX: 8.2, endY: 8.4, height: 30, color: '#718376',
   }));
 
-  const runner = new Character({ id: 'runner', x: 4.2, y: 5.1, radius: 20, color: '#d96355' });
+  const runner = new Character({ id: 'runner', x: 5.0, y: 5.35, radius: 20, color: '#d96355' });
   runner.setSpriteSheet(await createPreviewSpriteSheet());
   next.addObject(runner);
-  next.addObject(new Crystal('violet-crystal', 3.1, 3.4, '#7c62d9', 54));
-  next.addObject(new Crystal('cyan-crystal', 8.6, 6.7, '#3ab5b0', 42));
-  next.addObject(new Boulder('boulder-a', 5.8, 7.3, '#69727a', 21));
-  next.addObject(new Boulder('boulder-b', 9.1, 3.3, '#777066', 17));
-  next.addObject(new Chest('supply-chest', 6.1, 3.2, '#a86526'));
-  next.addObject(new Cloud({ id: 'cloud-a', x: 2.2, y: 6.7, altitude: 5.2, speed: 0.22, angle: -0.18, scale: 0.85, seed: 0.42 }));
+  next.addObject(new Crystal('violet-crystal', 3.05, 3.25, '#896ee8', 58));
+  next.addObject(new Crystal('cyan-crystal', 8.75, 6.85, '#45c8bd', 46));
+  next.addObject(new Boulder('mossy-boulder', 6.1, 7.55, '#687b70', 19));
+  next.addObject(new Chest('garden-chest', 6.15, 3.25, '#b46f2d'));
 
-  const sparks = new ParticleSystem('forge-sparks', 7.7, 4.7, 18);
+  for (const tree of [
+    { id: 'tree-nw', x: 2.0, y: 1.9, canopyColor: '#4f9d68', scale: 1.05 },
+    { id: 'tree-ne', x: 9.8, y: 1.9, canopyColor: '#5aa873', scale: 0.92 },
+    { id: 'tree-sw', x: 2.0, y: 8.0, canopyColor: '#438d61', scale: 1.12 },
+    { id: 'tree-east', x: 10.2, y: 7.7, canopyColor: '#58a16d', scale: 1.02 },
+  ]) next.addObject(new Tree({ ...tree, trunkColor: '#815b43', heightPx: 72 }));
+
+  for (const flowers of [
+    { id: 'flowers-pink', x: 3.65, y: 6.7, color: '#f47ca5', accentColor: '#fff0a6', seed: 1.2 },
+    { id: 'flowers-blue', x: 5.15, y: 2.45, color: '#7fb7ff', accentColor: '#f8f0b4', seed: 2.7 },
+    { id: 'flowers-coral', x: 8.55, y: 4.25, color: '#ff9178', accentColor: '#ffe58a', seed: 4.1 },
+    { id: 'flowers-lilac', x: 4.15, y: 4.2, color: '#c59bff', accentColor: '#fff0a6', seed: 5.8 },
+  ]) next.addObject(new FlowerPatch({ ...flowers, count: 8 }));
+
+  next.addObject(new Lantern({ id: 'lantern-west', x: 4.75, y: 3.25, glowColor: '#ffd166', postColor: '#40504b', heightPx: 52 }));
+  next.addObject(new Lantern({ id: 'lantern-east', x: 7.5, y: 3.25, glowColor: '#ffcf73', postColor: '#40504b', heightPx: 52 }));
+  next.addObject(new Cloud({ id: 'cloud-a', x: 2.2, y: 6.7, altitude: 5.2, speed: 0.22, angle: -0.18, scale: 0.8, seed: 0.42 }));
+
+  const sparks = new ParticleSystem('crystal-sparkles', 3.05, 3.25, 18);
   sparks.addEmitter({
-    rate: 22,
-    maxParticles: 70,
-    life: [0.45, 1.1],
-    speed: [0.5, 1.5],
-    vz: [12, 25],
-    size: [1.2, 2.8],
-    sizeFinal: 0.3,
-    color: ['#ffd36a', '#ff7a38'],
-    colorEnd: '#e64228',
-    alphaStart: 0.9,
+    rate: 13,
+    maxParticles: 46,
+    life: [0.8, 1.6],
+    speed: [0.25, 0.8],
+    vz: [8, 18],
+    size: [1.1, 2.3],
+    sizeFinal: 0.2,
+    color: ['#e4d6ff', '#9edfff'],
+    colorEnd: '#9d7ee8',
+    alphaStart: 0.82,
     alphaEnd: 0,
-    gravity: 24,
+    gravity: 8,
     blend: ParticleBlend.ADD,
   });
   next.addObject(sparks);
 
-  const dust = new ParticleSystem('ambient-dust', 5.5, 5.0, 30);
+  const dust = new ParticleSystem('garden-pollen', 5.5, 5.0, 30);
   dust.addEmitter({
     rate: 7,
     maxParticles: 24,
@@ -120,27 +140,33 @@ async function createScene(): Promise<Scene> {
     speed: [0.08, 0.25],
     vz: [0.3, 1.2],
     size: [0.8, 1.6],
-    color: ['#bcd8c8', '#d7e8d8'],
+    color: ['#d8edc8', '#fff0b5'],
     alphaStart: 0.28,
     alphaEnd: 0,
     blend: ParticleBlend.ALPHA,
   });
   next.addObject(dust);
   next.addObject(new FloatingText({
-    id: 'phase-label', x: 6.1, y: 3.2, z: 74, text: 'WEBGL NEXT', color: '#ffe08a', duration: 1_000_000, speed: 0, fontSize: 12,
+    id: 'garden-label', x: 6.15, y: 3.25, z: 74, text: 'LANTERN GARDEN', color: '#fff0b0', duration: 1_000_000, speed: 0, fontSize: 12,
   }));
 
   next.collider = new TileCollider(12, 10);
-  for (const [col, row] of [[7, 5], [7, 6], [8, 5], [3, 7]] as const) {
+  for (const [col, row] of [[1, 1], [9, 1], [1, 7], [10, 7], [8, 6], [6, 7]] as const) {
     next.collider.setWalkable(col, row, false);
   }
 
-  next.addLight(new DirectionalLight({ id: 'sun', angle: 220, elevation: 48, color: '#e8f3ff', intensity: 0.48 }));
+  next.addLight(new DirectionalLight({ id: 'sun', angle: 220, elevation: 48, color: '#f0f6e8', intensity: 0.5 }));
   next.addLight(new OmniLight({
-    id: 'work-light', x: 7.8, y: 4.6, z: 82, radius: 270, color: '#ffd27a', intensity: 1.3, falloff: 'quadratic',
+    id: 'work-light', x: 6, y: 5, z: 96, radius: 300, color: '#b7d8ff', intensity: 0.8, falloff: 'quadratic',
   }));
   next.addLight(new OmniLight({
-    id: 'sky-fill', x: 0, y: 0, z: 0, color: '#7ba7cf', intensity: 0.14, isGlobal: true,
+    id: 'lantern-west-light', x: 4.75, y: 3.25, z: 52, radius: 170, color: '#ffd166', intensity: 0.78, falloff: 'quadratic',
+  }));
+  next.addLight(new OmniLight({
+    id: 'lantern-east-light', x: 7.5, y: 3.25, z: 52, radius: 170, color: '#ffcf73', intensity: 0.78, falloff: 'quadratic',
+  }));
+  next.addLight(new OmniLight({
+    id: 'sky-fill', x: 0, y: 0, z: 0, color: '#7fa8a0', intensity: 0.17, isGlobal: true,
   }));
   return next;
 }
@@ -176,6 +202,19 @@ function bindControls(): void {
     orbitLight.intensity = value;
     return value.toFixed(2);
   });
+}
+
+function syncControls(): void {
+  syncRange('rotation', 'rotation-value', scene.view.rotation, `${Math.round(scene.view.rotation)}°`);
+  syncRange('elevation', 'elevation-value', scene.view.elevation, scene.view.elevation.toFixed(2));
+  syncRange('zoom', 'zoom-value', scene.camera.zoom, scene.camera.zoom.toFixed(2));
+  syncRange('ambient', 'ambient-value', scene.ambientIntensity, scene.ambientIntensity.toFixed(2));
+  syncRange('light-intensity', 'light-value', orbitLight.intensity, orbitLight.intensity.toFixed(2));
+}
+
+function syncRange(inputId: string, outputId: string, value: number, label: string): void {
+  required<HTMLInputElement>(inputId).value = String(value);
+  required<HTMLOutputElement>(outputId).value = label;
 }
 
 function bindViewportInput(): void {
@@ -258,6 +297,7 @@ function frame(now: number): void {
       viewportHeight: rect.height,
       originX: rect.width / 2,
       originY: sceneOriginY(rect.height),
+      clearColor: '#111a18',
       selectedId,
       showCollision: required<HTMLInputElement>('collision-overlay').checked,
     });
@@ -275,7 +315,7 @@ function renderCanvasReference(): void {
   const rect = referenceCanvas.getBoundingClientRect();
   const dpr = referenceCanvas.width / Math.max(1, rect.width);
   referenceContext.setTransform(dpr, 0, 0, dpr, 0, 0);
-  referenceContext.fillStyle = '#12161d';
+  referenceContext.fillStyle = '#111a18';
   referenceContext.fillRect(0, 0, rect.width, rect.height);
   scene.draw(referenceContext, rect.width, rect.height, rect.width / 2, sceneOriginY(rect.height));
 }

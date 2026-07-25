@@ -70,39 +70,24 @@ export class Crystal extends Entity {
     const darkColor = shiftColor(this.color, -60);
     const faceColor = shiftColor(this.color, -30);
 
-    // Main crystal spike
+    // Main crystal spike. Every face shares the same ridge vertices; the thin
+    // center overlays prevent sub-pixel antialiasing cracks between GPU/Canvas faces.
     ctx.save();
     ctx.translate(cx, cy);
+    const base: Point = [0, 0];
+    const leftShoulder: Point = [-w * 0.92, -h * 0.44];
+    const leftUpper: Point = [-w * 0.38, -h * 0.9];
+    const ridge: Point = [0, -h * 0.58];
+    const rightUpper: Point = [w * 0.38, -h * 0.9];
+    const rightShoulder: Point = [w * 0.92, -h * 0.42];
+    const tip: Point = [0, -h * 1.18];
 
-    // Left face (dark)
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(-w * 0.9, -h * 0.5);
-    ctx.lineTo(-w * 0.4, -h);
-    ctx.lineTo(0, -h * 0.6);
-    ctx.closePath();
-    ctx.fillStyle = darkColor;
-    ctx.fill();
-
-    // Right face (lit)
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(w * 0.9, -h * 0.4);
-    ctx.lineTo(w * 0.35, -h);
-    ctx.lineTo(0, -h * 0.6);
-    ctx.closePath();
-    ctx.fillStyle = baseColor;
-    ctx.fill();
-
-    // Center face (mid tone)
-    ctx.beginPath();
-    ctx.moveTo(-w * 0.4, -h);
-    ctx.lineTo(0, -h * 0.6);
-    ctx.lineTo(w * 0.35, -h);
-    ctx.lineTo(0, -h * 1.15); // tip
-    ctx.closePath();
-    ctx.fillStyle = this.accentColor;
-    ctx.fill();
+    fillPolygon(ctx, [base, leftShoulder, leftUpper, ridge], darkColor);
+    fillPolygon(ctx, [base, ridge, rightUpper, rightShoulder], baseColor);
+    fillPolygon(ctx, [leftUpper, tip, ridge], this.accentColor);
+    fillPolygon(ctx, [tip, rightUpper, ridge], shiftColor(this.accentColor, -18));
+    fillPolygon(ctx, [[-0.8, -h * 0.57], tip, [0.8, -h * 0.57]], shiftColor(this.accentColor, 18));
+    fillPolygon(ctx, [[-0.75, -h * 0.57], [0.75, -h * 0.57], base], faceColor);
 
     // Small secondary crystal
     ctx.translate(w * 0.7, -h * 0.05);
@@ -142,4 +127,15 @@ export class Crystal extends Entity {
     ctx.fillStyle = barColor;
     ctx.fillRect(x - w / 2, y, w * frac, h);
   }
+}
+
+type Point = readonly [number, number];
+
+function fillPolygon(ctx: CanvasRenderingContext2D, points: readonly Point[], color: string): void {
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
 }

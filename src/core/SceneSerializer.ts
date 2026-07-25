@@ -6,6 +6,9 @@ import { Cloud } from '../elements/props/Cloud';
 import { Crystal } from '../elements/props/Crystal';
 import { Boulder } from '../elements/props/Boulder';
 import { Chest } from '../elements/props/Chest';
+import { Tree } from '../elements/props/Tree';
+import { FlowerPatch } from '../elements/props/FlowerPatch';
+import { Lantern } from '../elements/props/Lantern';
 import { OmniLight } from '../lighting/OmniLight';
 import { DirectionalLight } from '../lighting/DirectionalLight';
 import { HealthComponent } from '../ecs/components/HealthComponent';
@@ -21,6 +24,9 @@ export class SceneSerializer {
     const crystals   = objects.filter((o): o is Crystal   => o instanceof Crystal);
     const boulders   = objects.filter((o): o is Boulder   => o instanceof Boulder);
     const chests     = objects.filter((o): o is Chest     => o instanceof Chest);
+    const trees      = objects.filter((o): o is Tree      => o instanceof Tree);
+    const flowers    = objects.filter((o): o is FlowerPatch => o instanceof FlowerPatch);
+    const lanterns   = objects.filter((o): o is Lantern   => o instanceof Lantern);
     const omniLights = scene.allLights.filter((l): l is OmniLight => l instanceof OmniLight);
     const dirLights = scene.allLights.filter((l): l is DirectionalLight => l instanceof DirectionalLight);
 
@@ -143,6 +149,35 @@ export class SceneSerializer {
           y: prop.position.y,
           color: prop.propColor,
           ...SceneSerializer._health(prop),
+        })),
+        ...trees.map((prop) => ({
+          type: 'tree' as const,
+          id: prop.id,
+          x: prop.position.x,
+          y: prop.position.y,
+          color: prop.propCanopyColor,
+          trunkColor: prop.propTrunkColor,
+          heightPx: prop.propHeightPx,
+          scale: prop.propScale,
+        })),
+        ...flowers.map((prop) => ({
+          type: 'flowers' as const,
+          id: prop.id,
+          x: prop.position.x,
+          y: prop.position.y,
+          color: prop.propColor,
+          accentColor: prop.propAccentColor,
+          count: prop.propCount,
+          seed: prop.propSeed,
+        })),
+        ...lanterns.map((prop) => ({
+          type: 'lantern' as const,
+          id: prop.id,
+          x: prop.position.x,
+          y: prop.position.y,
+          color: prop.propGlowColor,
+          postColor: prop.propPostColor,
+          heightPx: prop.propHeightPx,
         })),
       ],
     };

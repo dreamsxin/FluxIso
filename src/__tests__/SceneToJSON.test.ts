@@ -9,6 +9,9 @@ import { DirectionalLight } from '../lighting/DirectionalLight';
 import { TileCollider } from '../physics/TileCollider';
 import { Engine } from '../core/Engine';
 import { SceneSerializer } from '../core/SceneSerializer';
+import { Tree } from '../elements/props/Tree';
+import { FlowerPatch } from '../elements/props/FlowerPatch';
+import { Lantern } from '../elements/props/Lantern';
 
 function buildScene(): Scene {
   const scene = new Scene({ name: 'Serialization Test', tileW: 64, tileH: 32, cols: 6, rows: 6 });
@@ -25,6 +28,9 @@ function buildScene(): Scene {
   scene.addObject(new Wall({ id: 'w1', x: 0, y: 0, endX: 6, endY: 0, height: 64, color: '#445566' }));
   scene.addObject(new Character({ id: 'player', x: 2, y: 3, z: 0, radius: 20, color: '#5590cc' }));
   scene.addObject(new Cloud({ id: 'c1', x: 1, y: 1, altitude: 5, speed: 0.3, angle: 0.2, scale: 1.1, seed: 0.6 }));
+  scene.addObject(new Tree({ id: 'tree-1', x: 4, y: 1, canopyColor: '#4a9a68', trunkColor: '#76513b', heightPx: 76, scale: 1.1 }));
+  scene.addObject(new FlowerPatch({ id: 'flowers-1', x: 4, y: 2, color: '#f47ca5', accentColor: '#fff0a6', count: 8, seed: 3.5 }));
+  scene.addObject(new Lantern({ id: 'lantern-1', x: 4, y: 3, glowColor: '#ffd166', postColor: '#40504b', heightPx: 54 }));
 
   scene.addLight(new OmniLight({ id: 'lamp', x: 3, y: 3, z: 100, color: '#ffcc66', intensity: 1.2, radius: 300, isGlobal: true, falloff: 'quadratic' }));
   const sun = new DirectionalLight({ id: 'sun', angle: 45, elevation: 60, color: '#aabbff', intensity: 0.3 });
@@ -122,6 +128,29 @@ describe('Scene.toJSON()', () => {
     const back = JSON.parse(str);
     expect(back.cols).toBe(6);
     expect((back.lights as unknown[]).length).toBe(2);
+  });
+
+  it('round-trips common garden props through the built-in registry', () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      getContext: () => ({}),
+    } as unknown as HTMLCanvasElement;
+    const json = buildScene().toJSON() as { props: Array<Record<string, unknown>> };
+    const restored = new Engine({ canvas }).buildScene(json);
+
+    expect(json.props.find((prop) => prop.type === 'tree')).toMatchObject({
+      color: '#4a9a68', trunkColor: '#76513b', heightPx: 76, scale: 1.1,
+    });
+    expect(json.props.find((prop) => prop.type === 'flowers')).toMatchObject({
+      color: '#f47ca5', accentColor: '#fff0a6', count: 8, seed: 3.5,
+    });
+    expect(json.props.find((prop) => prop.type === 'lantern')).toMatchObject({
+      color: '#ffd166', postColor: '#40504b', heightPx: 54,
+    });
+    expect(restored.getById('tree-1')).toBeInstanceOf(Tree);
+    expect(restored.getById('flowers-1')).toBeInstanceOf(FlowerPatch);
+    expect(restored.getById('lantern-1')).toBeInstanceOf(Lantern);
   });
 
   it('delegates serialization to SceneSerializer', () => {

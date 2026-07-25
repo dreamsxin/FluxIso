@@ -8,6 +8,9 @@ import { Boulder } from '../elements/props/Boulder';
 import { Chest } from '../elements/props/Chest';
 import { Cloud } from '../elements/props/Cloud';
 import { Crystal } from '../elements/props/Crystal';
+import { Tree } from '../elements/props/Tree';
+import { FlowerPatch } from '../elements/props/FlowerPatch';
+import { Lantern } from '../elements/props/Lantern';
 import { DirectionalLight } from '../lighting/DirectionalLight';
 import { OmniLight } from '../lighting/OmniLight';
 import type { AABB } from '../math/depthSort';
@@ -34,6 +37,9 @@ describe('WebGL Next SceneExtractor', () => {
     expect(snapshot.unsupported).toEqual([]);
     expect(snapshot.omniLights).toHaveLength(1);
     expect(snapshot.directionalLights).toHaveLength(1);
+    expect([...snapshot.pickLookup.values()]).toEqual(expect.arrayContaining([
+      'tree', 'flowers', 'lantern',
+    ]));
   });
 
   it('keeps object picking IDs and the geometry arena stable across frames', () => {
@@ -64,6 +70,22 @@ describe('WebGL Next SceneExtractor', () => {
     expect(snapshot.geometry.opaque.count).toBe(6);
     expect([...snapshot.pickLookup.values()]).toContain('custom');
   });
+
+  it('emits sealed, non-degenerate crystal faces around the center ridge', () => {
+    const scene = new Scene({ cols: 2, rows: 2, tileW: 64, tileH: 32 });
+    scene.addObject(new Crystal('crystal', 1, 1, '#8060e0', 48));
+    const geometry = new SceneExtractor().extract(scene, viewport()).geometry;
+    const { first, count } = geometry.opaque;
+
+    expect(count).toBe(33);
+    for (let vertex = first; vertex < first + count; vertex += 3) {
+      const a = vertexPoint(geometry.data, vertex);
+      const b = vertexPoint(geometry.data, vertex + 1);
+      const c = vertexPoint(geometry.data, vertex + 2);
+      const twiceArea = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+      expect(twiceArea).toBeGreaterThan(0.1);
+    }
+  });
 });
 
 function builtInScene(): Scene {
@@ -74,10 +96,18 @@ function builtInScene(): Scene {
   scene.addObject(new Crystal('crystal', 2, 1));
   scene.addObject(new Boulder('boulder', 2, 2));
   scene.addObject(new Chest('chest', 1, 2));
+  scene.addObject(new Tree({ id: 'tree', x: 0.8, y: 2.8 }));
+  scene.addObject(new FlowerPatch({ id: 'flowers', x: 2.8, y: 0.8, seed: 2 }));
+  scene.addObject(new Lantern({ id: 'lantern', x: 2.8, y: 2.8 }));
   scene.addObject(new Cloud({ id: 'cloud', x: 3, y: 2 }));
   scene.addLight(new OmniLight({ id: 'omni', x: 2, y: 2, z: 64 }));
   scene.addLight(new DirectionalLight({ id: 'sun', angle: 220 }));
   return scene;
+}
+
+function vertexPoint(data: Float32Array, vertex: number): readonly [number, number] {
+  const offset = vertex * 17;
+  return [data[offset], data[offset + 1]];
 }
 
 function viewport() {
