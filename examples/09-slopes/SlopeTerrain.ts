@@ -167,13 +167,14 @@ export class SlopeTerrain extends IsoObject {
     const { ctx, tileW, tileH, originX, originY } = dc;
     for (let row = 0; row < this.rows; row++) {
       for (let col = 0; col < this.cols; col++) {
-        this._drawTile(ctx, col, row, tileW, tileH, originX, originY);
+        this._drawTile(ctx, dc, col, row, tileW, tileH, originX, originY);
       }
     }
   }
 
   private _drawTile(
     ctx: CanvasRenderingContext2D,
+    dc: DrawContext,
     col: number, row: number,
     tileW: number, tileH: number,
     ox: number, oy: number,
@@ -205,14 +206,65 @@ export class SlopeTerrain extends IsoObject {
     const nLen = Math.sqrt(dzdx * dzdx + dzdy * dzdy + 1);
     const nx = -dzdx / nLen, ny = -dzdy / nLen, nz = 1 / nLen;
 
-    // Two lights: warm sun from NW-upper, cool fill from SE-lower
-    const SUN  = { x: -0.50, y: -0.65, z: 1.00 };
-    const FILL = { x:  0.35, y:  0.50, z: 0.55 };
-    const sunLen  = Math.sqrt(SUN.x**2  + SUN.y**2  + SUN.z**2);
-    const fillLen = Math.sqrt(FILL.x**2 + FILL.y**2 + FILL.z**2);
-    const diffSun  = Math.max(0, (nx*SUN.x  + ny*SUN.y  + nz*SUN.z)  / sunLen);
-    const diffFill = Math.max(0, (nx*FILL.x + ny*FILL.y + nz*FILL.z) / fillLen);
-    const topLit = 0.30 + 0.65 * diffSun + 0.18 * diffFill;
+    // ── Lighting from the scene's DirectionalLights + OmniLights ──────────
+    // Build a 3D light vector per directional light: the 2D `direction` points
+    // toward the source in iso screen space; the vertical component is
+    // sin(elevation). Lambert diffuse = max(0, dot(normal, towardLight)).
+    // OmniLights contribute based on 3D distance from the tile centre to the
+    // light (x,y,z), attenuated by the light's radius. Falls back to a
+    // hardcoded sun+fill only when the scene provides no lights.
+    let rLit = dc.ambientRgb[0];
+    let gLit = dc.ambientRgb[1];
+    let bLit = dc.ambientRgb[2];
+    if (dc.dirLights.length === 0 && dc.omniLights.length === 0) {
+      // Legacy fallback: warm sun + cool fill (original hardcoded look).
+      const SUN  = { x: -0.50, y: -0.65, z: 1.00 };
+      const FILL = { x:  0.35, y:  0.50, z: 0.55 };
+      const sunLen  = Math.sqrt(SUN.x**2  + SUN.y**2  + SUN.z**2);
+      const fillLen = Math.sqrt(FILL.x**2 + FILL.y**2 + FILL.z**2);
+      const diffSun  = Math.max(0, (nx*SUN.x  + ny*SUN.y  + nz*SUN.z)  / sunLen);
+      const diffFill = Math.max(0, (nx*FILL.x + ny*FILL.y + nz*FILL.z) / fillLen);
+      rLit += 0.65 * diffSun + 0.18 * diffFill;
+      gLit += 0.65 * diffSun + 0.18 * diffFill;
+      bLit += 0.65 * diffSun + 0.18 * diffFill;
+    } else {
+      const tileCx = col + 0.5, tileCy = row + 0.5;
+      const avgHLocal = (hTL + hTR + hBR + hBL) * 0.25;
+      for (const dl of dc.dirLights) {
+        const { dx, dy } = dl.direction;
+        const z = Math.sin(dl.elevation);
+        const len = Math.sqrt(dx*dx + dy*dy + z*z) || 1;
+        const diff = Math.max(0, (nx*dx + ny*dy + nz*z) / len);
+        const factor = diff * dl.intensity;
+        const lr = parseInt(dl.color.slice(1, 3), 16);
+        const lg = parseInt(dl.color.slice(3, 5), 16);
+        const lb = parseInt(dl.color.slice(5, 7), 16);
+        rLit += (lr / 255) * factor;
+        gLit += (lg / 255) * factor;
+        bLit += (lb / 255) * factor;
+      }
+      for (const ol of dc.omniLights) {
+        // 3D distance: tile centre (world x,y, height in world units) to light
+        // (x,y, z in pixels -> convert to world height units via /tileH).
+        const lightHWorld = ol.position.z / tileH;
+        const dx = ol.position.x - tileCx;
+        const dy = ol.position.y - tileCy;
+        const dz = lightHWorld - avgHLocal;
+        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        const radiusWorld = ol.radius / tileH;  // radius is in screen px
+        const t = Math.max(0, 1 - dist / radiusWorld);
+        const atten = (ol.falloff === 'quadratic' ? t * t : t) * ol.intensity;
+        if (atten <= 0) continue;
+        const lr = parseInt(ol.color.slice(1, 3), 16);
+        const lg = parseInt(ol.color.slice(3, 5), 16);
+        const lb = parseInt(ol.color.slice(5, 7), 16);
+        rLit += (lr / 255) * atten;
+        gLit += (lg / 255) * atten;
+        bLit += (lb / 255) * atten;
+      }
+    }
+    // Average intensity for applyLight (keeps the existing rgb*rLit model).
+    const topLit = (rLit + gLit + bLit) / 3;
 
     const avgH  = (hTL + hTR + hBR + hBL) * 0.25;
     const rgb   = heightRgb(avgH, this.maxH);

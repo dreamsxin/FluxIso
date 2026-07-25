@@ -136,10 +136,11 @@ export class Floor extends IsoObject {
           ctx.clip();
           ctx.drawImage(tileImg, cx - hw, cy - hh, tileW, tileH);
 
-          // Cached illumination overlay
+          // Cached illumination overlay - multiply so the texture darkens in
+          // low light (matches solid-color tiles: baseColor * illum).
           const illumColor = this._colorCache[row * this.cols + col];
           if (illumColor) {
-            ctx.globalCompositeOperation = 'screen';
+            ctx.globalCompositeOperation = 'multiply';
             ctx.fillStyle = illumColor;
             ctx.fill();
             ctx.globalCompositeOperation = 'source-over';
@@ -175,7 +176,7 @@ export class Floor extends IsoObject {
     tileW: number, tileH: number,
   ): string {
     const omni = omniLights.map(l =>
-      `${l.position.x.toFixed(1)},${l.position.y.toFixed(1)},${l.position.z.toFixed(1)},${l.color},${l.intensity.toFixed(3)},${l.radius}`
+      `${l.position.x.toFixed(1)},${l.position.y.toFixed(1)},${l.position.z.toFixed(1)},${l.color},${l.intensity.toFixed(3)},${l.radius},${l.isGlobal ? 1 : 0},${l.falloff}`
     ).join('|');
     const dir = dirLights.map(l =>
       `${l.angle.toFixed(3)},${l.elevation.toFixed(3)},${l.color},${l.intensity.toFixed(3)}`
@@ -236,12 +237,15 @@ export class Floor extends IsoObject {
         const isEven = (col + row) % 2 === 0;
 
         if (img) {
-          // For image tiles: store screen-blend tint color
+          // For image tiles: store a multiply-blend tint (rgb 0-255) so the
+          // texture darkens in low light - matching solid-color tile behavior
+          // (baseColor * illum). Previously this used a *40 screen blend which
+          // could only brighten and left tiles full-bright in darkness.
           const avgIllum = (rIllum + gIllum + bIllum) / 3;
-          if (avgIllum > 0.05) {
-            cache[row * this.cols + col] = `rgb(${Math.round(Math.min(255, rIllum * 40))},${Math.round(Math.min(255, gIllum * 40))},${Math.round(Math.min(255, bIllum * 40))})`;
+          if (avgIllum > 0.01) {
+            cache[row * this.cols + col] = `rgb(${Math.round(Math.min(255, rIllum * 255))},${Math.round(Math.min(255, gIllum * 255))},${Math.round(Math.min(255, bIllum * 255))})`;
           } else {
-            cache[row * this.cols + col] = '';
+            cache[row * this.cols + col] = '';  // near-zero illum -> black via no overlay
           }
         } else {
           // For solid-color tiles: store final lit color

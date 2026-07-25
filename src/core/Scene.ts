@@ -48,6 +48,13 @@ export class Scene {
    */
   private _sortHash = 0;
 
+  // ── Performance: shadow-caster position hash ──────────────────────────────
+  // When a shadow-casting object moves (but lights/camera/ambient are
+  // unchanged), the lightmap snapshot above would NOT re-bake and the baked
+  // ground shadow would freeze at the old position. This hash tracks only
+  // castsShadow object positions and forces a lightmap invalidate on change.
+  private _shadowHash = 0;
+
   // ── Performance: pre-allocated partition buffers ───────────────────────────
   // Reused every frame to avoid per-frame array allocation.
   private _floorBuf:  Floor[]     = [];
@@ -278,7 +285,15 @@ export class Scene {
 
     // ── Bake floor lightmap if lights or ambient changed ───────────────────
     const cache = this._lightmapCache;
-    if (cache.isDirty(omniLights, dirLights, this.camera.x, this.camera.y, this.camera.zoom, ambientRgb)) {
+    // Invalidate the lightmap when a shadow-casting object has moved, so the
+    // baked ground shadow follows the object (the snapshot only covers
+    // lights/camera/ambient/view, not object positions).
+    const shadowHash = this._computeShadowHash(this._cullBuf);
+    if (shadowHash !== this._shadowHash) {
+      this._shadowHash = shadowHash;
+      cache.invalidate();
+    }
+    if (cache.isDirty(omniLights, dirLights, this.camera.x, this.camera.y, this.camera.zoom, ambientRgb, this.view)) {
       cache.begin();
       // We apply the camera transform to the offscreen canvas so the cached
       // image is always in canvas-pixel space and can be blitted directly.
@@ -477,6 +492,24 @@ export class Scene {
     for (const o of objects) {
       const p = o.position;
       // Multiply by primes and XOR to mix x/y/z independently
+      h = (Math.imul(h, 31) + (p.x * 1000 | 0)) | 0;
+      h = (Math.imul(h, 31) + (p.y * 1000 | 0)) | 0;
+      h = (Math.imul(h, 31) + (p.z * 1000 | 0)) | 0;
+    }
+    return h;
+  }
+
+  /**
+   * Hash of positions of objects that cast shadows (castsShadow !== false).
+   * Used to detect when a shadow-caster moves so the baked lightmap (which
+   * includes ground shadows) can be invalidated. Mirrors _computeSortHash but
+   * restricted to casters to avoid invalidating when non-casting objects move.
+   */
+  private _computeShadowHash(objects: IsoObject[]): number {
+    let h = 0;
+    for (const o of objects) {
+      if (o.castsShadow === false) continue;
+      const p = o.position;
       h = (Math.imul(h, 31) + (p.x * 1000 | 0)) | 0;
       h = (Math.imul(h, 31) + (p.y * 1000 | 0)) | 0;
       h = (Math.imul(h, 31) + (p.z * 1000 | 0)) | 0;

@@ -1,7 +1,7 @@
 import { OmniLight } from './OmniLight';
 import { DirectionalLight } from './DirectionalLight';
 import { IsoObject } from '../elements/IsoObject';
-import { project } from '../math/IsoProjection';
+import { project, Z_UNITS_PER_PX } from '../math/IsoProjection';
 
 interface ShadowCacheEntry {
   hull: [number, number][];
@@ -9,6 +9,10 @@ interface ShadowCacheEntry {
   // Validation state
   lx: number; ly: number; lz: number;
   ox: number; oy: number; oz: number;
+  // Light-property validation (so intensity/color/radius/falloff/isGlobal
+  // changes invalidate the cached shadow)
+  intensity: number; color: string; radius: number;
+  falloff: 'linear' | 'quadratic'; isGlobal: boolean;
   // For OmniLight
   gradParams?: { cx: number; cy: number; r: number; alpha: number };
 }
@@ -19,6 +23,8 @@ interface DirShadowCacheEntry {
   angle: number;
   elev: number;
   ox: number; oy: number; oz: number;
+  // Light-property validation (intensity/color changes invalidate the cache)
+  intensity: number; color: string;
 }
 
 /**
@@ -39,16 +45,28 @@ export class ShadowCaster {
     tileW: number,
     tileH: number,
   ): void {
+    // Global ambient lights (isGlobal) act as uniform sky light - they do NOT
+    // cast a hard point-source shadow from their (x,y,z) position.
+    if (light.isGlobal) return;
+
     const lx = light.position.x;
     const ly = light.position.y;
-    const lz = light.position.z;
+    // lz is in SCREEN PIXELS (light.position.z feeds project()'s sy directly).
+    // Object AABB baseZ/maxZ are in WORLD-Z units (1 unit = tileH/2 px, via
+    // Z_UNITS_PER_PX). Convert lz to world units so the projection formula
+    // `t = lzWorld / (lzWorld - height)` is dimensionally consistent.
+    const lzWorld = light.position.z * Z_UNITS_PER_PX;
 
-    if (lz <= 0) return;
+    if (lzWorld <= 0) return;
 
     const maxAlpha = Math.min(0.50, light.intensity * 0.42);
 
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
+
+    // Stable per-light cache key: prefer explicit id; fall back to position so
+    // two unnamed lights at different positions don't collide on 'default'.
+    const cacheKey = light.id ?? `omni:${lx},${ly},${light.position.z}`;
 
     for (const obj of casters) {
       if (obj.castsShadow === false) continue;
@@ -60,22 +78,23 @@ export class ShadowCaster {
         this._omniCache.set(obj, objCache);
       }
 
-      let entry = objCache.get(light.id || 'default');
-      const needsUpdate = !entry || 
-        entry.lx !== lx || entry.ly !== ly || entry.lz !== lz ||
-        entry.ox !== pos.x || entry.oy !== pos.y || entry.oz !== pos.z;
+      let entry = objCache.get(cacheKey);
+      const needsUpdate = !entry ||
+        entry.lx !== lx || entry.ly !== ly || entry.lz !== light.position.z ||
+        entry.ox !== pos.x || entry.oy !== pos.y || entry.oz !== pos.z ||
+        entry.intensity !== light.intensity || entry.color !== light.color ||
+        entry.radius !== light.radius || entry.falloff !== light.falloff ||
+        entry.isGlobal !== light.isGlobal;
 
       if (needsUpdate) {
         const { minX, minY, maxX, maxY, baseZ, maxZ } = obj.aabb;
-        // Align with depthSort's maxZ convention: an object without an
-        // explicit maxZ is treated as a 1-unit slab (baseZ + 1). Previously
-        // this used (tileH*1.1)/(tileH/2) ≈ 2.2, disagreeing with depthSort's
-        // +1 and producing inconsistent Z extents between the two systems.
         const objTopZ = maxZ ?? (baseZ + 1);
         const cz = objTopZ - baseZ;
 
-        if (cz <= 0 || baseZ >= lz) {
-          objCache.delete(light.id || 'default');
+        // Skip if the object has no height, or its TOP reaches the light
+        // (guard against t <= 0 / Infinity that would project backwards).
+        if (cz <= 0 || objTopZ >= lzWorld) {
+          objCache.delete(cacheKey);
           continue;
         }
 
@@ -92,8 +111,12 @@ export class ShadowCaster {
           topCorners = [[minX, minY, objTopZ], [maxX, minY, objTopZ], [maxX, maxY, objTopZ], [minX, maxY, objTopZ]];
         }
 
+        // Project each top corner from the light source onto the z=0 ground
+        // plane. t = lzWorld / (lzWorld - (cornerZ - baseZ)); with cornerZ =
+        // objTopZ this is lzWorld / (lzWorld - cz), giving a ground point
+        // extended away from the light by the object's height ratio.
         const groundPts: [number, number][] = topCorners.map(([cx, cy, cornerZ]) => {
-          const t = lz / (lz - (cornerZ - baseZ));
+          const t = lzWorld / (lzWorld - (cornerZ - baseZ));
           return [lx + t * (cx - lx), ly + t * (cy - ly)];
         });
 
@@ -121,7 +144,7 @@ export class ShadowCaster {
 
         const hull = convexHull([...basePts, ...screenPts]);
         if (hull.length < 3) {
-          objCache.delete(light.id || 'default');
+          objCache.delete(cacheKey);
           continue;
         }
 
@@ -129,7 +152,10 @@ export class ShadowCaster {
         const objCy = (minY + maxY) / 2;
         const dist = Math.hypot(objCx - lx, objCy - ly);
         const radiusWorld = light.radius / (tileW / 2);
-        const falloff = Math.max(0, 1 - dist / radiusWorld);
+        // Honor the light's falloff curve so a quadratic light gets a
+        // quadratic shadow (matching OmniLight.illuminateAt).
+        const ft = Math.max(0, 1 - dist / radiusWorld);
+        const falloff = light.falloff === 'quadratic' ? ft * ft : ft;
         const alpha = maxAlpha * falloff;
 
         const baseCx = basePts.reduce((s, p) => s + p[0], 0) / basePts.length;
@@ -137,10 +163,12 @@ export class ShadowCaster {
         const shadowR = Math.max(...hull.map(([hx, hy]) => Math.hypot(hx - baseCx, hy - baseCy))) * 1.1;
 
         entry = {
-          hull, alpha, lx, ly, lz, ox: pos.x, oy: pos.y, oz: pos.z,
+          hull, alpha, lx, ly, lz: light.position.z, ox: pos.x, oy: pos.y, oz: pos.z,
+          intensity: light.intensity, color: light.color, radius: light.radius,
+          falloff: light.falloff, isGlobal: light.isGlobal,
           gradParams: { cx: baseCx, cy: baseCy, r: shadowR, alpha }
         };
-        objCache.set(light.id || 'default', entry);
+        objCache.set(cacheKey, entry);
       }
 
       if (entry!.alpha < 0.01) continue;
@@ -186,6 +214,9 @@ export class ShadowCaster {
     ctx.globalCompositeOperation = 'multiply';
     ctx.fillStyle = `rgba(0,0,0,${alpha.toFixed(3)})`;
 
+    // Stable per-light cache key (see draw() above).
+    const cacheKey = light.id ?? `dir:${angle},${elev}`;
+
     for (const obj of casters) {
       if (obj.castsShadow === false) continue;
 
@@ -196,17 +227,29 @@ export class ShadowCaster {
         this._dirCache.set(obj, objCache);
       }
 
-      let entry = objCache.get(light.id || 'default');
-      const needsUpdate = !entry || 
+      let entry = objCache.get(cacheKey);
+      const needsUpdate = !entry ||
         entry.angle !== angle || entry.elev !== elev ||
-        entry.ox !== pos.x || entry.oy !== pos.y || entry.oz !== pos.z;
+        entry.ox !== pos.x || entry.oy !== pos.y || entry.oz !== pos.z ||
+        entry.intensity !== light.intensity || entry.color !== light.color;
 
       if (needsUpdate) {
         const shadowLen = 1 / Math.tan(elev);
         const screenDx = Math.cos(angle);
         const screenDy = Math.sin(angle);
-        const worldDx =  screenDx / (tileW / 2) + screenDy / (tileH / 2);
-        const worldDy = -screenDx / (tileW / 2) + screenDy / (tileH / 2);
+        // Invert the iso projection to turn the screen-space light direction
+        // into a world (x,y) direction. Projection is sx=(x-y)*tileW/2,
+        // sy=(x+y)*tileH/2, so the inverse is x=(sx/(tileW/2)+sy/(tileH/2))/2,
+        // y=(sy/(tileH/2)-sx/(tileW/2))/2. Then NORMALIZE so the shadow length
+        // is purely shadowLen (= H/tan(elev)) times a unit direction; the old
+        // code divided by tileW/2 & tileH/2 without the /2 and skipped
+        // normalization, yielding shadows ~7px instead of ~95px.
+        const a = screenDx / (tileW / 2), b = screenDy / (tileH / 2);
+        let worldDx = (a + b) / 2;
+        let worldDy = (b - a) / 2;
+        const wmag = Math.hypot(worldDx, worldDy) || 1;
+        worldDx /= wmag;
+        worldDy /= wmag;
         const shadowDx = -worldDx * shadowLen;
         const shadowDy = -worldDy * shadowLen;
 
@@ -241,8 +284,9 @@ export class ShadowCaster {
         });
 
         const hull = convexHull([...basePts, ...tipPts]);
-        entry = { hull, alpha, angle, elev, ox: pos.x, oy: pos.y, oz: pos.z };
-        objCache.set(light.id || 'default', entry);
+        entry = { hull, alpha, angle, elev, ox: pos.x, oy: pos.y, oz: pos.z,
+                  intensity: light.intensity, color: light.color };
+        objCache.set(cacheKey, entry);
       }
 
       const h = entry!.hull;

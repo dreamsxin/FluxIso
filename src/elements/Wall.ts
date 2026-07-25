@@ -115,7 +115,11 @@ export class Wall extends IsoObject {
     for (const dl of dirLights) {
       const { dx: ldx, dy: ldy } = dl.direction;
       const ndot = Math.max(0, norm.nx * ldx + norm.ny * ldy);
-      const factor = ndot * Math.sin(dl.elevation) * dl.intensity;
+      // Vertical wall face irradiance scales with cos(elevation) (the sun's
+      // horizontal component): at zenith (90 deg) a wall gets grazing/zero
+      // light; at low sun it's brightly lit if it faces the source. (Floor,
+      // a horizontal surface, correctly uses sin(elevation).)
+      const factor = ndot * Math.cos(dl.elevation) * dl.intensity;
       if (factor <= 0) continue;
       const [lr, lg, lb] = hexToRgb(dl.color);
       rTotal += (lr / 255) * factor;

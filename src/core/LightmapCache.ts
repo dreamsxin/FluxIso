@@ -1,5 +1,6 @@
 import { OmniLight } from '../lighting/OmniLight';
 import { DirectionalLight } from '../lighting/DirectionalLight';
+import type { IsoView } from '../math/IsoProjection';
 
 export class LightmapCache {
   private _canvas: OffscreenCanvas;
@@ -41,9 +42,10 @@ export class LightmapCache {
     cameraY = 0,
     cameraZoom = 1,
     ambientRgb: [number, number, number] = [0, 0, 0],
+    view?: IsoView,
   ): boolean {
     if (this.alwaysDirty) return true;
-    const snap = this._buildSnapshot(omniLights, dirLights, cameraX, cameraY, cameraZoom, ambientRgb);
+    const snap = this._buildSnapshot(omniLights, dirLights, cameraX, cameraY, cameraZoom, ambientRgb, view);
     if (snap !== this._snapshot) {
       this._dirty = true;
       this._snapshot = snap;
@@ -72,15 +74,17 @@ export class LightmapCache {
     dirLights: DirectionalLight[],
     cx: number, cy: number, zoom: number,
     ambientRgb: [number, number, number],
+    view?: IsoView,
   ): string {
-    // toFixed(4) on lights/ambient — catches gradual day/night changes (~0.00027/frame at 60s period)
+    // toFixed(4) on lights/ambient - catches gradual day/night changes (~0.00027/frame at 60s period)
     // Camera uses toFixed(2) since sub-pixel camera movement doesn't need re-bake
     const parts: string[] = [
       `cam:${cx.toFixed(2)},${cy.toFixed(2)},${zoom.toFixed(2)}`,
       `amb:${ambientRgb[0].toFixed(4)},${ambientRgb[1].toFixed(4)},${ambientRgb[2].toFixed(4)}`,
+      `view:${view?.rotation ?? 0},${view?.elevation ?? 0.5}`,
     ];
     for (const l of omniLights) {
-      parts.push(`o:${l.position.x.toFixed(2)},${l.position.y.toFixed(2)},${l.position.z.toFixed(2)},${l.color},${l.intensity.toFixed(4)},${l.radius},${l.isGlobal ? 1 : 0}`);
+      parts.push(`o:${l.position.x.toFixed(2)},${l.position.y.toFixed(2)},${l.position.z.toFixed(2)},${l.color},${l.intensity.toFixed(4)},${l.radius},${l.isGlobal ? 1 : 0},${l.falloff}`);
     }
     for (const d of dirLights) {
       parts.push(`d:${d.angle.toFixed(4)},${d.elevation.toFixed(4)},${d.color},${d.intensity.toFixed(4)}`);
