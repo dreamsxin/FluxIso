@@ -17,7 +17,7 @@
         font-family: 'Segoe UI', system-ui, sans-serif;
         color: #aaa;
         gap: 16px;
-        padding: 24px 12px;
+        padding: 70px 12px 24px;
       }
 
       h1 {
@@ -242,9 +242,58 @@
         border-color: #8040c0;
         color: #c080ff;
       }
+
+      /* ── Top nav bar ─────────────────────────────────────────────── */
+      .topnav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 10px 20px;
+        background: rgba(10, 10, 15, 0.92);
+        border-bottom: 1px solid #16161f;
+        backdrop-filter: blur(8px);
+        z-index: 100;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+      }
+      .topnav .brand {
+        font-weight: 500;
+        color: #888;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        font-size: 0.66rem;
+      }
+      .topnav a {
+        color: #4a4a5e;
+        text-decoration: none;
+        transition: color 0.15s;
+        white-space: nowrap;
+      }
+      .topnav a:hover { color: #aaa; }
+      .topnav a.current { color: #888; }
+      .topnav .spacer { flex: 1; }
+      .topnav .nav-tag {
+        font-size: 0.58rem;
+        color: #2a2a38;
+        letter-spacing: 0.06em;
+      }
     </style>
   </head>
   <body>
+    <nav class="topnav">
+      <span class="brand">LuxIso</span>
+      <a href="/" class="current">Demo</a>
+      <a href="/examples/">Examples</a>
+      <a href="/editor.html">Scene Editor</a>
+      <a href="/sprite-editor.html">Sprite Editor</a>
+      <span class="spacer"></span>
+      <span class="nav-tag">Canvas 2D · TypeScript</span>
+    </nav>
+
     <h1>LuxIso &mdash; Isometric Engine Demo</h1>
 
     <div class="canvas-wrap">
