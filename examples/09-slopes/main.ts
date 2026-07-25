@@ -12,7 +12,7 @@
  * Controls: WASD / Arrow keys
  */
 import {
-  Engine, Scene, OmniLight, DirectionalLight, InputManager,
+  Engine, Scene, OmniLight, DirectionalLight, InputManager, BaseLight,
 } from '../../src/index';
 import { SlopeTerrain } from './SlopeTerrain';
 import { SlopeCharacter } from './SlopeCharacter';
@@ -38,16 +38,30 @@ engine.setScene(scene);
 
 // ── Lights ────────────────────────────────────────────────────────────────────
 
-scene.addLight(new DirectionalLight({
-  angle: 215, elevation: 60, color: '#fff4d0', intensity: 0.85,
-}));
-scene.addLight(new DirectionalLight({
-  angle: 35,  elevation: 20, color: '#b0c8ff', intensity: 0.22,
-}));
-scene.addLight(new OmniLight({
+// Each light carries an id + label so the toggle UI (keys 1/2/3) can name it.
+// Toggling flips `light.enabled`; Scene's omniLights/dirLights getters filter
+// on `enabled !== false`, so a disabled light is skipped everywhere (lightmap
+// bake, shadow casting, DrawContext) with no manual add/remove needed.
+const sunLight = new DirectionalLight({
+  id: 'sun', angle: 215, elevation: 60, color: '#fff4d0', intensity: 0.85,
+});
+const fillLight = new DirectionalLight({
+  id: 'fill', angle: 35,  elevation: 20, color: '#b0c8ff', intensity: 0.22,
+});
+const peakGlow = new OmniLight({
   id: 'peak-glow', x: 7, y: 6, z: 120,
   color: '#d0f0b0', intensity: 0.45, radius: 380,
-}));
+});
+scene.addLight(sunLight);
+scene.addLight(fillLight);
+scene.addLight(peakGlow);
+
+// Toggleable light registry: key 1/2/3 flips each light's `enabled` flag.
+const toggleLights = [
+  { light: sunLight as BaseLight,  key: '1', label: 'Sun (dir 215°)' },
+  { light: fillLight as BaseLight, key: '2', label: 'Fill (dir 35°)' },
+  { light: peakGlow as BaseLight,  key: '3', label: 'Peak-glow (omni)' },
+];
 
 // ── Terrain ───────────────────────────────────────────────────────────────────
 
@@ -80,6 +94,15 @@ engine.start(
     if (input.isDown('ArrowUp')    || input.isDown('w') || input.isDown('W')) dy -= 1;
     if (input.isDown('ArrowDown')  || input.isDown('s') || input.isDown('S')) dy += 1;
     hero.move(dx, dy, dt);
+
+    // ── Light toggle (keys 1/2/3) ─────────────────────────────────────────
+    // Flips `enabled` on the matching light. Scene re-bakes the lightmap
+    // automatically next frame because the lights-snapshot changed.
+    for (const t of toggleLights) {
+      if (input.wasPressed(t.key)) {
+        t.light.enabled = !t.light.enabled;
+      }
+    }
 
     // ── HUD ───────────────────────────────────────────────────────────────
     const ctx = engine.ctx;
@@ -119,13 +142,40 @@ engine.start(
     ctx.fillText(`height  ${hero.position.z.toFixed(3)} wu  /  ${(hero.position.z * 32).toFixed(0)} px`, 18, 58);
     ctx.restore();
 
+    // Light toggle panel (top-right): lists each light with its hotkey and
+    // on/off state. A disabled light is dimmed and marked (off).
+    ctx.save();
+    const panelW = 196, panelH = 14 + toggleLights.length * 16;
+    const panelX = cw - panelW - 12, panelY = 12;
+    ctx.fillStyle = 'rgba(0,0,0,0.42)';
+    ctx.fillRect(panelX, panelY, panelW, panelH);
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    for (let i = 0; i < toggleLights.length; i++) {
+      const t = toggleLights[i];
+      const on = t.light.enabled !== false;
+      const y = panelY + 18 + i * 16;
+      // Hotkey chip
+      ctx.fillStyle = on ? '#d0f0b0' : '#445544';
+      ctx.fillText(`[${t.key}]`, panelX + 8, y);
+      // Status dot
+      ctx.fillStyle = on ? t.light.color : '#334433';
+      ctx.beginPath();
+      ctx.arc(panelX + 34, y - 3, 4, 0, Math.PI * 2);
+      ctx.fill();
+      // Label
+      ctx.fillStyle = on ? '#c8e0cc' : '#4a5a4a';
+      ctx.fillText(`${t.label}  ${on ? 'on' : 'off'}`, panelX + 44, y);
+    }
+    ctx.restore();
+
     // Controls hint
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.38)';
-    ctx.fillRect(10, ch - 28, 180, 20);
+    ctx.fillRect(10, ch - 28, 320, 20);
     ctx.fillStyle = '#607870';
     ctx.font = '10px monospace';
-    ctx.fillText('WASD / ↑↓←→  to move', 16, ch - 13);
+    ctx.fillText('WASD / ↑↓←-> move   ·   1/2/3 toggle lights', 16, ch - 13);
     ctx.restore();
 
     input.flush();
