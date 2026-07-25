@@ -159,9 +159,42 @@ export class SlopeCharacter extends IsoObject {
     ctx.save();
     ctx.translate(bp.x + tiltX, bp.y + tiltY);
 
-    // Radial gradient sphere
+    // Light-driven highlight direction (screen space, unit vector pointing
+    // TOWARD the dominant light source). Combines directional lights (angle
+    // is already a screen-space direction) and omni lights (vector from body
+    // to light's screen projection), weighted by intensity. Falls back to the
+    // classic upper-left bias when the scene provides no lights.
+    let hdx = -0.5, hdy = -0.6;   // fallback (normalized below)
+    let totalW = 0, accX = 0, accY = 0;
+    for (const dl of dc.dirLights ?? []) {
+      // dl.direction points toward the light in world space; angle is the
+      // screen-space source bearing, so (cos,sin) is the toward-light screen dir.
+      const w = dl.intensity;
+      accX += Math.cos(dl.angle) * w;
+      accY += Math.sin(dl.angle) * w;
+      totalW += w;
+    }
+    for (const ol of dc.omniLights ?? []) {
+      if (ol.isGlobal) continue;
+      // OmniLight.position.z is in SCREEN PIXELS (same as ShadowCaster's lz),
+      // while toScreen expects world-unit z (multiplied by tileH). Convert so
+      // an elevated peak-glow light aims the highlight upward on screen.
+      const lp = toScreen(ol.position.x, ol.position.y, ol.position.z / tileH);
+      const dx = lp.x - (bp.x + tiltX), dy = lp.y - (bp.y + tiltY);
+      const m = Math.hypot(dx, dy);
+      if (m < 1) continue;
+      const w = ol.intensity;
+      accX += (dx / m) * w;
+      accY += (dy / m) * w;
+      totalW += w;
+    }
+    if (totalW > 0) { hdx = accX / totalW; hdy = accY / totalW; }
+    const hmag = Math.hypot(hdx, hdy) || 1;
+    hdx /= hmag; hdy /= hmag;
+
+    // Radial gradient sphere - lit center biased toward the light direction
     const grd = ctx.createRadialGradient(
-      -this.radius * 0.25, -this.radius * 0.30, 1,
+      hdx * this.radius * 0.35, hdy * this.radius * 0.35, 1,
        0, 0, this.radius,
     );
     grd.addColorStop(0,   '#a0d0ff');
@@ -173,9 +206,9 @@ export class SlopeCharacter extends IsoObject {
     ctx.fillStyle = grd;
     ctx.fill();
 
-    // Specular highlight
+    // Specular highlight - sits on the lit side, tracking the light source
     ctx.beginPath();
-    ctx.arc(-this.radius * 0.27, -this.radius * 0.30, this.radius * 0.20, 0, Math.PI * 2);
+    ctx.arc(hdx * this.radius * 0.45, hdy * this.radius * 0.45, this.radius * 0.20, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.50)';
     ctx.fill();
 
