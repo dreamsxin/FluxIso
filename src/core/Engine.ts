@@ -63,6 +63,11 @@ export type LightFactory = (json: LightJson) => BaseLight;
 
 interface SceneJson {
   name?: string;
+  ambientColor?: string;
+  ambientIntensity?: number;
+  dynamicLighting?: boolean;
+  view?: { rotation?: number; elevation?: number };
+  camera?: { x?: number; y?: number; zoom?: number; lerpFactor?: number };
   tileW?: number;
   tileH?: number;
   cols?: number;
@@ -79,18 +84,7 @@ interface SceneJson {
     walkable?: boolean[][] | boolean[];
   };
   walls?: Array<WallOptions>;
-  lights?: Array<{
-    id?: string;
-    type: 'omni' | 'directional';
-    x?: number;
-    y?: number;
-    z?: number;
-    color?: string;
-    intensity?: number;
-    radius?: number;
-    angle?: number;
-    elevation?: number;
-  }>;
+  lights?: Array<LightJson>;
   characters?: Array<{
     id: string;
     x: number;
@@ -203,11 +197,27 @@ export class Engine {
 
   private _buildScene(json: SceneJson): Scene {
     const scene = new Scene({
+      name: json.name,
       tileW: json.tileW,
       tileH: json.tileH,
       cols: json.cols ?? json.floor?.cols,
       rows: json.rows ?? json.floor?.rows,
     });
+    if (json.ambientColor !== undefined) scene.ambientColor = json.ambientColor;
+    if (json.ambientIntensity !== undefined) scene.ambientIntensity = json.ambientIntensity;
+    if (json.dynamicLighting !== undefined) scene.dynamicLighting = json.dynamicLighting;
+    if (json.view) {
+      scene.view = {
+        rotation: json.view.rotation ?? scene.view.rotation,
+        elevation: json.view.elevation ?? scene.view.elevation,
+      };
+    }
+    if (json.camera) {
+      scene.camera.x = json.camera.x ?? scene.camera.x;
+      scene.camera.y = json.camera.y ?? scene.camera.y;
+      scene.camera.setZoom(json.camera.zoom ?? scene.camera.zoom);
+      scene.camera.lerpFactor = json.camera.lerpFactor ?? scene.camera.lerpFactor;
+    }
 
     if (json.floor) {
       scene.addObject(
@@ -230,7 +240,10 @@ export class Engine {
     for (const l of json.lights ?? []) {
       const lightFactory = Engine._lightRegistry.get(l.type);
       if (lightFactory) {
-        scene.addLight(lightFactory(l));
+        const light = lightFactory(l);
+        light.id = l.id ?? light.id;
+        light.enabled = typeof l.enabled === 'boolean' ? l.enabled : true;
+        scene.addLight(light);
       } else {
         console.warn(`[Engine] Unknown light type '${l.type}'. Register it with Engine.registerLight().`);
       }
@@ -383,11 +396,15 @@ Engine._propRegistry.set('chest',
 
 Engine._lightRegistry.set('omni',
   (l) => new OmniLight({
+    id: l.id,
     x: l.x ?? 0, y: l.y ?? 0, z: l.z ?? 120,
     color: l.color, intensity: l.intensity, radius: l.radius,
+    isGlobal: l.isGlobal as boolean | undefined,
+    falloff: l.falloff as 'linear' | 'quadratic' | undefined,
   }));
 Engine._lightRegistry.set('directional',
   (l) => new DirectionalLight({
+    id: l.id,
     angle: l.angle, elevation: l.elevation,
     color: l.color, intensity: l.intensity,
   }));

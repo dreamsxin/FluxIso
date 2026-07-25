@@ -28,7 +28,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:lib": "tsc -p tsconfig.lib.json && cross-env BUILD_MODE=lib vite build",
+    "build:lib": "cross-env BUILD_MODE=lib vite build && tsc -p tsconfig.lib.json",
     "preview": "vite preview",
     "test": "vitest --run",
     "test:watch": "vitest"

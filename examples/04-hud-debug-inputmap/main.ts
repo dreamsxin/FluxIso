@@ -170,7 +170,7 @@ engine.start(
     transition.draw(canvas.width, canvas.height, ts);
 
     // DEBUG overlay
-    const sortOrder = (globalThis as any).__lastTopoSort ?? '-';
+    const sortOrder = scene.sortedObjects.map((object) => object.id).join(' -> ') || '-';
     const charPos = `char(${character.position.x.toFixed(2)},${character.position.y.toFixed(2)})`;
     engine.ctx.save();
     engine.ctx.setTransform(1,0,0,1,0,0);
@@ -180,7 +180,11 @@ engine.start(
     engine.ctx.font = '11px monospace';
     engine.ctx.fillText(`${charPos}  sort: ${sortOrder}`, 8, canvas.height - 26);
     engine.ctx.fillStyle = '#aaa';
-    engine.ctx.fillText((globalThis as any).__lastAabbs ?? '', 8, canvas.height - 10);
+    const aabbs = scene.sortedObjects.map((object) => {
+      const box = object.aabb;
+      return `${object.id}:X[${box.minX.toFixed(2)},${box.maxX.toFixed(2)}]Y[${box.minY.toFixed(2)},${box.maxY.toFixed(2)}]`;
+    }).join(', ');
+    engine.ctx.fillText(aabbs, 8, canvas.height - 10);
     engine.ctx.restore();
   },
   (_ts) => {

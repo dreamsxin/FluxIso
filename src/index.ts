@@ -3,6 +3,8 @@ export { Engine } from './core/Engine';
 export { AssetLoader } from './core/AssetLoader';
 export type { EngineOptions } from './core/Engine';
 export { Scene } from './core/Scene';
+export { SceneRenderer } from './core/SceneRenderer';
+export { SceneSerializer } from './core/SceneSerializer';
 export { Minimap } from './core/Minimap';
 export type { MinimapStyle } from './core/Minimap';
 export type { SceneOptions } from './core/Scene';
@@ -67,9 +69,13 @@ export { AudioManager } from './audio/AudioManager';
 export type { PlayOptions, SpatialOptions } from './audio/AudioManager';
 // ECS
 export { Entity } from './ecs/Entity';
-export type { Component } from './ecs/Component';
+export type { Component, ComponentCtor } from './ecs/Component';
+export { System } from './ecs/System';
 export { EventBus, globalBus } from './ecs/EventBus';
-export type { DamageEvent, HealEvent, DeathEvent, MoveEvent, ArrivalEvent, TriggerEvent } from './ecs/EventBus';
+export type {
+  EventEmitter, LuxIsoEventMap,
+  DamageEvent, HealEvent, DeathEvent, MoveEvent, ArrivalEvent, TriggerEvent,
+} from './ecs/EventBus';
 export { HealthComponent } from './ecs/components/HealthComponent';
 export type { HealthOptions } from './ecs/components/HealthComponent';
 export { MovementComponent } from './ecs/components/MovementComponent';
@@ -85,7 +91,7 @@ export type { TriggerZoneOptions } from './ecs/components/TriggerZoneComponent';
 
 // Validation
 export { validateSceneJson, validateComponents, requireComponent } from './core/Validator';
-export type { ValidationResult } from './core/Validator';
+export type { ValidationResult, SceneValidationOptions } from './core/Validator';
 
 // Math
 export { project, unproject, depthKey, drawIsoCube, Z_UNITS_PER_PX } from './math/IsoProjection';

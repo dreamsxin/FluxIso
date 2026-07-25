@@ -1,0 +1,78 @@
+# WebGL Next Acceptance Gates
+
+## Functional
+
+- Every built-in object, light, camera view, particle blend mode, collider map,
+  and serialized scene renders without a Canvas-only code path.
+- Scene/ECS state is identical when switching renderer backends.
+- Resize, DPR change, tab visibility change, and WebGL context restore do not
+  reset simulation or leak resources.
+- Editor place, select, move, delete, undo/redo, import, and export work with
+  ID-buffer picking.
+- Unsupported WebGL2 environments fall back to Canvas2D with one clear warning.
+
+## Visual Parity
+
+- Deterministic fixtures cover day/night, 0/90/180/270-degree views, low/top
+  elevation, overlapping walls/characters, stacked Z ranges, clouds, particles,
+  and disabled/global lights.
+- Pixel-diff failure threshold: at most 1.5% changed pixels after ignoring a
+  two-pixel edge tolerance and approved shader antialiasing differences.
+- No blank frame, stale shadow, missing batch, halo misalignment, or editor
+  picking offset at desktop and mobile DPR values.
+
+## Performance Budget
+
+Reference workload at 1920x1080, DPR 1, release build:
+
+- 10,000 floor tiles with chunk culling.
+- 1,000 visible render objects.
+- 20,000 live particles.
+- 16 omni lights plus one directional light.
+
+Targets on the agreed reference machine:
+
+| Metric | Gate |
+|---|---:|
+| Frame rate | 60 FPS p95 |
+| CPU extraction + sorting | <= 4 ms p95 |
+| GPU render passes | <= 10 ms p95 |
+| Draw calls | <= 80 |
+| Per-frame JS allocation after warm-up | <= 16 KB |
+| Runtime GPU memory for reference scene | <= 256 MB |
+| Context restore | <= 2 s |
+
+Budgets are regression gates, not reasons to weaken correctness. Record the
+machine, browser, resolution, DPR, scene seed, and commit with every benchmark.
+
+## Browser Matrix
+
+- Current Chrome and Edge on Windows.
+- Current Firefox on Windows.
+- Current Safari on macOS/iOS for WebGL2 limits and precision differences.
+- Android Chrome at one mid-tier mobile profile.
+- Canvas fallback on a forced-WebGL-disabled test profile.
+
+## API and Package
+
+- Strict TypeScript and all existing tests pass.
+- Canvas2D public behavior remains compatible during preview.
+- WebGL-only types do not leak into Scene JSON or ECS packages.
+- ESM, CJS, and declarations contain the new backend without editor code.
+- Custom-object incompatibility produces a stable diagnostic containing object
+  ID, constructor name, and migration documentation link.
+
+## Test Layers
+
+1. Unit: matrix math, atlas packing, buffer arenas, sort segments, manifests.
+2. Integration: each render pass with a headless WebGL2-capable browser.
+3. Golden: Canvas2D/WebGL deterministic screenshot comparison.
+4. Interaction: camera, input, picking, editor, resize, and context loss.
+5. Performance: fixed seeded workloads with p50/p95 reporting.
+6. Packaging: clean install, type import, tree-shaking, and npm dry-run.
+
+## Release Decision
+
+WebGL2 may become the default only when all functional gates pass, visual diffs
+are reviewed, performance gates pass on two consecutive preview releases, and
+the fallback path has no open severity-1 defect.

@@ -7,17 +7,29 @@ import { Cloud } from '../elements/props/Cloud';
 import { OmniLight } from '../lighting/OmniLight';
 import { DirectionalLight } from '../lighting/DirectionalLight';
 import { TileCollider } from '../physics/TileCollider';
+import { Engine } from '../core/Engine';
+import { SceneSerializer } from '../core/SceneSerializer';
 
 function buildScene(): Scene {
-  const scene = new Scene({ tileW: 64, tileH: 32, cols: 6, rows: 6 });
+  const scene = new Scene({ name: 'Serialization Test', tileW: 64, tileH: 32, cols: 6, rows: 6 });
+  scene.ambientColor = '#102030';
+  scene.ambientIntensity = 0.42;
+  scene.dynamicLighting = true;
+  scene.view = { rotation: 90, elevation: 0.75 };
+  scene.camera.x = 1.5;
+  scene.camera.y = 2.5;
+  scene.camera.zoom = 1.25;
+  scene.camera.lerpFactor = 0.2;
 
   scene.addObject(new Floor({ id: 'floor', cols: 6, rows: 6, color: '#333344' }));
   scene.addObject(new Wall({ id: 'w1', x: 0, y: 0, endX: 6, endY: 0, height: 64, color: '#445566' }));
   scene.addObject(new Character({ id: 'player', x: 2, y: 3, z: 0, radius: 20, color: '#5590cc' }));
   scene.addObject(new Cloud({ id: 'c1', x: 1, y: 1, altitude: 5, speed: 0.3, angle: 0.2, scale: 1.1, seed: 0.6 }));
 
-  scene.addLight(new OmniLight({ x: 3, y: 3, z: 100, color: '#ffcc66', intensity: 1.2, radius: 300 }));
-  scene.addLight(new DirectionalLight({ angle: 45, elevation: 60, color: '#aabbff', intensity: 0.3 }));
+  scene.addLight(new OmniLight({ id: 'lamp', x: 3, y: 3, z: 100, color: '#ffcc66', intensity: 1.2, radius: 300, isGlobal: true, falloff: 'quadratic' }));
+  const sun = new DirectionalLight({ id: 'sun', angle: 45, elevation: 60, color: '#aabbff', intensity: 0.3 });
+  sun.enabled = false;
+  scene.addLight(sun);
 
   const collider = new TileCollider(6, 6);
   collider.setWalkable(0, 0, false);
@@ -33,6 +45,12 @@ describe('Scene.toJSON()', () => {
     expect(json.rows).toBe(6);
     expect(json.tileW).toBe(64);
     expect(json.tileH).toBe(32);
+    expect(json.name).toBe('Serialization Test');
+    expect(json.ambientColor).toBe('#102030');
+    expect(json.ambientIntensity).toBe(0.42);
+    expect(json.dynamicLighting).toBe(true);
+    expect(json.view).toEqual({ rotation: 90, elevation: 0.75 });
+    expect(json.camera).toEqual({ x: 1.5, y: 2.5, zoom: 1.25, lerpFactor: 0.2 });
   });
 
   it('exports floor with color and walkable grid', () => {
@@ -67,11 +85,16 @@ describe('Scene.toJSON()', () => {
     expect(omni.x).toBe(3);
     expect(omni.color).toBe('#ffcc66');
     expect(omni.intensity).toBe(1.2);
+    expect(omni.id).toBe('lamp');
+    expect(omni.isGlobal).toBe(true);
+    expect(omni.falloff).toBe('quadratic');
 
     const dir = lights.find(l => l.type === 'directional')!;
     expect(dir.angle).toBe(45);
     expect(dir.elevation).toBe(60);
     expect(dir.intensity).toBe(0.3);
+    expect(dir.id).toBe('sun');
+    expect(dir.enabled).toBe(false);
   });
 
   it('exports characters', () => {
@@ -99,5 +122,37 @@ describe('Scene.toJSON()', () => {
     const back = JSON.parse(str);
     expect(back.cols).toBe(6);
     expect((back.lights as unknown[]).length).toBe(2);
+  });
+
+  it('delegates serialization to SceneSerializer', () => {
+    const scene = buildScene();
+    expect(scene.toJSON()).toEqual(SceneSerializer.toJSON(scene));
+  });
+
+  it('round-trips scene, camera, light, and collider state through Engine', () => {
+    const original = buildScene();
+    const canvas = {
+      width: 1,
+      height: 1,
+      getContext: () => ({}),
+    } as unknown as HTMLCanvasElement;
+    const restored = new Engine({ canvas }).buildScene(original.toJSON());
+
+    expect(restored.name).toBe(original.name);
+    expect(restored.ambientColor).toBe(original.ambientColor);
+    expect(restored.ambientIntensity).toBe(original.ambientIntensity);
+    expect(restored.dynamicLighting).toBe(true);
+    expect(restored.view).toEqual(original.view);
+    expect(restored.camera.x).toBe(1.5);
+    expect(restored.camera.y).toBe(2.5);
+    expect(restored.camera.zoom).toBe(1.25);
+    expect(restored.camera.lerpFactor).toBe(0.2);
+    expect(restored.collider?.isWalkable(0, 0)).toBe(false);
+
+    const lamp = restored.getLightById('lamp') as OmniLight;
+    expect(lamp).toBeInstanceOf(OmniLight);
+    expect(lamp.isGlobal).toBe(true);
+    expect(lamp.falloff).toBe('quadratic');
+    expect(restored.getLightById('sun')?.enabled).toBe(false);
   });
 });

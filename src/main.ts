@@ -79,7 +79,12 @@ const omniLight = scene.omniLights[0] as OmniLight;
 
 // ─── EventBus ─────────────────────────────────────────────────────────────────
 
-const bus = new EventBus();
+interface DemoEventMap {
+  hit: { id: string; score: number };
+  death: { id: string; score: number };
+}
+
+const bus = new EventBus<DemoEventMap>();
 
 // ─── Score & Combo System ─────────────────────────────────────────────────────
 
@@ -243,7 +248,7 @@ for (const def of PROP_DEFS) spawnProp(def);
 
 // ─── Score / combo event handlers ─────────────────────────────────────────────
 
-bus.on<{ id: string; score: number }>('hit', ({ score: s }) => {
+bus.on('hit', ({ score: s }) => {
   combo++;
   comboTimer = COMBO_WINDOW;
   totalHits++;
@@ -252,7 +257,7 @@ bus.on<{ id: string; score: number }>('hit', ({ score: s }) => {
   updateScoreHud();
 });
 
-bus.on<{ id: string; score: number }>('death', ({ score: s }) => {
+bus.on('death', ({ score: s }) => {
   const multiplier = Math.min(combo, 8);
   score += s * 2 * multiplier;
   updateScoreHud();

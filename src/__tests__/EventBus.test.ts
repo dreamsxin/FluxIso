@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi } from 'vitest';
 import { EventBus, globalBus } from '../ecs/EventBus';
+import type { DamageEvent } from '../ecs/EventBus';
 
 describe('EventBus — on / emit / off', () => {
   it('calls handler on emit', () => {
@@ -59,5 +60,38 @@ describe('EventBus — on / emit / off', () => {
 describe('globalBus', () => {
   it('is a shared singleton', () => {
     expect(globalBus).toBeInstanceOf(EventBus);
+  });
+
+  it('infers built-in payloads from the event name', () => {
+    const unsubscribe = globalBus.on('damage', (payload) => {
+      expectTypeOf(payload).toEqualTypeOf<DamageEvent>();
+    });
+    unsubscribe();
+  });
+});
+
+describe('EventBus event maps', () => {
+  interface GameEvents {
+    score: { value: number; source: string };
+    pause: { paused: boolean };
+  }
+
+  it('supports custom typed events', () => {
+    const bus = new EventBus<GameEvents>();
+    const scores: number[] = [];
+    bus.on('score', ({ value }) => scores.push(value));
+    bus.emit('score', { value: 25, source: 'chest' });
+    expect(scores).toEqual([25]);
+  });
+
+  it('rejects unknown event names and invalid payloads at compile time', () => {
+    const bus = new EventBus<GameEvents>();
+    if (false) {
+      // @ts-expect-error unknown event name
+      bus.emit('missing', {});
+      // @ts-expect-error score.value must be a number
+      bus.emit('score', { value: '25', source: 'chest' });
+    }
+    expect(bus.listenerCount('score')).toBe(0);
   });
 });

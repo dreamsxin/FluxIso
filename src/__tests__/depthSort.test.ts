@@ -119,7 +119,7 @@ describe('topoSort - mixed-axis equal far-sum (no cycle)', () => {
 describe('topoSort - orphan vs cluster', () => {
   it('isolated object sorts by center-depth against a clustered group', () => {
     // Orphan in a separate spatial bucket (BUCKET_SIZE=2) must still be ordered
-    // relative to a clustered group via the orphan-fix pass.
+    // relative to a clustered group via the shared center-depth priority queue.
     const orphan = makeObj(0, 0, 1, 1);          // center 1
     const c1 = makeObj(9, 9, 10, 10);            // center 19
     const c2 = makeObj(9.5, 9.5, 10.5, 10.5);    // center 20, overlaps c1
@@ -127,6 +127,34 @@ describe('topoSort - orphan vs cluster', () => {
     expect(result[0]).toBe(orphan);   // smallest center first
     expect(result[1]).toBe(c1);
     expect(result[2]).toBe(c2);
+  });
+});
+
+describe('topoSort - production behavior', () => {
+  it('does not write debug state to globalThis', () => {
+    const globals = globalThis as typeof globalThis & {
+      __lastTopoSort?: string;
+      __lastAabbs?: string;
+    };
+    delete globals.__lastTopoSort;
+    delete globals.__lastAabbs;
+    const player = Object.assign(makeObj(0, 0, 1, 1), { id: 'player' });
+    const wall = Object.assign(makeObj(1, 1, 2, 2), { id: 'w1' });
+
+    topoSort([wall, player]);
+
+    expect(globals.__lastTopoSort).toBeUndefined();
+    expect(globals.__lastAabbs).toBeUndefined();
+  });
+
+  it('orders a large sparse scene without losing objects', () => {
+    const objects = Array.from({ length: 2000 }, (_, index) =>
+      makeObj(index * 3, index * 3, index * 3 + 1, index * 3 + 1),
+    ).reverse();
+    const result = topoSort(objects);
+    expect(result).toHaveLength(objects.length);
+    expect(result[0].aabb.minX).toBe(0);
+    expect(result[result.length - 1].aabb.minX).toBe(5997);
   });
 });
 

@@ -5,7 +5,7 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 ## Features
 
 - **Isometric math** — `project()` / `unproject()` / `depthKey()` / `drawIsoCube()`; internal (X, Y, Z) space → screen
-- **Topological depth sort** — 3-D AABB Kahn sort with containment detection; `maxZ` field for vertical extent; no Z-fighting
+- **Topological depth sort** — 3-D AABB graph with spatial buckets, min-heap Kahn queue, containment detection, and `maxZ` vertical extent
 - **OmniLight** — RGB point light, per-channel accumulation, distance falloff, `illuminateAt()`; linear or quadratic falloff; `isGlobal` for ambient sky light; `enabled` toggle
 - **DirectionalLight** — face-normal dot product; angle/elevation; per-channel color mix; `enabled` toggle
 - **Lightmap cache** — `OffscreenCanvas` floor cache; auto-invalidates on light/camera change
@@ -21,18 +21,18 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 - **Particle system** — `ParticleSystem`; procedural circle/square + sprite mode; blend modes; presets: sparkBurst, emberTrail, dustPuff, crystalShatter, coinSpill, spriteExplosion, ambientDrift, smokePlume, lavaSparks
 - **Tile collision** — `TileCollider` walkable grid; AABB slide-and-clamp; `sweepMove()` binary search with fast-path; `MovementComponent.nudge(dx,dy)` collision-resolved directional move
 - **A\* Pathfinder** — 8-directional, corner-cut prevention, Bresenham LoS string-pull, min-heap O(log n); instance-level `PathCache` (per-scene, zero cross-scene pollution); `cache.invalidate()`
-- **ECS** — `Entity.addComponent()` / `getComponent()`; per-frame `component.update()`; zero-copy component iteration
-- **EventBus** — typed events (`DamageEvent` w/ `targetId`, `HealEvent`, `DeathEvent`, `MoveEvent`, `ArrivalEvent`, `TriggerEvent`); `globalBus` singleton
+- **ECS** — constructor-keyed components plus priority-ordered `System` queries with variable and fixed-rate updates
+- **EventBus** — `EventBus<EventMap>` couples event names to payload types; typed built-ins and custom events; `globalBus` singleton
 - **Components** — `HealthComponent` (unified EventBus emit on damage/death), `MovementComponent` (nudge + A* pathTo), `TimerComponent`, `TweenComponent` (8 easings, yoyo, repeat), `TweenSequence` (chained tweens), `TriggerZoneComponent` (zero per-frame GC)
 - **Props** — `Crystal`, `Boulder`, `Chest`, `Cloud`, `FloatingText`; canvas-drawn, ECS-powered
 - **Audio** — `AudioManager`; one-shot SFX, looping BGM with crossfade, spatial distance attenuation, 3-bus volume (master/sfx/bgm)
-- **JSON scene loader** — `engine.loadScene(url)`; floor, walls, lights, characters, props, clouds, walkable collision map
+- **JSON scene loader** — `SceneSerializer` + `engine.loadScene()` round-trip scene environment, camera, lights, built-in objects, and collision map
 - **Scene validator** — `validateSceneJson()`; runtime JSON schema check + ECS component assertions
 - **Scene editor** — visual editor (`editor.ts`); undo/redo, walkable/blocked drag-paint, object list, property panel, JSON export/import; right-click delete; DirectionalLight placement; keyboard shortcuts (`V/W/L/D/C/1/2/3/B/P`); `camera.screenToWorld` for zoom/pan-accurate picking
 - **Sprite editor** — sprite sheet frame inspector and animation clip builder (`sprite-editor.ts`); 8-direction live preview (cached `Map<Direction,DirCell>`); `anchorY` control; click-frame inspection with action/dir hint; JSON export + import; data URL upload support
 - **AssetLoader** — instanceable image preloader; per-scene isolation; `unload(url)`; `size` getter; `register(url, img)` for data-URL injection (sprite editor); static API delegates to `AssetLoader.default` (backwards-compatible)
 - **PathCache** — per-scene A* result cache; `new PathCache(capacity)`; `invalidate()`; pass to `Pathfinder.find()` for zero cross-scene pollution
-- **Lib build** — `npm run build:lib` → ESM + CJS dual output; `luxiso.d.ts` rollup
+- **Lib build** — `npm run build:lib` → ESM + CJS dual output plus `dist/types`
 
 ## Tech Stack
 
@@ -41,7 +41,7 @@ A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, fea
 | Language | TypeScript 5 (strict) |
 | Renderer | Canvas 2D |
 | Build | Vite 5 |
-| Runtime | ES2022 |
+| Library runtime | ES2020 |
 | Tests | Vitest 4 (Node ≥ 22) |
 
 ## Installation
@@ -51,7 +51,7 @@ npm install
 npm run dev        # http://localhost:5173 — interactive demo
 npm run build      # production build → dist/
 npm run build:lib  # library bundle → dist/luxiso.mjs + luxiso.cjs + types
-npx vitest --run   # run 157 unit tests (requires Node ≥ 22)
+npm test           # run the Vitest suite (requires Node ≥ 22)
 ```
 
 ## Demo Controls
@@ -184,9 +184,11 @@ sy = (x + y) * (tileH / 2) - z
 
 ```
 Engine                     — canvas setup, RAF loop, JSON loader, pre/postFrame
-└── Scene                  — object + light container; topoSort; frustum cull; LightmapCache; IsoView
+└── Scene                  — object/light container, lifecycle, Camera, ECS Systems, IsoView
+    ├── SceneRenderer      — frustum cull, depth sort, shadows, LightmapCache, halos
+    ├── SceneSerializer    — built-in JSON schema and runtime-state export
     ├── Camera             — follow / pan / zoom / applyTransform (frame-rate-independent lerp)
-    ├── LightmapCache      — OffscreenCanvas floor blit; auto-invalidate on light/camera delta
+    ├── System[]           — priority-ordered batch queries over matching Entity instances
     ├── Floor              — tile grid; tileImage; per-tile color cache; OmniLight + DirectionalLight RGB mix
     ├── Wall               — parallelogram faces; door/window openings; face-normal lighting
     ├── ShadowCaster       — AABB silhouette → z=0 projection; radial gradient fill
@@ -220,7 +222,9 @@ src/
 │   ├── LightmapCache.ts         # OffscreenCanvas floor cache; isDirty snapshot; blit()
 │   ├── Minimap.ts               # OffscreenCanvas HUD overlay; walkable grid + object dots
 │   ├── ObjectPool.ts            # Generic object pool; acquire/release/releaseAll; prewarm
-│   ├── Scene.ts                 # Object + light management; topoSort; frustum cull; IsoView; transitionView()
+│   ├── Scene.ts                 # Object/light container; lifecycle; Systems; IsoView transitions
+│   ├── SceneRenderer.ts         # Culling; sorting; shadows; lightmap; object rendering
+│   ├── SceneSerializer.ts       # Built-in scene JSON serialization
 │   ├── SceneManager.ts          # Named scene stack; push/pop/replace/goto; lifecycle hooks
 │   ├── SceneTransition.ts       # Canvas transition effects: fade, slide, circle-wipe; playIn/playOut/between
 │   └── Validator.ts             # validateSceneJson(); validateComponents(); requireComponent()
@@ -244,9 +248,10 @@ src/
 │   ├── TileCollider.ts          # Walkable grid; canOccupy(); resolveMove(); sweepMove() fast-path
 │   └── Pathfinder.ts            # A* 8-dir; Bresenham LoS string-pull; min-heap; LRU result cache
 ├── ecs/
-│   ├── Component.ts             # Interface: componentType, onAttach, onDetach, update
+│   ├── Component.ts             # Component lifecycle + ComponentCtor type
 │   ├── Entity.ts                # IsoObject + component Map; addComponent / getComponent
-│   ├── EventBus.ts              # Typed events; on/off/emit; globalBus singleton
+│   ├── EventBus.ts              # EventMap-typed on/off/emit; globalBus singleton
+│   ├── System.ts                # Batch component queries; priority + attach/detach lifecycle
 │   └── components/
 │       ├── HealthComponent.ts   # hp / maxHp / fraction / isDead; takeDamage / heal; callbacks
 │       ├── MovementComponent.ts # ECS moveTo / pathTo; TileCollider; EventBus arrival/move
@@ -318,6 +323,7 @@ scene.removeById(id: string): void
 scene.getById(id: string): IsoObject | undefined
 scene.getAll<T>(ctor): T[]                      // get all objects of a given class
 scene.allObjects: readonly IsoObject[]          // read-only snapshot of all objects
+scene.sortedObjects: readonly IsoObject[]       // current visible back-to-front render order
 scene.spawnFloatingText(opts): FloatingText     // convenience: create + add FloatingText
 scene.omniLights: OmniLight[]
 scene.dirLights: DirectionalLight[]
@@ -330,6 +336,9 @@ scene.ambientColor: string                      // CSS hex; drives day/night tin
 scene.ambientIntensity: number                  // 0–1
 scene.dynamicLighting: boolean                  // true = re-bake floor lightmap every frame
 scene.toJSON(): Record<string, unknown>         // full round-trip serialization
+scene.addSystem(system: System): System
+scene.getSystem(SystemCtor): System | undefined
+scene.removeSystem(systemOrCtor): boolean
 ```
 
 ### `Camera`
@@ -376,9 +385,29 @@ character.playAnimation(name: string): void
 
 ```ts
 entity.addComponent<T extends Component>(c: T): T
-entity.getComponent<T>(type: string): T | undefined
-entity.hasComponent(type: string): boolean
-entity.removeComponent(type: string): void
+entity.getComponent<T>(ctor: ComponentCtor<T>): T | undefined
+entity.hasComponent(ctor: ComponentCtor): boolean
+entity.removeComponent(ctor: ComponentCtor): void
+```
+
+### `System`
+
+```ts
+class DeathSystem extends System {
+  readonly query = [HealthComponent];
+  update(entities: Entity[], dt: number): void { /* batch work */ }
+  fixedUpdate?(entities: Entity[], dt: number): void;
+}
+scene.addSystem(new DeathSystem());
+```
+
+### `EventBus`
+
+```ts
+interface GameEvents { score: { value: number }; paused: { value: boolean } }
+const bus = new EventBus<GameEvents>();
+bus.on('score', ({ value }) => console.log(value));
+bus.emit('score', { value: 10 });
 ```
 
 ### `HealthComponent`
@@ -595,9 +624,9 @@ minimap.isHit(px, py, mx, my, mw, mh): boolean  // hit-test the minimap rect
 ### `Validator`
 
 ```ts
-validateSceneJson(json: unknown): ValidationResult   // { ok, errors[], warnings[] }
-validateComponents(entity: Entity, required: string[]): ValidationResult
-requireComponent<T>(entity: Entity, type: string): T  // throws if missing
+validateSceneJson(json, { lightTypes?, propTypes? }): ValidationResult
+validateComponents(entity: Entity, required: ComponentCtor[]): ValidationResult
+requireComponent<T>(entity: Entity, ctor: ComponentCtor<T>): T  // throws if missing
 ```
 
 ## Roadmap
@@ -651,11 +680,14 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 | AssetLoader: instanceable; unload(url); size getter; static delegates to .default | |
 | PathCache: per-scene A* cache; invalidate(); passed to Pathfinder.find() | |
 | ECS: HealthComponent unified EventBus emit; MovementComponent.nudge(); TriggerZone zero-GC | |
-| Performance: depthSort head-pointer + Set; Scene sortHash imul; frustum cull in-place | |
+| Performance: depthSort spatial buckets + min-heap Kahn queue; renderer AABB hash; frustum cull in-place | |
 | Engine: PropRegistry + LightRegistry (open for extension) | |
-| Scene.toJSON(): full prop serialization (Crystal/Boulder/Chest) | |
+| Scene split: SceneRenderer + SceneSerializer | Container/lifecycle remains in Scene; public draw/toJSON APIs unchanged |
+| ECS System layer + constructor component keys | Batch queries, priority order, fixed update, attach/detach lifecycle |
+| EventBus event maps | Event names and payload types are coupled; custom maps supported |
+| Scene.toJSON(): runtime state + built-in prop serialization | Environment, camera, view, light IDs/options, collider, built-ins |
 | Lib build: ESM + CJS dual output + .d.ts (npm run build:lib) | |
-| Unit tests: 194 tests across 22 files (Vitest 4, Node ≥ 22) | |
+| Unit tests: 229 tests across 26 files (Vitest 4, Node ≥ 22) | |
 | Examples: 9 progressive demos + tools gallery | |
 
 ## Known Limitations & Roadmap (Next)
@@ -665,16 +697,11 @@ See [FRAMEWORK_ANALYSIS.md](FRAMEWORK_ANALYSIS.md) for a detailed comparison wit
 | Priority | Item | Notes |
 |----------|------|-------|
 | P0 | `example-05` hero collider not updated on scene switch | `heroMv.setCollider()` in `onEnter` |
-| P0 | `InputManager.destroy()` missing | Memory leak on scene pop |
-| P1 | `Character` internal move logic duplicates `MovementComponent` | Remove `_target/_waypoints/pathTo` from Character |
-| P1 | `getComponent` uses string key — not type-safe | Change to constructor-reference key |
 | P1 | `example-05` sky draw functions (400+ lines) inline in `main.ts` | Split to `environment/*.ts` |
-| P2 | Fixed timestep (semi-fixed accumulator) | Physics/pathfinding frame-rate independent |
-| P2 | Depth sort O(n²) graph build | Spatial partitioning or per-bucket comparison |
 | P2 | `SceneManager` does not auto-clear `AssetLoader` on scene exit | Add `assetLoader?` to `ManagedScene` |
 | P2 | `ShadowCaster` re-projects every frame | Cache per-caster projection, invalidate on move |
-| P3 | No System layer (batch component processing) | `scene.addSystem(new MovementSystem())` |
-| P3 | `ParticleSystem` allocates new particles each frame | Integrate `ObjectPool<Particle>` |
+| P2 | Custom prop serialization requires application code | Add serializer registry paired with `registerProp()` |
+| P3 | System queries scan all Entity instances | Add archetype/query cache if profiling shows a bottleneck |
 | P3 | Spatial audio uses linear falloff calc, not `PannerNode` | Use Web Audio `PannerNode` + HRTF |
 | P3 | Editor: snap/grid toggle for fine-grained object placement | Sub-tile precision mode |
 | P3 | Sprite editor: multi-sheet support, frame-range trimming | Advanced animation authoring |

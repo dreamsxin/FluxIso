@@ -20,29 +20,38 @@
  * Entities can also carry their own local bus for per-object events.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Handler<T = any> = (payload: T) => void;
+type Handler<T> = (payload: T) => void;
+type EventKey<Events extends object> = Extract<keyof Events, string>;
+type OpenEventMap = Record<string, unknown>;
 
-export class EventBus {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _handlers = new Map<string, Set<Handler<any>>>();
+/** Minimal typed event sink accepted by components that only emit events. */
+export interface EventEmitter<Events extends object> {
+  emit<K extends EventKey<Events>>(event: K, payload: Events[K]): void;
+}
+
+/**
+ * Event bus whose event names and payloads are coupled by an event map.
+ * Omit the generic argument for an open bus that accepts arbitrary strings.
+ */
+export class EventBus<Events extends object = OpenEventMap> implements EventEmitter<Events> {
+  private _handlers = new Map<EventKey<Events>, Set<Handler<unknown>>>();
 
   /**
    * Subscribe to an event. Returns an unsubscribe function.
    */
-  on<T>(event: string, handler: Handler<T>): () => void {
+  on<K extends EventKey<Events>>(event: K, handler: Handler<Events[K]>): () => void {
     if (!this._handlers.has(event)) {
       this._handlers.set(event, new Set());
     }
-    this._handlers.get(event)!.add(handler);
+    this._handlers.get(event)!.add(handler as Handler<unknown>);
     return () => this.off(event, handler);
   }
 
   /**
    * Subscribe to an event once — auto-unsubscribes after first call.
    */
-  once<T>(event: string, handler: Handler<T>): () => void {
-    const wrapper: Handler<T> = (payload) => {
+  once<K extends EventKey<Events>>(event: K, handler: Handler<Events[K]>): () => void {
+    const wrapper: Handler<Events[K]> = (payload) => {
       handler(payload);
       this.off(event, wrapper);
     };
@@ -52,14 +61,14 @@ export class EventBus {
   /**
    * Unsubscribe a specific handler.
    */
-  off<T>(event: string, handler: Handler<T>): void {
-    this._handlers.get(event)?.delete(handler);
+  off<K extends EventKey<Events>>(event: K, handler: Handler<Events[K]>): void {
+    this._handlers.get(event)?.delete(handler as Handler<unknown>);
   }
 
   /**
    * Emit an event, calling all registered handlers synchronously.
    */
-  emit<T>(event: string, payload: T): void {
+  emit<K extends EventKey<Events>>(event: K, payload: Events[K]): void {
     const handlers = this._handlers.get(event);
     if (!handlers) return;
     for (const h of handlers) h(payload);
@@ -68,7 +77,7 @@ export class EventBus {
   /**
    * Remove all handlers for a specific event, or all events if omitted.
    */
-  clear(event?: string): void {
+  clear(event?: EventKey<Events>): void {
     if (event) {
       this._handlers.delete(event);
     } else {
@@ -77,13 +86,10 @@ export class EventBus {
   }
 
   /** Number of handlers registered for a given event. */
-  listenerCount(event: string): number {
+  listenerCount(event: EventKey<Events>): number {
     return this._handlers.get(event)?.size ?? 0;
   }
 }
-
-/** Scene-wide global event bus. Import and use anywhere. */
-export const globalBus = new EventBus();
 
 // ── Common event payload types ────────────────────────────────────────────────
 
@@ -93,3 +99,17 @@ export interface DeathEvent    { id: string }
 export interface MoveEvent     { x: number; y: number; z: number }
 export interface ArrivalEvent  { id: string; x: number; y: number }
 export interface TriggerEvent  { triggerId: string; enterId: string }
+
+/** Built-in event contract used by engine components and globalBus. */
+export interface LuxIsoEventMap {
+  damage: DamageEvent;
+  heal: HealEvent;
+  death: DeathEvent;
+  move: MoveEvent;
+  arrival: ArrivalEvent;
+  triggerEnter: TriggerEvent;
+  triggerExit: TriggerEvent;
+}
+
+/** Scene-wide global event bus. Import and use anywhere. */
+export const globalBus = new EventBus<LuxIsoEventMap>();

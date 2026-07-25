@@ -1,3 +1,5 @@
+import type { Component, ComponentCtor } from '../ecs/Component';
+
 /**
  * Validator — lightweight runtime validation for scene JSON and ECS lookups.
  *
@@ -32,9 +34,23 @@ export interface SceneJsonLike {
   props?: unknown[];
 }
 
-export function validateSceneJson(json: unknown): ValidationResult {
+export interface SceneValidationOptions {
+  /** Additional light registry keys accepted by this validation call. */
+  lightTypes?: Iterable<string>;
+  /** Additional prop registry keys accepted by this validation call. */
+  propTypes?: Iterable<string>;
+}
+
+export function validateSceneJson(
+  json: unknown,
+  options: SceneValidationOptions = {},
+): ValidationResult {
   const errors: string[]   = [];
   const warnings: string[] = [];
+  const lightTypes = new Set(['omni', 'directional']);
+  const propTypes = new Set(['crystal', 'boulder', 'chest']);
+  for (const type of options.lightTypes ?? []) lightTypes.add(type);
+  for (const type of options.propTypes ?? []) propTypes.add(type);
 
   if (typeof json !== 'object' || json === null) {
     return result(['Scene JSON must be a non-null object'], []);
@@ -103,8 +119,8 @@ export function validateSceneJson(json: unknown): ValidationResult {
     } else {
       s.lights.forEach((l, i) => {
         const light = l as Record<string, unknown>;
-        if (light.type !== 'omni' && light.type !== 'directional') {
-          errors.push(`lights[${i}].type must be 'omni' or 'directional', got '${light.type}'`);
+        if (typeof light.type !== 'string' || !lightTypes.has(light.type)) {
+          errors.push(`lights[${i}].type must be one of ${[...lightTypes].join(', ')}, got '${light.type}'`);
         }
         if (light.type === 'omni') {
           for (const k of ['x', 'y', 'z']) {
@@ -148,9 +164,8 @@ export function validateSceneJson(json: unknown): ValidationResult {
         if (typeof prop.x !== 'number') errors.push(`props[${i}].x must be a number`);
         if (typeof prop.y !== 'number') errors.push(`props[${i}].y must be a number`);
         if (typeof prop.type !== 'string') errors.push(`props[${i}].type must be a string`);
-        const validTypes = ['crystal', 'boulder', 'chest'];
-        if (!validTypes.includes(prop.type as string)) {
-          errors.push(`props[${i}].type must be one of ${validTypes.join(', ')}, got ${prop.type}`);
+        if (typeof prop.type === 'string' && !propTypes.has(prop.type)) {
+          errors.push(`props[${i}].type must be one of ${[...propTypes].join(', ')}, got ${prop.type}`);
         }
       });
     }
@@ -161,19 +176,44 @@ export function validateSceneJson(json: unknown): ValidationResult {
 
 // ── Component type-safe lookup ────────────────────────────────────────────────
 
+interface ComponentLookup {
+  id: string;
+  getComponent<T extends Component>(ctor: ComponentCtor<T>): T | undefined;
+  hasComponent(ctor: ComponentCtor): boolean;
+}
+
+function componentName(ctor: ComponentCtor): string {
+  return (ctor as { name?: string }).name ?? 'UnknownComponent';
+}
+
 /**
  * Type-safe component lookup with a helpful error message on miss.
  * Returns the component or throws if not found and `required` is true.
  */
-export function requireComponent<T extends { componentType: string }>(
-  entity: { getComponent<C>(type: string): C | undefined; id: string },
-  type: string,
+export function requireComponent<T extends Component>(
+  entity: ComponentLookup,
+  ctor: ComponentCtor<T>,
+): T;
+export function requireComponent<T extends Component>(
+  entity: ComponentLookup,
+  ctor: ComponentCtor<T>,
+  required: true,
+): T;
+export function requireComponent<T extends Component>(
+  entity: ComponentLookup,
+  ctor: ComponentCtor<T>,
+  required: false,
+): T | undefined;
+export function requireComponent<T extends Component>(
+  entity: ComponentLookup,
+  ctor: ComponentCtor<T>,
   required = true,
 ): T | undefined {
-  const comp = entity.getComponent<T>(type);
+  const comp = entity.getComponent(ctor);
   if (!comp && required) {
+    const name = componentName(ctor);
     throw new Error(
-      `Entity "${entity.id}" is missing required component "${type}". ` +
+      `Entity "${entity.id}" is missing required component "${name}". ` +
       `Did you forget to call entity.addComponent(new ...Component(...))?`,
     );
   }
@@ -185,11 +225,11 @@ export function requireComponent<T extends { componentType: string }>(
  * Returns a ValidationResult listing any missing components.
  */
 export function validateComponents(
-  entity: { hasComponent(type: string): boolean; id: string },
-  required: string[],
+  entity: ComponentLookup,
+  required: readonly ComponentCtor[],
 ): ValidationResult {
   const errors = required
-    .filter(t => !entity.hasComponent(t))
-    .map(t => `Entity "${entity.id}" is missing component "${t}"`);
+    .filter(ctor => !entity.hasComponent(ctor))
+    .map(ctor => `Entity "${entity.id}" is missing component "${componentName(ctor)}"`);
   return result(errors, []);
 }

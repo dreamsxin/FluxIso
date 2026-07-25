@@ -1,6 +1,6 @@
 import { IsoObject, DrawContext } from '../elements/IsoObject';
 import { AABB } from '../math/depthSort';
-import { Component } from './Component';
+import { Component, ComponentCtor } from './Component';
 
 /**
  * Entity extends IsoObject with a component map.
@@ -20,7 +20,7 @@ import { Component } from './Component';
  * Use this as a base for interactive objects like characters, props, and triggers.
  */
 export abstract class Entity extends IsoObject {
-  private _components = new Map<Function, Component>();
+  private _components = new Map<ComponentCtor, Component>();
 
   constructor(id: string, x: number, y: number, z: number) {
     super(id, x, y, z);
@@ -29,20 +29,24 @@ export abstract class Entity extends IsoObject {
   // ── Component API ─────────────────────────────────────────────────────────
 
   addComponent<T extends Component>(component: T): T {
-    this._components.set(component.constructor, component);
+    const ctor = component.constructor as ComponentCtor<T>;
+    const previous = this._components.get(ctor);
+    if (previous === component) return component;
+    previous?.onDetach?.();
+    this._components.set(ctor, component);
     component.onAttach?.(this);
     return component;
   }
 
-  getComponent<T extends Component>(ctor: new(...a: any[]) => T): T | undefined {
+  getComponent<T extends Component>(ctor: ComponentCtor<T>): T | undefined {
     return this._components.get(ctor) as T | undefined;
   }
 
-  hasComponent(ctor: new(...a: any[]) => Component): boolean {
+  hasComponent(ctor: ComponentCtor): boolean {
     return this._components.has(ctor);
   }
 
-  removeComponent(ctor: new(...a: any[]) => Component): void {
+  removeComponent(ctor: ComponentCtor): void {
     const comp = this._components.get(ctor);
     if (comp) {
       comp.onDetach?.();
@@ -60,6 +64,13 @@ export abstract class Entity extends IsoObject {
   update(ts?: number): void {
     for (const comp of this._components.values()) {
       comp.update?.(ts);
+    }
+  }
+
+  /** Drive fixed-rate component work without exposing the component map to Scene. */
+  fixedUpdate(dt: number): void {
+    for (const comp of this._components.values()) {
+      comp.fixedUpdate?.(dt);
     }
   }
 

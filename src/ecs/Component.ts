@@ -7,8 +7,11 @@ import { IsoObject } from '../elements/IsoObject';
  * It receives a reference to its owner entity on attachment.
  */
 export interface Component {
-  /** Unique type key — used to look up components by type. */
-  readonly componentType: string;
+  /**
+   * Optional diagnostic label kept for compatibility with existing components.
+   * Component lookup uses the constructor reference, never this string.
+   */
+  readonly componentType?: string;
 
   /** Called by Entity when this component is attached. */
   onAttach?(owner: IsoObject): void;
@@ -22,3 +25,7 @@ export interface Component {
   /** Called at a fixed rate (default 1/60 s) for physics and pathfinding. */
   fixedUpdate?(dt: number): void;
 }
+
+/** Constructor reference used for type-safe component lookup and System queries. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ComponentCtor<T extends Component = Component> = abstract new (...args: any[]) => T;

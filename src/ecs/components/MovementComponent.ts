@@ -2,7 +2,9 @@ import { IsoObject } from '../../elements/IsoObject';
 import { Component } from '../Component';
 import { TileCollider } from '../../physics/TileCollider';
 import { Pathfinder, IsoVec2 } from '../../physics/Pathfinder';
-import { EventBus, ArrivalEvent, MoveEvent } from '../EventBus';
+import type { EventEmitter, LuxIsoEventMap } from '../EventBus';
+
+type MovementEventMap = Pick<LuxIsoEventMap, 'move' | 'arrival'>;
 
 export interface MovementOptions {
   /** Movement speed in world units per second. Default 2.0. */
@@ -10,7 +12,7 @@ export interface MovementOptions {
   /** Collision footprint radius in world units. Default 0.4. */
   radius?: number;
   /** Optional EventBus to emit move/arrival events on. */
-  bus?: EventBus;
+  bus?: EventEmitter<MovementEventMap>;
   /** Optional TileCollider for collision resolution and pathfinding. */
   collider?: TileCollider | null;
 }
@@ -35,7 +37,7 @@ export class MovementComponent implements Component {
   private _owner:    IsoObject | null = null;
   private _target:   { x: number; y: number; z: number } | null = null;
   private _waypoints: IsoVec2[] = [];   // remaining path waypoints
-  private _bus:      EventBus | null;
+  private _bus:      EventEmitter<MovementEventMap> | null;
   private _collider: TileCollider | null;
   private _lastTs  = 0;
 
@@ -134,7 +136,7 @@ export class MovementComponent implements Component {
         this._advanceWaypoint();
       } else {
         this._target = null;
-        this._bus?.emit<ArrivalEvent>('arrival', { id: this._owner.id, x: pos.x, y: pos.y });
+        this._bus?.emit('arrival', { id: this._owner.id, x: pos.x, y: pos.y });
       }
     } else {
       const nx = (dx / dist) * step;
@@ -156,7 +158,7 @@ export class MovementComponent implements Component {
       pos.y += rdy;
       pos.z += (dz / dist) * step;
 
-      this._bus?.emit<MoveEvent>('move', { x: pos.x, y: pos.y, z: pos.z });
+      this._bus?.emit('move', { x: pos.x, y: pos.y, z: pos.z });
     }
   }
 

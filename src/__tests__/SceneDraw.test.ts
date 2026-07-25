@@ -7,6 +7,11 @@ import { Crystal } from '../elements/props/Crystal';
 import { OmniLight } from '../lighting/OmniLight';
 import { DirectionalLight } from '../lighting/DirectionalLight';
 import { TileCollider } from '../physics/TileCollider';
+import { SceneRenderer } from '../core/SceneRenderer';
+import { LightmapCache } from '../core/LightmapCache';
+import { IsoObject } from '../elements/IsoObject';
+import type { DrawContext } from '../elements/IsoObject';
+import type { AABB } from '../math/depthSort';
 
 /**
  * Integration tests for the Scene.draw() render pipeline.
@@ -80,6 +85,25 @@ function makeCanvas() {
 
 function makeCtxOnly() {
   return makeCtx() as unknown as CanvasRenderingContext2D;
+}
+
+class DrawProbe extends IsoObject {
+  drawCalls = 0;
+
+  get aabb(): AABB {
+    return {
+      minX: this.position.x,
+      minY: this.position.y,
+      maxX: this.position.x + 1,
+      maxY: this.position.y + 1,
+      baseZ: 0,
+      maxZ: 1,
+    };
+  }
+
+  draw(_dc: DrawContext): void {
+    this.drawCalls++;
+  }
 }
 
 function buildScene(): Scene {
@@ -161,6 +185,57 @@ describe('Scene.draw - render pipeline integration', () => {
     const player = scene.getById('player')!;
     player.position.x = 4;
     expect(() => scene.draw(ctx, 640, 480, 320, 240)).not.toThrow();
+  });
+
+  it('invalidates the sorted object set when visibility swaps at the same position', () => {
+    const scene = new Scene();
+    const first = new DrawProbe('first', 1, 1, 0);
+    const second = new DrawProbe('second', 1, 1, 0);
+    second.visible = false;
+    scene.addObject(first);
+    scene.addObject(second);
+    const ctx = makeCtxOnly();
+
+    scene.draw(ctx, 640, 480, 320, 240);
+    first.visible = false;
+    second.visible = true;
+    scene.draw(ctx, 640, 480, 320, 240);
+
+    expect(first.drawCalls).toBe(1);
+    expect(second.drawCalls).toBe(1);
+    expect(scene.sortedObjects).toEqual([second]);
+  });
+
+  it('allows SceneRenderer to execute as a standalone rendering module', () => {
+    const renderer = new SceneRenderer();
+    const scene = buildScene();
+    const ctx = makeCtxOnly();
+    expect(() => renderer.draw(scene, ctx, 640, 480, 320, 240)).not.toThrow();
+    expect(renderer.sortedObjects.length).toBeGreaterThan(0);
+  });
+
+  it('re-bakes the lightmap when Floor appearance changes', () => {
+    const scene = buildScene();
+    const floor = scene.getById('floor') as Floor;
+    const draw = vi.spyOn(floor, 'draw');
+    const ctx = makeCtxOnly();
+
+    scene.draw(ctx, 640, 480, 320, 240);
+    scene.draw(ctx, 640, 480, 320, 240);
+    expect(draw).toHaveBeenCalledTimes(1);
+    floor.color = '#112233';
+    scene.draw(ctx, 640, 480, 320, 240);
+    expect(draw).toHaveBeenCalledTimes(2);
+  });
+
+  it('resizes the lightmap when canvas dimensions change', () => {
+    const resize = vi.spyOn(LightmapCache.prototype, 'resize');
+    const scene = buildScene();
+    const ctx = makeCtxOnly();
+    scene.draw(ctx, 640, 480, 320, 240);
+    scene.draw(ctx, 800, 600, 400, 300);
+    expect(resize).toHaveBeenCalledWith(800, 600);
+    resize.mockRestore();
   });
 
   it('moving a shadow-caster re-bakes the lightmap (no stale shadow)', () => {

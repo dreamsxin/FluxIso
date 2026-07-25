@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { validateSceneJson, validateComponents, requireComponent } from '../core/Validator';
+import { Crystal } from '../elements/props/Crystal';
+import { HealthComponent } from '../ecs/components/HealthComponent';
+import { MovementComponent } from '../ecs/components/MovementComponent';
 
 describe('validateSceneJson', () => {
   it('passes a valid minimal scene', () => {
@@ -53,42 +56,47 @@ describe('validateSceneJson', () => {
 
 describe('validateComponents', () => {
   it('passes when all required components present', () => {
-    const entity = { id: 'e', hasComponent: (t: string) => t === 'health' };
-    const r = validateComponents(entity, ['health']);
+    const entity = new Crystal('e', 0, 0);
+    entity.addComponent(new HealthComponent({ max: 10 }));
+    const r = validateComponents(entity, [HealthComponent]);
+    expect(r.ok).toBe(true);
+  });
+
+  it('accepts custom registry types supplied by the caller', () => {
+    const r = validateSceneJson({
+      lights: [{ type: 'spot', x: 1, y: 2 }],
+      props: [{ id: 'door-1', type: 'door', x: 1, y: 2 }],
+    }, {
+      lightTypes: ['spot'],
+      propTypes: ['door'],
+    });
     expect(r.ok).toBe(true);
   });
 
   it('errors on missing component', () => {
-    const entity = { id: 'e', hasComponent: () => false };
-    const r = validateComponents(entity, ['health', 'movement']);
+    const entity = new Crystal('e', 0, 0);
+    const r = validateComponents(entity, [HealthComponent, MovementComponent]);
     expect(r.ok).toBe(false);
     expect(r.errors).toHaveLength(2);
+    expect(r.errors[0]).toContain('HealthComponent');
+    expect(r.errors[1]).toContain('MovementComponent');
   });
 });
 
 describe('requireComponent', () => {
   it('returns component when present', () => {
-    const comp = { componentType: 'health' };
-    const entity = {
-      id: 'e',
-      getComponent<C>(_type: string): C | undefined { return comp as unknown as C; },
-    };
-    expect(requireComponent(entity, 'health')).toBe(comp);
+    const entity = new Crystal('e', 0, 0);
+    const comp = entity.addComponent(new HealthComponent({ max: 10 }));
+    expect(requireComponent(entity, HealthComponent)).toBe(comp);
   });
 
   it('throws when required component missing', () => {
-    const entity = {
-      id: 'e',
-      getComponent<C>(_type: string): C | undefined { return undefined; },
-    };
-    expect(() => requireComponent(entity, 'health')).toThrow(/health/);
+    const entity = new Crystal('e', 0, 0);
+    expect(() => requireComponent(entity, HealthComponent)).toThrow(/HealthComponent/);
   });
 
   it('returns undefined when not required', () => {
-    const entity = {
-      id: 'e',
-      getComponent<C>(_type: string): C | undefined { return undefined; },
-    };
-    expect(requireComponent(entity, 'health', false)).toBeUndefined();
+    const entity = new Crystal('e', 0, 0);
+    expect(requireComponent(entity, HealthComponent, false)).toBeUndefined();
   });
 });

@@ -1,6 +1,8 @@
 import { IsoObject } from '../../elements/IsoObject';
 import { Component } from '../Component';
-import { EventBus, TriggerEvent } from '../EventBus';
+import type { EventEmitter, LuxIsoEventMap } from '../EventBus';
+
+type TriggerEventMap = Pick<LuxIsoEventMap, 'triggerEnter' | 'triggerExit'>;
 
 export interface TriggerZoneOptions {
   /**
@@ -14,7 +16,7 @@ export interface TriggerZoneOptions {
   /** Called when an entity exits the zone. */
   onExit?:  (enterId: string) => void;
   /** Optional EventBus — emits 'triggerEnter' / 'triggerExit' events. */
-  bus?: EventBus;
+  bus?: EventEmitter<TriggerEventMap>;
   /**
    * List of IsoObjects to test against each frame.
    * Set this after construction, or update it dynamically.
@@ -50,7 +52,7 @@ export class TriggerZoneComponent implements Component {
   private _next   = new Set<string>();
   private _onEnter: ((id: string) => void) | undefined;
   private _onExit:  ((id: string) => void) | undefined;
-  private _bus:     EventBus | null;
+  private _bus:     EventEmitter<TriggerEventMap> | null;
 
   constructor(opts: TriggerZoneOptions = {}) {
     this.radius   = opts.radius  ?? 0.6;
@@ -98,7 +100,7 @@ export class TriggerZoneComponent implements Component {
     for (const id of nowInside) {
       if (!this._inside.has(id)) {
         this._onEnter?.(id);
-        this._bus?.emit<TriggerEvent>('triggerEnter', { triggerId: this._owner.id, enterId: id });
+        this._bus?.emit('triggerEnter', { triggerId: this._owner.id, enterId: id });
       }
     }
 
@@ -106,7 +108,7 @@ export class TriggerZoneComponent implements Component {
     for (const id of this._inside) {
       if (!nowInside.has(id)) {
         this._onExit?.(id);
-        this._bus?.emit<TriggerEvent>('triggerExit', { triggerId: this._owner.id, enterId: id });
+        this._bus?.emit('triggerExit', { triggerId: this._owner.id, enterId: id });
       }
     }
 

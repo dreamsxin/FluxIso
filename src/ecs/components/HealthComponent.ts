@@ -1,6 +1,8 @@
 import { IsoObject } from '../../elements/IsoObject';
 import { Component } from '../Component';
-import { EventBus, DamageEvent, DeathEvent } from '../EventBus';
+import type { EventEmitter, LuxIsoEventMap } from '../EventBus';
+
+type HealthEventMap = Pick<LuxIsoEventMap, 'damage' | 'death'>;
 
 export interface HealthOptions {
   max: number;
@@ -14,7 +16,7 @@ export interface HealthOptions {
    * and death emits a 'death' event so external systems can react without
    * coupling directly to the component instance.
    */
-  bus?: EventBus;
+  bus?: EventEmitter<HealthEventMap>;
 }
 
 /**
@@ -23,7 +25,7 @@ export interface HealthOptions {
  *
  * @example
  * entity.addComponent(new HealthComponent({ max: 100, onDeath: (e) => scene.removeById(e.id) }));
- * entity.getComponent<HealthComponent>('health').takeDamage(25);
+ * entity.getComponent(HealthComponent)?.takeDamage(25);
  */
 export class HealthComponent implements Component {
   readonly componentType = 'health' as const;
@@ -31,7 +33,7 @@ export class HealthComponent implements Component {
   private _max: number;
   private _current: number;
   private _owner: IsoObject | null = null;
-  private _bus: EventBus | null;
+  private _bus: EventEmitter<HealthEventMap> | null;
 
   /**
    * Called when hp drops to 0.
@@ -81,14 +83,14 @@ export class HealthComponent implements Component {
     if (this.isDead) return;
     this._current = Math.max(0, this._current - amount);
     // Emit damage event before callbacks so bus listeners see the correct hp.
-    this._bus?.emit<DamageEvent>('damage', {
+    this._bus?.emit('damage', {
       amount,
       targetId: this._owner?.id,
       sourceId,
     });
     this._notify();
     if (this._current === 0 && this._owner) {
-      this._bus?.emit<DeathEvent>('death', { id: this._owner.id });
+      this._bus?.emit('death', { id: this._owner.id });
       this.onDeath?.(this._owner);
     }
   }

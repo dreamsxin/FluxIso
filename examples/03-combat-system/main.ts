@@ -14,7 +14,6 @@ import {
   HealthComponent, ParticleSystem,
   globalBus,
 } from '../../src/index';
-import type { DamageEvent, DeathEvent } from '../../src/index';
 
 const COLS = 8, ROWS = 8, TILE_W = 64, TILE_H = 32;
 
@@ -75,12 +74,12 @@ scene.addObject(chest);
 
 // ── EventBus: log damage ───────────────────────────────────────────────────
 
-globalBus.on<DamageEvent>('damage', ({ amount, targetId, sourceId }) => {
+globalBus.on('damage', ({ amount, targetId, sourceId }) => {
   const who  = targetId  ?? 'unknown';
   const from = sourceId ? ` (from ${sourceId})` : '';
   console.log(`[damage] ${who} took ${amount}${from}`);
 });
-globalBus.on<DeathEvent>('death', ({ id }) => {
+globalBus.on('death', ({ id }) => {
   console.log(`[death] ${id} has been destroyed`);
 });
 
