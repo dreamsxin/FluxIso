@@ -1,4 +1,5 @@
 export type { PickResult, RenderBackend, RenderStats } from './contracts/RenderBackend';
+export type { GLResourceCounts } from './device/GLResourceRegistry';
 export type {
   RenderCamera,
   RenderDirectionalLight,

@@ -1,7 +1,7 @@
 # LuxIso 架构分析报告 v5
 
 > 更新日期：2026-07-25
-> 基线：Canvas 2D 默认 + WebGL2 预览，265 个 Vitest 测试 / 36 个测试文件，9 个 Playwright WebGL 夹具
+> 基线：Canvas 2D 默认 + WebGL2 预览，266 个 Vitest 测试 / 36 个测试文件，11 个 Playwright WebGL 测试
 
 ## 执行摘要
 
@@ -35,6 +35,7 @@ math/                     投影、颜色、深度排序
 - 预览场景支持固定步长 A* 点击移动，同时保留 Canvas2D 对照和 fallback。
 - 9 个 URL 夹具覆盖四向视图、低/高俯角、夜景、仅全局光和全部灯光禁用。
 - Playwright 使用固定 Chromium/SwiftShader、1280×720、DPR 1 验证非空像素和跨帧稳定性，并产出待审批截图；1.5% golden diff 尚未启用为阻断门槛。
+- 浏览器生命周期测试会强制丢失/恢复 WebGL context，校验 2 秒恢复门槛、场景状态和像素一致性，并循环验证 renderer dispose 后注册资源计数归零。
 
 ## v5 已完成
 
@@ -122,7 +123,7 @@ const bus = new EventBus<GameEvents>();
 | P2 | System 每次调度扫描所有 Entity × System | 达到千级实体后引入 query/archetype 缓存 |
 | P2 | 稠密深度桶仍可能 O(n²) | 基准验证后考虑 sweep-and-prune 或分层 chunk |
 | P1 | WebGL golden 基线尚未审批 | 审阅 CI 候选图后固化基线并启用 1.5% diff 门槛 |
-| P1 | WebGL context-loss / 资源泄漏尚无自动化 | 增加强制丢失、恢复和重复 dispose 浏览器测试 |
+| P2 | WebGL context-loss 尚未覆盖完整浏览器矩阵 | Chromium/SwiftShader 自动化已完成；Phase 5 扩展到 Firefox、Safari 和真实 GPU |
 | P2 | Canvas2D ShadowCaster 会重复投影静态 caster | 按 caster/light/view 快照缓存投影轮廓；WebGL 路径已缓存 |
 | P2 | 双 Z 单位仍是公开 API 认知成本 | 新主版本统一世界高度单位；旧 API 提供显式转换 |
 | P3 | 空间音频仍为手算距离衰减 | 使用 Web Audio PannerNode + HRTF |
@@ -138,7 +139,7 @@ const bus = new EventBus<GameEvents>();
 | 类型安全 | 9/10 | ComponentCtor 与 EventMap 覆盖核心扩展面 |
 | 可扩展性 | 8/10 | 加载注册表与自定义事件良好；序列化注册表待补 |
 | 文档质量 | 8/10 | README 与本报告已同步当前实现 |
-| 测试覆盖 | 8/10 | 265 个单测 + 9 个浏览器夹具；尚无覆盖率和 approved golden 门槛 |
+| 测试覆盖 | 8/10 | 266 个单测 + 11 个浏览器测试；尚无覆盖率和 approved golden 门槛 |
 | 综合 | 8.3/10 | 架构短板已大幅收敛，下一阶段应由 profiling 驱动 |
 
 测试数量不等于覆盖率。后续应加入 coverage 报告与关键模块阈值，而不是只追求用例数量。

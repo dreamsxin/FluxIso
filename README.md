@@ -73,7 +73,7 @@ npm run build      # production build → dist/
 npm run build:lib  # library bundle → dist/luxiso.mjs + luxiso.cjs + types
 npm test           # run the Vitest suite (requires Node ≥ 22)
 npx playwright install chromium  # one-time browser install
-npm run test:webgl # run all 9 deterministic WebGL fixture captures
+npm run test:webgl # run 9 deterministic captures + context/resource lifecycle tests
 ```
 
 ## Demo Controls

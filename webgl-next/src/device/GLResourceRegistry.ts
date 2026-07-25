@@ -1,3 +1,12 @@
+export interface GLResourceCounts {
+  readonly buffers: number;
+  readonly vertexArrays: number;
+  readonly programs: number;
+  readonly textures: number;
+  readonly framebuffers: number;
+  readonly total: number;
+}
+
 export class GLResourceRegistry {
   private readonly _buffers: WebGLBuffer[] = [];
   private readonly _vertexArrays: WebGLVertexArrayObject[] = [];
@@ -6,6 +15,22 @@ export class GLResourceRegistry {
   private readonly _framebuffers: WebGLFramebuffer[] = [];
 
   constructor(private readonly _gl: WebGL2RenderingContext) {}
+
+  get counts(): GLResourceCounts {
+    const buffers = this._buffers.length;
+    const vertexArrays = this._vertexArrays.length;
+    const programs = this._programs.length;
+    const textures = this._textures.length;
+    const framebuffers = this._framebuffers.length;
+    return {
+      buffers,
+      vertexArrays,
+      programs,
+      textures,
+      framebuffers,
+      total: buffers + vertexArrays + programs + textures + framebuffers,
+    };
+  }
 
   buffer(): WebGLBuffer {
     const resource = this._gl.createBuffer();
@@ -60,6 +85,11 @@ export class GLResourceRegistry {
     for (const resource of this._programs) this._gl.deleteProgram(resource);
     for (const resource of this._textures) this._gl.deleteTexture(resource);
     for (const resource of this._framebuffers) this._gl.deleteFramebuffer(resource);
+    this.abandon();
+  }
+
+  /** Clear JS references after the browser has invalidated every GPU handle. */
+  abandon(): void {
     this._buffers.length = 0;
     this._vertexArrays.length = 0;
     this._programs.length = 0;

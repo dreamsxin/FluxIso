@@ -6,6 +6,7 @@ import {
   type RenderSnapshot,
 } from '../contracts/RenderSnapshot';
 import { GLResourceRegistry } from '../device/GLResourceRegistry';
+import type { GLResourceCounts } from '../device/GLResourceRegistry';
 import { decodePickId } from '../extraction/GeometryBuilder';
 import { TextureRegistry } from '../resources/TextureRegistry';
 import { computeShadowMaskCacheKey } from './ShadowMaskCacheKey';
@@ -111,9 +112,13 @@ export class WebGLRenderer implements RenderBackend {
     event.preventDefault();
     this._contextLost = true;
     this._statsValue.contextLost = true;
+    this._textures.dispose();
+    this._resources.abandon();
+    this._shadowMaskCacheKey = null;
   };
 
   private readonly _onContextRestored = (): void => {
+    if (this._disposed) return;
     this._contextLost = false;
     this._statsValue.contextLost = false;
     this._resources = new GLResourceRegistry(this._gl);
@@ -138,6 +143,10 @@ export class WebGLRenderer implements RenderBackend {
 
   get stats(): Readonly<RenderStats> {
     return this._statsValue;
+  }
+
+  get resourceCounts(): GLResourceCounts {
+    return this._resources.counts;
   }
 
   get capabilities(): Readonly<Record<string, string | number>> {
@@ -236,7 +245,9 @@ export class WebGLRenderer implements RenderBackend {
     this._disposed = true;
     this.canvas.removeEventListener('webglcontextlost', this._onContextLost);
     this.canvas.removeEventListener('webglcontextrestored', this._onContextRestored);
-    if (!this._contextLost) this._resources.dispose();
+    this._textures.dispose();
+    if (this._contextLost) this._resources.abandon();
+    else this._resources.dispose();
     this._lastSnapshot = null;
   }
 

@@ -10,6 +10,8 @@ interface TextureRecord {
 export class TextureRegistry {
   readonly white: WebGLTexture;
   private readonly _records = new Map<string, TextureRecord>();
+  private readonly _loadingImages = new Set<HTMLImageElement>();
+  private _disposed = false;
 
   constructor(
     private readonly _gl: WebGL2RenderingContext,
@@ -33,6 +35,7 @@ export class TextureRegistry {
   }
 
   resolve(url: string): WebGLTexture | null {
+    if (this._disposed) return null;
     let record = this._records.get(url);
     if (!record) {
       record = { texture: null, loading: true, failed: false };
@@ -50,10 +53,24 @@ export class TextureRegistry {
     return count;
   }
 
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    for (const image of this._loadingImages) {
+      image.onload = null;
+      image.onerror = null;
+    }
+    this._loadingImages.clear();
+    this._records.clear();
+  }
+
   private _load(url: string, record: TextureRecord): void {
     const image = new Image();
+    this._loadingImages.add(image);
     if (!url.startsWith('data:') && !url.startsWith('blob:')) image.crossOrigin = 'anonymous';
     image.onload = () => {
+      this._loadingImages.delete(image);
+      if (this._disposed) return;
       const texture = this._resources.texture();
       const gl = this._gl;
       gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -65,6 +82,8 @@ export class TextureRegistry {
       record.loading = false;
     };
     image.onerror = () => {
+      this._loadingImages.delete(image);
+      if (this._disposed) return;
       record.loading = false;
       record.failed = true;
     };

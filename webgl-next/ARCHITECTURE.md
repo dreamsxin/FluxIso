@@ -140,6 +140,8 @@ opaque batches -> composite <-----+
 - Texture URLs are extraction records, not Scene/ECS GPU handles.
 - The renderer exposes explicit `dispose()` and rebuilds registered resources
   after context restore.
+- Context loss abandons invalid GPU handles, detaches outstanding image callbacks,
+  and keeps simulation/snapshot ownership outside the renderer.
 - Context loss stops submission but not simulation. Context restore recreates
   resources from registered recreate callbacks and CPU-side descriptors.
 - Resize recreates size-dependent targets only.

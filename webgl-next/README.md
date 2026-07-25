@@ -73,6 +73,7 @@ The current preview implements the first runnable Phase 0-4 slice:
 - a deterministic nine-case camera/light fixture matrix for golden screenshot capture.
 - Playwright/Chromium fixture capture with nonblank pixel checks, exact static-frame checks,
   GPU metadata, and CI-uploaded golden candidates.
+- forced context-loss/restore coverage plus repeated renderer create/dispose resource checks.
 
 The shadow implementation traces the analytic rays needed to project each 2D
 occluder onto the ground plane. It is not hardware path tracing; WebGL2 remains
@@ -97,10 +98,15 @@ light orbiting until the user interacts with the scene or changes a camera or
 light control.
 
 Run `npx playwright install chromium` once, then `npm run test:webgl` to execute
-all nine fixtures at 1280×720, DPR 1, using Chromium/SwiftShader. Candidate
+all nine fixtures and two lifecycle tests at 1280×720, DPR 1, using
+Chromium/SwiftShader. Candidate
 screenshots and metadata are written under `test-results/webgl-next/`; CI keeps
 them as a 14-day artifact for review. These candidates are not approved golden
 baselines yet, so the documented 1.5% pixel-diff gate remains pending.
+
+The lifecycle suite forces `WEBGL_lose_context`, requires restoration within two
+seconds, verifies that fixture state and the rendered frame survive restoration,
+and checks registered resource counts after normal and context-lost disposal.
 
 ## Versioning
 

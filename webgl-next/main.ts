@@ -63,6 +63,7 @@ let currentFps = 0;
 
 try {
   renderer = new WebGLRenderer(webglCanvas);
+  bindRendererLifecycleStatus(renderer);
   const capabilities = renderer.capabilities;
   required('backend-status').textContent = `就绪 · ${capabilities.renderer}`;
 } catch (error) {
@@ -231,6 +232,16 @@ function bindControls(): void {
   });
   required<HTMLInputElement>('orbit').addEventListener('change', (event) => {
     if ((event.currentTarget as HTMLInputElement).checked) clearActiveFixture();
+  });
+}
+
+function bindRendererLifecycleStatus(currentRenderer: WebGLRenderer): void {
+  const status = required('backend-status');
+  webglCanvas.addEventListener('webglcontextlost', () => {
+    status.textContent = '上下文丢失 · 等待恢复';
+  });
+  webglCanvas.addEventListener('webglcontextrestored', () => {
+    status.textContent = `已恢复 · ${currentRenderer.capabilities.renderer}`;
   });
 }
 

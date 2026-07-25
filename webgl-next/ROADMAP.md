@@ -8,7 +8,7 @@ final cutover gate.
 | Phase | Status | Remaining gate work |
 |---|---|---|
 | 0 - Baseline/contracts | Implemented preview | Approve captured golden baselines and record benchmark reports |
-| 1 - Device/resources | Implemented | Automated forced context-loss and leak harness |
+| 1 - Device/resources | Implemented | Cross-browser/real-GPU restore matrix moves to Phase 5 |
 | 2 - Geometry parity | Implemented preview | Golden diff approval and large-scene performance recording |
 | 3 - Lighting/shadows | Implemented preview | Golden screenshot approval |
 | 4 - Effects/editor | In progress | All examples, editor move parity screenshots, and sprite-editor integration |
@@ -33,6 +33,12 @@ benchmark commands are reproducible.
   arenas, texture registry, resize handling, and context loss/restore.
 - Implement clear/composite smoke pass and GPU/CPU frame diagnostics.
 - Add a graceful unsupported-browser message and Canvas fallback.
+
+Implemented status: Chromium/SwiftShader automation now forces context loss and
+restore, enforces the two-second recovery budget, compares the restored frame,
+and preserves fixture/texture state. A repeated create/dispose harness checks
+that registered handles reach zero in normal and context-lost disposal paths;
+pending image loads are detached when their texture registry is retired.
 
 Exit: context restore works in an automated harness; no leaked GPU resources
 after repeated create/dispose cycles.
