@@ -14,7 +14,13 @@ lighting, and shadow data as the Canvas2D backend.
 | ![A character following an A-star path toward a highlighted floor target](docs/images/webgl-next-click-movement.png) | ![The same lantern garden rendered side by side with WebGL2 and Canvas2D](docs/images/webgl-next-renderer-comparison.png) |
 
 See the [WebGL Next plan](webgl-next/README.md) and run `npm run dev` to open
-`/webgl-next/`.
+`/webgl-next/`. Deterministic review URLs use
+`/webgl-next/?fixture=night-lanterns` (or another fixture ID listed in the
+[acceptance matrix](webgl-next/ACCEPTANCE.md)).
+
+WebGL2 is currently an isolated preview, not yet an `Engine` constructor option.
+Application code should continue using the Canvas2D `Engine` API until the
+`0.2.0-webgl` package exposes the renderer selector.
 
 ## Features
 
@@ -38,7 +44,7 @@ See the [WebGL Next plan](webgl-next/README.md) and run `npm run dev` to open
 - **ECS** — constructor-keyed components plus priority-ordered `System` queries with variable and fixed-rate updates
 - **EventBus** — `EventBus<EventMap>` couples event names to payload types; typed built-ins and custom events; `globalBus` singleton
 - **Components** — `HealthComponent` (unified EventBus emit on damage/death), `MovementComponent` (nudge + A* pathTo), `TimerComponent`, `TweenComponent` (8 easings, yoyo, repeat), `TweenSequence` (chained tweens), `TriggerZoneComponent` (zero per-frame GC)
-- **Props** — `Crystal`, `Boulder`, `Chest`, `Cloud`, `FloatingText`; canvas-drawn, ECS-powered
+- **Props** — `Crystal`, `Boulder`, `Chest`, `Tree`, `FlowerPatch`, `Lantern`, `Cloud`, `FloatingText`; canvas-drawn, ECS-powered
 - **Audio** — `AudioManager`; one-shot SFX, looping BGM with crossfade, spatial distance attenuation, 3-bus volume (master/sfx/bgm)
 - **JSON scene loader** — `SceneSerializer` + `engine.loadScene()` round-trip scene environment, camera, lights, built-in objects, and collision map
 - **Scene validator** — `validateSceneJson()`; runtime JSON schema check + ECS component assertions
@@ -53,10 +59,10 @@ See the [WebGL Next plan](webgl-next/README.md) and run `npm run dev` to open
 | Layer | Technology |
 |---|---|
 | Language | TypeScript 5 (strict) |
-| Renderer | Canvas 2D |
+| Renderer | Canvas 2D default; opt-in WebGL2 preview |
 | Build | Vite 5 |
 | Library runtime | ES2020 |
-| Tests | Vitest 4 (Node ≥ 22) |
+| Tests | Vitest 4 + Playwright 1.62 (Node ≥ 22) |
 
 ## Installation
 
@@ -66,6 +72,8 @@ npm run dev        # http://localhost:5173 — interactive demo
 npm run build      # production build → dist/
 npm run build:lib  # library bundle → dist/luxiso.mjs + luxiso.cjs + types
 npm test           # run the Vitest suite (requires Node ≥ 22)
+npx playwright install chromium  # one-time browser install
+npm run test:webgl # run all 9 deterministic WebGL fixture captures
 ```
 
 ## Demo Controls
@@ -290,6 +298,14 @@ src/
     ├── EditorRenderer.ts        # Engine-backed live preview; world↔screen coordinate mapping
     ├── editor.ts                # Full editor UI; toolbar; object list; property panel; keyboard shortcuts
     └── sprite-editor.ts         # Sprite sheet frame inspector and animation clip builder
+
+webgl-next/
+├── src/                         # Snapshot extraction, WebGL2 renderer, overlays, resources
+├── e2e/                         # Deterministic Playwright fixture matrix
+├── index.html                   # WebGL/Canvas comparison preview
+├── ARCHITECTURE.md              # Current preview boundaries and render graph
+├── ACCEPTANCE.md                # Visual, browser, performance, and release gates
+└── ROADMAP.md                   # Incremental preview and cutover phases
 
 examples/
 ├── index.html                   # Examples + tools gallery

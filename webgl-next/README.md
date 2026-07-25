@@ -71,6 +71,8 @@ The current preview implements the first runnable Phase 0-4 slice:
   warm practical lights, and seam-free multi-face crystal geometry.
 - fixed-step A* click movement with collision-aware waypoints and a renderer-neutral target marker.
 - a deterministic nine-case camera/light fixture matrix for golden screenshot capture.
+- Playwright/Chromium fixture capture with nonblank pixel checks, exact static-frame checks,
+  GPU metadata, and CI-uploaded golden candidates.
 
 The shadow implementation traces the analytic rays needed to project each 2D
 occluder onto the ground plane. It is not hardware path tracing; WebGL2 remains
@@ -93,6 +95,12 @@ Run the preview with `npm run dev`, then open `/webgl-next/`. Golden inputs use
 `global-only`, or `lights-off`. A fixed fixture pauses scene simulation and
 light orbiting until the user interacts with the scene or changes a camera or
 light control.
+
+Run `npx playwright install chromium` once, then `npm run test:webgl` to execute
+all nine fixtures at 1280×720, DPR 1, using Chromium/SwiftShader. Candidate
+screenshots and metadata are written under `test-results/webgl-next/`; CI keeps
+them as a 14-day artifact for review. These candidates are not approved golden
+baselines yet, so the documented 1.5% pixel-diff gate remains pending.
 
 ## Versioning
 

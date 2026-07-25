@@ -7,7 +7,7 @@ final cutover gate.
 
 | Phase | Status | Remaining gate work |
 |---|---|---|
-| 0 - Baseline/contracts | Implemented | Persist deterministic golden fixtures and benchmark reports |
+| 0 - Baseline/contracts | Implemented preview | Approve captured golden baselines and record benchmark reports |
 | 1 - Device/resources | Implemented | Automated forced context-loss and leak harness |
 | 2 - Geometry parity | Implemented preview | Golden diff approval and large-scene performance recording |
 | 3 - Lighting/shadows | Implemented preview | Golden screenshot approval |
@@ -62,7 +62,9 @@ builds a dedicated GPU shadow mask, caches it by shadow geometry/camera/target
 signature, and composites it after the floor pass. The full camera/light matrix
 now exposes nine deterministic URL-selectable cases covering four rotations,
 low/top elevation, night, global-only, and disabled lights. Golden screenshot
-approval remains open.
+candidate capture runs all cases in fixed Chromium/SwiftShader, checks nonblank
+pixels and exact cross-frame stability, and uploads CI artifacts. Baseline
+approval and the 1.5% diff gate remain open.
 
 Exit: lighting fixtures pass tolerance at all supported camera views; moving a
 caster/light cannot leave stale shadows.

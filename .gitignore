@@ -4,3 +4,5 @@ dist/
 *.local
 .zcode/
 node-compile-cache/
+playwright-report/
+test-results/

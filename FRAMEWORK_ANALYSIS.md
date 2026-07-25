@@ -1,18 +1,19 @@
 # LuxIso 架构分析报告 v5
 
 > 更新日期：2026-07-25
-> 基线：TypeScript + Canvas 2D，229 个测试 / 26 个测试文件
+> 基线：Canvas 2D 默认 + WebGL2 预览，265 个 Vitest 测试 / 36 个测试文件，9 个 Playwright WebGL 夹具
 
 ## 执行摘要
 
 LuxIso 已从“功能完整的原型”推进到边界较清晰的 2D 等距引擎内核。v5 完成了 Scene 职责拆分、ECS System 层、构造函数组件查询、EventMap 类型事件、场景运行态序列化，以及深度排序队列优化。此前报告中的“缺少 System、缺少固定时间步、组件使用字符串 key、深度排序没有空间分区、InputManager 无 destroy”等结论均已失效。
 
-当前主要限制不再是基础架构缺失，而是大规模场景下的进一步索引、定制类型序列化、阴影投影缓存和音频空间化质量。
+当前主要限制不再是基础架构缺失，而是大规模场景下的进一步索引、定制类型序列化、Canvas 阴影投影缓存、音频空间化质量，以及 WebGL2 预览的 golden 审批和浏览器发布矩阵。
 
 ## 当前分层
 
 ```text
 editor/                   开发工具，lib 构建明确排除
+webgl-next/               独立 WebGL2 预览、快照提取、GPU 资源与浏览器夹具
 core/Engine               RAF、固定时间步、JSON 构建、类型注册表
 core/Scene                对象/光源容器、生命周期、相机、System 调度
 core/SceneRenderer        剔除、遮挡排序、阴影、lightmap、绘制
@@ -24,6 +25,16 @@ math/                     投影、颜色、深度排序
 ```
 
 依赖方向仍以 core 协调基础模块为主。`SceneRenderer` 和 `SceneSerializer` 通过 `type` 引用 Scene，未引入运行时循环依赖。
+
+`webgl-next` 通过 renderer-neutral `RenderSnapshot` 读取同一 Scene 状态，尚未成为公共 `Engine` 构造选项；Canvas2D 仍是已发布库的默认后端。
+
+## WebGL Next 预览
+
+- `SceneExtractor` 已覆盖内置 Floor、Wall、Character、Crystal、Boulder、Chest、Tree、FlowerPatch、Lantern、Cloud、粒子和浮动文本。
+- WebGL2 已具备环境光、方向光、点光、全局光、解析阴影投影、GPU shadow mask 缓存、纹理、混合、ID picking、小地图和 DOM 文本桥接。
+- 预览场景支持固定步长 A* 点击移动，同时保留 Canvas2D 对照和 fallback。
+- 9 个 URL 夹具覆盖四向视图、低/高俯角、夜景、仅全局光和全部灯光禁用。
+- Playwright 使用固定 Chromium/SwiftShader、1280×720、DPR 1 验证非空像素和跨帧稳定性，并产出待审批截图；1.5% golden diff 尚未启用为阻断门槛。
 
 ## v5 已完成
 
@@ -110,7 +121,9 @@ const bus = new EventBus<GameEvents>();
 | P1 | 自定义 prop 没有配套 serializer registry | 为注册表增加 serialize 回调或独立注册 API |
 | P2 | System 每次调度扫描所有 Entity × System | 达到千级实体后引入 query/archetype 缓存 |
 | P2 | 稠密深度桶仍可能 O(n²) | 基准验证后考虑 sweep-and-prune 或分层 chunk |
-| P2 | ShadowCaster 会重复投影静态 caster | 按 caster/light/view 快照缓存投影轮廓 |
+| P1 | WebGL golden 基线尚未审批 | 审阅 CI 候选图后固化基线并启用 1.5% diff 门槛 |
+| P1 | WebGL context-loss / 资源泄漏尚无自动化 | 增加强制丢失、恢复和重复 dispose 浏览器测试 |
+| P2 | Canvas2D ShadowCaster 会重复投影静态 caster | 按 caster/light/view 快照缓存投影轮廓；WebGL 路径已缓存 |
 | P2 | 双 Z 单位仍是公开 API 认知成本 | 新主版本统一世界高度单位；旧 API 提供显式转换 |
 | P3 | 空间音频仍为手算距离衰减 | 使用 Web Audio PannerNode + HRTF |
 | P3 | 地图未分块 | 大地图引入 tile chunks 与脏区重绘 |
@@ -121,11 +134,11 @@ const bus = new EventBus<GameEvents>();
 |---|:---:|---|
 | 模块分层 | 9/10 | Scene 渲染与序列化职责已拆分 |
 | ECS 设计 | 8/10 | 构造函数查询、System、生命周期完整；尚无 archetype |
-| 渲染管线 | 8/10 | 光照、阴影、剔除、缓存、遮挡排序完整 |
+| 渲染管线 | 8/10 | Canvas 完整；WebGL 预览已覆盖核心 pass，尚待 golden 和浏览器矩阵 |
 | 类型安全 | 9/10 | ComponentCtor 与 EventMap 覆盖核心扩展面 |
 | 可扩展性 | 8/10 | 加载注册表与自定义事件良好；序列化注册表待补 |
 | 文档质量 | 8/10 | README 与本报告已同步当前实现 |
-| 测试覆盖 | 8/10 | 关键生命周期和跨模块路径有回归测试；尚无覆盖率门槛 |
+| 测试覆盖 | 8/10 | 265 个单测 + 9 个浏览器夹具；尚无覆盖率和 approved golden 门槛 |
 | 综合 | 8.3/10 | 架构短板已大幅收敛，下一阶段应由 profiling 驱动 |
 
 测试数量不等于覆盖率。后续应加入 coverage 报告与关键模块阈值，而不是只追求用例数量。

@@ -1,0 +1,96 @@
+import { writeFile } from 'node:fs/promises';
+import { expect, test } from '@playwright/test';
+import { PNG } from 'pngjs';
+import { PREVIEW_LIGHTING_FIXTURES } from '../src/testing/PreviewLightingFixtures';
+
+test.describe('WebGL deterministic fixture matrix', () => {
+  for (const fixture of PREVIEW_LIGHTING_FIXTURES) {
+    test(`${fixture.id} renders a stable candidate`, async ({ page }, testInfo) => {
+      const runtimeErrors: string[] = [];
+      page.on('console', (message) => {
+        if (message.type() === 'error') runtimeErrors.push(message.text());
+      });
+      page.on('pageerror', (error) => runtimeErrors.push(error.message));
+
+      await page.goto(`/webgl-next/?fixture=${fixture.id}`, { waitUntil: 'networkidle' });
+      await expect(page).toHaveTitle('LuxIso WebGL Next');
+      await expect(page.locator('#backend-status')).toContainText('就绪');
+      await expect(page.locator('#fixture')).toHaveValue(fixture.id);
+      await expect(page.locator('#orbit')).not.toBeChecked();
+      await expect(page.locator('#ambient')).toHaveValue(String(fixture.ambient.intensity));
+
+      const enabledOmniLights = fixture.omniLights.filter((light) => light.enabled).length;
+      await expect.poll(() => page.locator('#lights').innerText()).toBe(String(enabledOmniLights));
+
+      const canvas = page.locator('#webgl-canvas');
+      await expect(canvas).toBeVisible();
+      const firstFrame = await canvas.screenshot({ animations: 'disabled' });
+      const pixels = analyzePng(firstFrame);
+      expect(pixels.width).toBeGreaterThan(900);
+      expect(pixels.height).toBeGreaterThan(500);
+      expect(pixels.uniqueColors).toBeGreaterThan(64);
+      expect(pixels.luminanceDeviation).toBeGreaterThan(5);
+
+      await page.evaluate(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }));
+      const secondFrame = await canvas.screenshot({ animations: 'disabled' });
+      expect(secondFrame.equals(firstFrame)).toBe(true);
+
+      const candidatePath = testInfo.outputPath(`${fixture.id}.png`);
+      await page.locator('#viewport').screenshot({
+        path: candidatePath,
+        animations: 'disabled',
+      });
+      const metadataPath = testInfo.outputPath(`${fixture.id}.json`);
+      await writeFile(metadataPath, JSON.stringify({
+        fixture: fixture.id,
+        renderer: await page.locator('#backend-status').innerText(),
+        browser: testInfo.project.name,
+        viewport: testInfo.project.use.viewport,
+        deviceScaleFactor: testInfo.project.use.deviceScaleFactor,
+        commit: process.env.GITHUB_SHA ?? 'local',
+        pixels,
+      }, null, 2));
+      await testInfo.attach(`${fixture.id}-candidate`, {
+        path: candidatePath,
+        contentType: 'image/png',
+      });
+      expect(runtimeErrors).toEqual([]);
+    });
+  }
+});
+
+function analyzePng(buffer: Buffer): {
+  width: number;
+  height: number;
+  uniqueColors: number;
+  luminanceDeviation: number;
+} {
+  const image = PNG.sync.read(buffer);
+  const colors = new Set<number>();
+  let samples = 0;
+  let luminanceSum = 0;
+  let luminanceSquaredSum = 0;
+
+  for (let pixel = 0; pixel < image.width * image.height; pixel += 16) {
+    const offset = pixel * 4;
+    const red = image.data[offset];
+    const green = image.data[offset + 1];
+    const blue = image.data[offset + 2];
+    colors.add((red << 16) | (green << 8) | blue);
+    const luminance = red * 0.2126 + green * 0.7152 + blue * 0.0722;
+    luminanceSum += luminance;
+    luminanceSquaredSum += luminance * luminance;
+    samples++;
+  }
+
+  const mean = luminanceSum / samples;
+  const variance = Math.max(0, luminanceSquaredSum / samples - mean * mean);
+  return {
+    width: image.width,
+    height: image.height,
+    uniqueColors: colors.size,
+    luminanceDeviation: Math.sqrt(variance),
+  };
+}

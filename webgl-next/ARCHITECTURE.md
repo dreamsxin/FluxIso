@@ -19,78 +19,71 @@ webgl-next/src/
   contracts/
     RenderBackend.ts
     RenderSnapshot.ts
-    RenderPrimitive.ts
-    ResourceHandle.ts
   extraction/
     SceneExtractor.ts
-    LegacyDrawAdapter.ts
-    VisibilityIndex.ts
+    GeometryBuilder.ts
+    projection.ts
+    ShadowProjector.ts
+    ShadowProjectionCache.ts
   device/
-    WebGLDevice.ts
-    ContextLifecycle.ts
-    Capabilities.ts
-    StateCache.ts
+    GLResourceRegistry.ts
   resources/
-    ResourceRegistry.ts
-    TextureAtlas.ts
-    BufferArena.ts
-    ShaderLibrary.ts
-    AssetManifest.ts
-  passes/
-    FloorPass.ts
-    OpaquePass.ts
-    ShadowPass.ts
-    LightPass.ts
-    CompositePass.ts
-    TransparentPass.ts
-    PickingPass.ts
-    DebugPass.ts
-  batching/
-    TileBatch.ts
-    QuadBatch.ts
-    WallBatch.ts
-    ParticleBatch.ts
-  camera/
-    IsoCamera.ts
-    CameraUniforms.ts
-  diagnostics/
-    FrameProfiler.ts
-    GpuTimer.ts
-    DebugOverlayModel.ts
+    TextureRegistry.ts
+  renderer/
+    WebGLRenderer.ts
+    ShadowMaskCacheKey.ts
+    shaders.ts
+  overlays/
+    DomOverlayRenderer.ts
+    MinimapRenderer.ts
+    cameraTransform.ts
+  editor/
+    EditorWebGLPreview.ts
   testing/
-    DeterministicScenes.ts
-    PixelDiff.ts
-    ContextLossHarness.ts
+    PreviewLightingFixtures.ts
+
+webgl-next/e2e/
+  fixtures.pw.ts
 ```
 
-The eventual production code may live under `src/render/`; this directory keeps
-the preview isolated until its contracts are proven.
+This is the implemented preview shape, not a proposed package tree. Passes are
+currently explicit methods inside `WebGLRenderer`; they can move into separate
+modules after profiling shows a maintenance or reuse benefit. The eventual
+production code may live under `src/render/`; this directory keeps the preview
+isolated until its contracts are proven.
 
 ## Public Boundary
 
 ```ts
 interface RenderBackend {
-  readonly kind: 'canvas2d' | 'webgl2';
-  resize(width: number, height: number, dpr: number): void;
-  render(snapshot: RenderSnapshot): RenderStats;
+  readonly kind: 'webgl2';
+  readonly stats: Readonly<RenderStats>;
+  resize(cssWidth: number, cssHeight: number, dpr?: number): void;
+  render(snapshot: RenderSnapshot): void;
   pick(x: number, y: number): PickResult | null;
   dispose(): void;
 }
 
 interface RenderSnapshot {
   frame: number;
-  camera: CameraSnapshot;
-  environment: EnvironmentSnapshot;
-  floors: readonly FloorRecord[];
-  opaque: readonly OpaqueRecord[];
-  transparent: readonly TransparentRecord[];
-  lights: readonly LightRecord[];
+  tileW: number;
+  tileH: number;
+  camera: RenderCamera;
+  environment: RenderEnvironment;
+  geometry: RenderGeometry;
+  omniLights: RenderOmniLight[];
+  directionalLights: RenderDirectionalLight[];
+  textOverlays: RenderTextOverlay[];
+  minimap: RenderMinimapSource;
+  pickLookup: ReadonlyMap<number, string>;
+  unsupported: UnsupportedRenderObject[];
 }
 ```
 
-Snapshots are reused double buffers. Extraction writes numeric structs and
-stable resource handles; it does not allocate renderer-specific objects per
-entity per frame.
+`RenderGeometry` owns one reusable interleaved `Float32Array` arena plus ordered
+ranges for floor, shadows, opaque, transparent, and debug geometry. Extraction
+writes renderer-neutral numeric records; Scene/ECS state never stores WebGL
+handles.
 
 ## Coordinate Convention
 
@@ -142,15 +135,22 @@ opaque batches -> composite <-----+
 
 ## Resource Lifecycle
 
-- `ResourceRegistry` owns every texture, buffer, program, framebuffer, and VAO.
-- Handles are stable keys; filenames are not public API.
-- Reference counts are scene/manifest based, with explicit `dispose()`.
+- `GLResourceRegistry` owns buffers, programs, framebuffers, textures, and VAOs
+  created by the renderer; `TextureRegistry` owns lazy image-backed textures.
+- Texture URLs are extraction records, not Scene/ECS GPU handles.
+- The renderer exposes explicit `dispose()` and rebuilds registered resources
+  after context restore.
 - Context loss stops submission but not simulation. Context restore recreates
-  resources from manifests and CPU-side descriptors.
+  resources from registered recreate callbacks and CPU-side descriptors.
 - Resize recreates size-dependent targets only.
 - Shader compilation failures include source key and mapped line diagnostics.
 
 ## Assets
+
+The preview currently receives image URLs from extracted sprite/floor records
+and loads them lazily through `TextureRegistry`. The manifest layout below is
+the target packaging policy for the preview release, not an existing runtime
+requirement:
 
 ```text
 assets/manifest.json
@@ -181,9 +181,13 @@ assets/manifest.json
 
 ## Compatibility Strategy
 
-- Add renderer selection to Engine without changing Scene ownership.
-- Canvas2D and WebGL2 consume the same extracted snapshot during parity work.
+- Adding renderer selection to `Engine` remains a preview-release task; the
+  current public `Engine` still owns a Canvas2D context.
+- WebGL2 consumes `RenderSnapshot`; the current Canvas2D comparison path still
+  calls `Scene.draw()` directly as the visual reference. Unifying backend
+  selection without changing Scene ownership remains Phase 5/6 work.
 - Built-in objects implement extraction first; custom `draw(ctx)` objects use a
   compatibility surface or remain Canvas-only with a clear diagnostic.
 - Scene JSON remains renderer-neutral.
-- Editor preview can switch backends at runtime for A/B comparison.
+- The editor and standalone preview can switch between WebGL2 and Canvas2D for
+  A/B comparison without changing serialized scene state.
