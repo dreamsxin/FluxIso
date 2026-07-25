@@ -10,7 +10,7 @@ final cutover gate.
 | 0 - Baseline/contracts | Implemented | Persist deterministic golden fixtures and benchmark reports |
 | 1 - Device/resources | Implemented | Automated forced context-loss and leak harness |
 | 2 - Geometry parity | Implemented preview | Golden diff approval and large-scene performance recording |
-| 3 - Lighting/shadows | Implemented preview | Static shadow cache and full camera/light fixture matrix |
+| 3 - Lighting/shadows | Implemented preview | GPU shadow-mask cache and full camera/light fixture matrix |
 | 4 - Effects/editor | In progress | All examples, editor move parity screenshots, and sprite-editor integration |
 | 5 - Preview release | Not started | Browser matrix, package checks, and `0.2.0-webgl.0` publication |
 | 6 - Default cutover | Not started | Requires two accepted preview iterations |
@@ -55,8 +55,9 @@ built-in object types.
 
 Preview status: omni and directional lights now project caster silhouettes from
 the same AABB/world-Z contract used by Canvas2D, and moving lights/casters update
-the shadow geometry every frame. Static shadow caching and golden fixture
-approval remain open.
+the shadow geometry every frame. Static analytic projections are cached per
+caster/light pair with automatic input-based invalidation. GPU shadow-mask
+caching and golden fixture approval remain open.
 
 Exit: lighting fixtures pass tolerance at all supported camera views; moving a
 caster/light cannot leave stale shadows.

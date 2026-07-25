@@ -58,6 +58,7 @@ The current preview implements the first runnable Phase 0-4 slice:
 - canonical world-Z conversion at the extraction boundary;
 - WebGL2 resource lifecycle, dynamic batching, GPU ambient/directional/omni lighting;
 - analytic ground-plane ray projection for moving omni/directional lights and moving casters;
+- static caster/light projection caching with automatic invalidation and live hit/miss diagnostics;
 - contact shadows, transparent cloud/light layers, and 24-bit GPU ID picking;
 - context loss/restore handling, capability reporting, and live render diagnostics;
 - lazy texture resources, sprite-sheet frame UVs, floor textures, and ordered draw segments;
@@ -73,7 +74,7 @@ The shadow implementation traces the analytic rays needed to project each 2D
 occluder onto the ground plane. It is not hardware path tracing; WebGL2 remains
 a raster renderer with explicit light, shadow, and composition stages.
 
-Advanced shadow caching, all-example WebGL adapters, golden-image CI, forced
+GPU shadow-mask caching, all-example WebGL adapters, golden-image CI, forced
 context-loss automation, package publication, and the browser release matrix
 remain on the later roadmap phases. Unsupported custom objects render as visible
 diagnostics and are reported in the preview metrics.

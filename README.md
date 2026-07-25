@@ -2,6 +2,20 @@
 
 A 2D isometric rendering engine built with **TypeScript** and **Canvas 2D**, featuring dynamic lighting, shadow casting, occlusion sorting, a full ECS component system, particle effects, spatial audio, a visual scene editor, and a sprite sheet editor.
 
+## WebGL Next Preview
+
+The opt-in WebGL2 renderer now runs the same Scene, ECS, collision, pathfinding,
+lighting, and shadow data as the Canvas2D backend.
+
+![LuxIso WebGL2 lantern garden with dynamic lighting, projected shadows, and live diagnostics](docs/images/webgl-next-lantern-garden.png)
+
+| Collision-aware click movement | WebGL2 / Canvas2D comparison |
+|---|---|
+| ![A character following an A-star path toward a highlighted floor target](docs/images/webgl-next-click-movement.png) | ![The same lantern garden rendered side by side with WebGL2 and Canvas2D](docs/images/webgl-next-renderer-comparison.png) |
+
+See the [WebGL Next plan](webgl-next/README.md) and run `npm run dev` to open
+`/webgl-next/`.
+
 ## Features
 
 - **Isometric math** — `project()` / `unproject()` / `depthKey()` / `drawIsoCube()`; internal (X, Y, Z) space → screen

@@ -416,6 +416,8 @@ function updateMetrics(_dt: number): void {
   required('lights').textContent = String(stats.omniLights);
   required('segments').textContent = String(stats.segments);
   required('textures').textContent = String(stats.textures);
+  const shadowCache = extractor.shadowCacheStats;
+  required('shadow-cache').textContent = `${shadowCache.hits} hit / ${shadowCache.misses} miss`;
   required('text-overlays').textContent = String(stats.textOverlays);
   required('fallbacks').textContent = String(stats.unsupportedObjects);
 }

@@ -28,10 +28,9 @@ import { GeometryBuilder, type RenderColor, type RenderPoint } from './GeometryB
 import { legacyPixelsToWorldZ, projectLegacy, projectWorld } from './projection';
 import {
   clipShadowHullToScene,
-  projectDirectionalShadow,
-  projectOmniShadow,
   type ProjectedShadow,
 } from './ShadowProjector';
+import { ShadowProjectionCache, type ShadowCacheStats } from './ShadowProjectionCache';
 
 export interface ExtractOptions {
   viewportWidth: number;
@@ -74,11 +73,17 @@ export class SceneExtractor {
   private readonly _segments: RenderDrawSegment[] = [];
   private readonly _textOverlays: RenderTextOverlay[] = [];
   private readonly _minimapItems: RenderMinimapItem[] = [];
+  private readonly _shadowCache = new ShadowProjectionCache();
   private _minimapWalkable = new Uint8Array(0);
   private _nextPickId = 1;
   private _frame = 0;
 
+  get shadowCacheStats(): ShadowCacheStats {
+    return this._shadowCache.stats;
+  }
+
   extract(scene: Scene, options: ExtractOptions): RenderSnapshot {
+    this._shadowCache.beginFrame();
     this._builder.reset();
     this._pickLookup.clear();
     this._omniLights.length = 0;
@@ -251,14 +256,14 @@ export class SceneExtractor {
     if (object instanceof Cloud) return;
     let strongestOmni: ProjectedShadow | null = null;
     for (const light of scene.omniLights) {
-      const shadow = projectOmniShadow(object, light, tileW, tileH);
+      const shadow = this._shadowCache.projectOmni(object, light, tileW, tileH);
       if (shadow && (!strongestOmni || shadow.alpha > strongestOmni.alpha)) strongestOmni = shadow;
     }
     this._appendProjectedShadow(strongestOmni, scene, tileW, tileH, ground, 0.46);
 
     let strongestDirectional: ProjectedShadow | null = null;
     for (const light of scene.dirLights) {
-      const shadow = projectDirectionalShadow(object, light, tileW, tileH);
+      const shadow = this._shadowCache.projectDirectional(object, light, tileW, tileH);
       if (shadow && (!strongestDirectional || shadow.alpha > strongestDirectional.alpha)) strongestDirectional = shadow;
     }
     this._appendProjectedShadow(strongestDirectional, scene, tileW, tileH, ground, 0.34);

@@ -11,6 +11,8 @@ export { SceneExtractor } from './extraction/SceneExtractor';
 export { legacyPixelsToWorldZ, projectLegacy, projectWorld } from './extraction/projection';
 export { clipShadowHullToScene, projectDirectionalShadow, projectOmniShadow } from './extraction/ShadowProjector';
 export type { ProjectedShadow, ShadowPoint } from './extraction/ShadowProjector';
+export { ShadowProjectionCache } from './extraction/ShadowProjectionCache';
+export type { ShadowCacheStats } from './extraction/ShadowProjectionCache';
 export { DomOverlayRenderer } from './overlays/DomOverlayRenderer';
 export { MinimapRenderer } from './overlays/MinimapRenderer';
 export { renderPointToScreen } from './overlays/cameraTransform';

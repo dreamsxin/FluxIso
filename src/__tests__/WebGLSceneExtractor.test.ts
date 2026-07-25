@@ -57,6 +57,24 @@ describe('WebGL Next SceneExtractor', () => {
     expect(second.camera.worldX).toBe(2);
   });
 
+  it('reuses static projected shadows and invalidates a moving caster only', () => {
+    const scene = builtInScene();
+    const extractor = new SceneExtractor();
+    extractor.extract(scene, viewport());
+    const firstFrameMisses = extractor.shadowCacheStats.misses;
+
+    extractor.extract(scene, viewport());
+    expect(firstFrameMisses).toBeGreaterThan(0);
+    expect(extractor.shadowCacheStats.hits).toBe(firstFrameMisses);
+    expect(extractor.shadowCacheStats.misses).toBe(0);
+
+    const character = scene.getById('character') as Character;
+    character.position.x += 0.25;
+    extractor.extract(scene, viewport());
+    expect(extractor.shadowCacheStats.misses).toBe(2);
+    expect(extractor.shadowCacheStats.hits).toBe(firstFrameMisses - 2);
+  });
+
   it('reports custom objects and emits visible diagnostic geometry', () => {
     const scene = new Scene({ cols: 2, rows: 2 });
     scene.addObject(new DiagnosticObject('custom', 1, 1));
