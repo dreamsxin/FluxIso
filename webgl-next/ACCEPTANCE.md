@@ -62,6 +62,17 @@ machine, browser, resolution, DPR, scene seed, and commit with every benchmark.
 - Custom-object incompatibility produces a stable diagnostic containing object
   ID, constructor name, and migration documentation link.
 
+## Conditional Hardware Ray Tracing Gate
+
+- Hardware ray tracing must expose a standardized acceleration-structure and
+  ray-dispatch capability; a compute-only path tracer does not satisfy the gate.
+- The adapter must report whether hardware acceleration is active and fall back
+  to the raster shadow path without changing Scene/ECS state.
+- A browser implementation requires two independent browser engines. A
+  native-only Vulkan/DXR experiment ships separately and cannot block WebGL2.
+- The reference scene must show a measured quality or frame-time benefit after
+  BVH build/update, denoising, and memory costs are included.
+
 ## Test Layers
 
 1. Unit: matrix math, atlas packing, buffer arenas, sort segments, manifests.

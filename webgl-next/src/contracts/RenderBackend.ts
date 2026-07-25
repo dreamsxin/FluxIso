@@ -12,6 +12,8 @@ export interface RenderStats {
   textures: number;
   textOverlays: number;
   unsupportedObjects: number;
+  shadowMaskCacheHits: number;
+  shadowMaskCacheMisses: number;
   contextLost: boolean;
 }
 

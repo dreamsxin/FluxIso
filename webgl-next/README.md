@@ -59,6 +59,7 @@ The current preview implements the first runnable Phase 0-4 slice:
 - WebGL2 resource lifecycle, dynamic batching, GPU ambient/directional/omni lighting;
 - analytic ground-plane ray projection for moving omni/directional lights and moving casters;
 - static caster/light projection caching with automatic invalidation and live hit/miss diagnostics;
+- a dedicated GPU shadow-mask framebuffer with signature-based static-frame reuse;
 - contact shadows, transparent cloud/light layers, and 24-bit GPU ID picking;
 - context loss/restore handling, capability reporting, and live render diagnostics;
 - lazy texture resources, sprite-sheet frame UVs, floor textures, and ordered draw segments;
@@ -74,10 +75,17 @@ The shadow implementation traces the analytic rays needed to project each 2D
 occluder onto the ground plane. It is not hardware path tracing; WebGL2 remains
 a raster renderer with explicit light, shadow, and composition stages.
 
-GPU shadow-mask caching, all-example WebGL adapters, golden-image CI, forced
+All-example WebGL adapters, golden-image CI, forced
 context-loss automation, package publication, and the browser release matrix
 remain on the later roadmap phases. Unsupported custom objects render as visible
 diagnostics and are reported in the preview metrics.
+
+True hardware ray tracing is recorded as a conditional post-WebGL research
+phase. WebGL2 cannot expose RT acceleration structures, and current standard
+WebGPU does not yet define them. LuxIso will retain raster projected shadows as
+the portable path and will not market compute-shader path tracing as hardware
+ray tracing. See [Phase 7](./ROADMAP.md#phase-7---hardware-ray-tracing-research-conditional)
+for the capability gates and primary specification links.
 
 Run the preview with `npm run dev`, then open `/webgl-next/`.
 

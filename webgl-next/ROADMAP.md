@@ -10,10 +10,11 @@ final cutover gate.
 | 0 - Baseline/contracts | Implemented | Persist deterministic golden fixtures and benchmark reports |
 | 1 - Device/resources | Implemented | Automated forced context-loss and leak harness |
 | 2 - Geometry parity | Implemented preview | Golden diff approval and large-scene performance recording |
-| 3 - Lighting/shadows | Implemented preview | GPU shadow-mask cache and full camera/light fixture matrix |
+| 3 - Lighting/shadows | Implemented preview | Full camera/light fixture matrix and golden approval |
 | 4 - Effects/editor | In progress | All examples, editor move parity screenshots, and sprite-editor integration |
 | 5 - Preview release | Not started | Browser matrix, package checks, and `0.2.0-webgl.0` publication |
 | 6 - Default cutover | Not started | Requires two accepted preview iterations |
+| 7 - Hardware ray tracing research | Conditional | Standard WebGPU acceleration structures and browser support |
 
 ## Phase 0 - Baseline and Contracts
 
@@ -56,8 +57,10 @@ built-in object types.
 Preview status: omni and directional lights now project caster silhouettes from
 the same AABB/world-Z contract used by Canvas2D, and moving lights/casters update
 the shadow geometry every frame. Static analytic projections are cached per
-caster/light pair with automatic input-based invalidation. GPU shadow-mask
-caching and golden fixture approval remain open.
+caster/light pair with automatic input-based invalidation. The renderer now
+builds a dedicated GPU shadow mask, caches it by shadow geometry/camera/target
+signature, and composites it after the floor pass. Golden fixture approval and
+the full camera/light matrix remain open.
 
 Exit: lighting fixtures pass tolerance at all supported camera views; moving a
 caster/light cannot leave stale shadows.
@@ -95,6 +98,31 @@ actionable.
 Exit: all acceptance gates pass on release CI and representative integrated
 projects.
 
+## Phase 7 - Hardware Ray Tracing Research (Conditional)
+
+This is intentionally outside the `0.2.0-webgl` release path. WebGL2 exposes no
+ray-tracing acceleration structures. The current [W3C WebGPU
+specification](https://www.w3.org/TR/webgpu/) exposes compute passes but no
+standard ray-tracing pipeline or acceleration-structure API; the GPUWeb [ray
+tracing extension issue](https://github.com/gpuweb/gpuweb/issues/535) remains an
+open `Milestone 4+` item. Native Vulkan does define [acceleration structures and
+ray-tracing pipelines](https://github.com/KhronosGroup/Vulkan-Docs/blob/main/chapters/raytracing.adoc),
+which proves the hardware path but not portable browser availability.
+
+- Introduce a WebGPU backend only after the renderer-neutral snapshot and pass
+  contracts survive the WebGL2 preview.
+- Prototype hybrid ray-traced shadows/reflections only when a standardized
+  browser API can target hardware acceleration structures.
+- Keep raster shadows as the required fallback and never label a WGSL compute
+  path tracer as hardware ray tracing.
+- Gate any native Vulkan/DXR shell experiment behind a separate package so the
+  browser engine and scene format remain portable.
+
+Exit: one hardware-accelerated adapter runs on two browser engines or an
+explicitly scoped native preview, reports acceleration-structure capability,
+passes raster fallback parity, and demonstrates a measured quality/performance
+gain on the reference scene.
+
 ## Work Order
 
 1. Contracts and deterministic fixtures.
@@ -103,6 +131,8 @@ projects.
 4. Built-in parity before custom extension APIs.
 5. Editor picking after stable object IDs.
 6. Optimization only after pass-level profiling.
+7. Hardware ray tracing only after standardized WebGPU support or an explicitly
+   approved native-only product scope.
 
 Do not start with a monolithic shader, a renderer-owned scene graph, or a full
 asset conversion. Those approaches erase rollback points and mix migration risk.

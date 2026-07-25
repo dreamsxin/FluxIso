@@ -17,3 +17,4 @@ export { DomOverlayRenderer } from './overlays/DomOverlayRenderer';
 export { MinimapRenderer } from './overlays/MinimapRenderer';
 export { renderPointToScreen } from './overlays/cameraTransform';
 export { WebGLRenderer, WebGLUnavailableError } from './renderer/WebGLRenderer';
+export { computeShadowMaskCacheKey } from './renderer/ShadowMaskCacheKey';

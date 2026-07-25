@@ -128,8 +128,10 @@ opaque batches -> composite <-----+
 - Floor: instanced diamonds or chunk meshes, atlas-indexed materials.
 - Opaque: depth-sorted batches. Preserve LuxIso graph ordering where overlapping
   AABBs require it; batch only within compatible order segments.
-- Shadows: project caster geometry into a mask render target. Cache static
-  caster geometry and invalidate by transform/light/view revision.
+- Shadows: project caster geometry into a white mask render target, multiply
+  overlapping attenuation, and composite after the floor. Cache static caster
+  projections by object/light inputs and cache the GPU mask by geometry,
+  camera, viewport, and render-target signature.
 - Lights: pack directional and omni lights into uniforms initially; move to a
   texture buffer only when limits require it.
 - Composite: combine albedo, ambient, light accumulation, and shadow mask.

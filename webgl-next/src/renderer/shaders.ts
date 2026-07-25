@@ -115,3 +115,39 @@ void main() {
   outColor = vec4(vPick, 1.0);
 }
 `;
+
+export const shadowMaskFragmentShader = `#version 300 es
+precision highp float;
+
+in vec4 vColor;
+out vec4 outColor;
+
+void main() {
+  vec3 attenuation = clamp(vColor.rgb + vec3(1.0 - vColor.a), 0.0, 1.0);
+  outColor = vec4(attenuation, 1.0);
+}
+`;
+
+export const shadowCompositeVertexShader = `#version 300 es
+precision highp float;
+
+out vec2 vUv;
+
+void main() {
+  vec2 uv = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+  vUv = uv;
+  gl_Position = vec4(uv * 2.0 - 1.0, 0.0, 1.0);
+}
+`;
+
+export const shadowCompositeFragmentShader = `#version 300 es
+precision highp float;
+
+in vec2 vUv;
+uniform sampler2D uShadowMask;
+out vec4 outColor;
+
+void main() {
+  outColor = texture(uShadowMask, vUv);
+}
+`;

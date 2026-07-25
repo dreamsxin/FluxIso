@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { WebGLRenderer, WebGLUnavailableError } from '../../webgl-next/src/renderer/WebGLRenderer';
-import { pickingFragmentShader, vertexShader, visualFragmentShader } from '../../webgl-next/src/renderer/shaders';
+import {
+  pickingFragmentShader,
+  shadowCompositeFragmentShader,
+  shadowMaskFragmentShader,
+  vertexShader,
+  visualFragmentShader,
+} from '../../webgl-next/src/renderer/shaders';
 
 describe('WebGL Next renderer contract', () => {
   it('fails explicitly when WebGL2 is unavailable so callers can fall back', () => {
@@ -13,6 +19,8 @@ describe('WebGL Next renderer contract', () => {
     expect(vertexShader).toContain('uRotation');
     expect(visualFragmentShader).toContain('uOmniPosition[8]');
     expect(visualFragmentShader).toContain('uDirectionalDirection[4]');
+    expect(shadowMaskFragmentShader).toContain('vColor.rgb + vec3(1.0 - vColor.a)');
+    expect(shadowCompositeFragmentShader).toContain('uShadowMask');
     expect(pickingFragmentShader).toContain('vPick');
   });
 });

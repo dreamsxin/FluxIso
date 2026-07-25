@@ -2,12 +2,21 @@ import type { PickResult, RenderBackend, RenderStats } from '../contracts/Render
 import {
   MAX_OMNI_LIGHTS,
   RENDER_VERTEX_FLOATS,
+  type RenderRange,
   type RenderSnapshot,
 } from '../contracts/RenderSnapshot';
 import { GLResourceRegistry } from '../device/GLResourceRegistry';
 import { decodePickId } from '../extraction/GeometryBuilder';
 import { TextureRegistry } from '../resources/TextureRegistry';
-import { pickingFragmentShader, vertexShader, visualFragmentShader } from './shaders';
+import { computeShadowMaskCacheKey } from './ShadowMaskCacheKey';
+import {
+  pickingFragmentShader,
+  shadowCompositeFragmentShader,
+  shadowCompositeVertexShader,
+  shadowMaskFragmentShader,
+  vertexShader,
+  visualFragmentShader,
+} from './shaders';
 
 const MAX_DIRECTIONAL_LIGHTS = 4;
 
@@ -20,7 +29,7 @@ interface ProgramState {
   elevation: WebGLUniformLocation;
   rotation: WebGLUniformLocation;
   aspect: WebGLUniformLocation;
-  texture: WebGLUniformLocation;
+  texture: WebGLUniformLocation | null;
 }
 
 interface VisualProgramState extends ProgramState {
@@ -34,6 +43,11 @@ interface VisualProgramState extends ProgramState {
   directionalDirection: WebGLUniformLocation;
   directionalColor: WebGLUniformLocation;
   directionalIntensity: WebGLUniformLocation;
+}
+
+interface ShadowCompositeProgramState {
+  program: WebGLProgram;
+  mask: WebGLUniformLocation;
 }
 
 export class WebGLUnavailableError extends Error {
@@ -52,12 +66,19 @@ export class WebGLRenderer implements RenderBackend {
   private _vao!: WebGLVertexArrayObject;
   private _visual!: VisualProgramState;
   private _picking!: ProgramState;
+  private _shadowMask!: ProgramState;
+  private _shadowComposite!: ShadowCompositeProgramState;
   private _pickTexture!: WebGLTexture;
   private _pickFramebuffer!: WebGLFramebuffer;
+  private _shadowMaskTexture!: WebGLTexture;
+  private _shadowMaskFramebuffer!: WebGLFramebuffer;
   private _textures!: TextureRegistry;
   private _bufferCapacity = 0;
   private _pickWidth = 0;
   private _pickHeight = 0;
+  private _shadowMaskWidth = 0;
+  private _shadowMaskHeight = 0;
+  private _shadowMaskCacheKey: number | null = null;
   private _dpr = 1;
   private _contextLost = false;
   private _disposed = false;
@@ -81,6 +102,8 @@ export class WebGLRenderer implements RenderBackend {
     textures: 0,
     textOverlays: 0,
     unsupportedObjects: 0,
+    shadowMaskCacheHits: 0,
+    shadowMaskCacheMisses: 0,
     contextLost: false,
   };
 
@@ -136,7 +159,10 @@ export class WebGLRenderer implements RenderBackend {
     if (this.canvas.width === width && this.canvas.height === height) return;
     this.canvas.width = width;
     this.canvas.height = height;
-    if (!this._contextLost) this._resizePickTarget(width, height);
+    if (!this._contextLost) {
+      this._resizePickTarget(width, height);
+      this._resizeShadowMaskTarget(width, height);
+    }
   }
 
   render(snapshot: RenderSnapshot): void {
@@ -162,7 +188,14 @@ export class WebGLRenderer implements RenderBackend {
     gl.useProgram(this._visual.program);
     this._setTransformUniforms(this._visual, snapshot);
     this._setLightUniforms(snapshot);
-    const visualDrawCalls = this._drawSegments(this._visual, snapshot, false);
+    let visualDrawCalls = this._drawRange(this._visual, snapshot, false, geometry.floor);
+    visualDrawCalls += this._renderShadowLayer(snapshot);
+
+    gl.useProgram(this._visual.program);
+    gl.enable(gl.DITHER);
+    visualDrawCalls += this._drawRange(this._visual, snapshot, false, geometry.opaque);
+    visualDrawCalls += this._drawRange(this._visual, snapshot, false, geometry.transparent);
+    visualDrawCalls += this._drawRange(this._visual, snapshot, false, geometry.debug);
 
     const pickingDrawCalls = this._renderPicking(snapshot);
     gl.bindVertexArray(null);
@@ -214,8 +247,12 @@ export class WebGLRenderer implements RenderBackend {
     this._vao = this._resources.vertexArray();
     this._visual = this._createVisualProgram();
     this._picking = this._createProgram(pickingFragmentShader);
+    this._shadowMask = this._createProgram(shadowMaskFragmentShader);
+    this._shadowComposite = this._createShadowCompositeProgram();
     this._pickTexture = this._resources.texture();
     this._pickFramebuffer = this._resources.framebuffer();
+    this._shadowMaskTexture = this._resources.texture();
+    this._shadowMaskFramebuffer = this._resources.framebuffer();
     this._textures = new TextureRegistry(gl, this._resources);
 
     gl.bindVertexArray(this._vao);
@@ -231,6 +268,7 @@ export class WebGLRenderer implements RenderBackend {
     this._attribute(7, 1, stride, 16);
     gl.bindVertexArray(null);
     this._resizePickTarget(Math.max(1, this.canvas.width), Math.max(1, this.canvas.height));
+    this._resizeShadowMaskTarget(Math.max(1, this.canvas.width), Math.max(1, this.canvas.height));
   }
 
   private _attribute(index: number, size: number, stride: number, offsetFloats: number): void {
@@ -273,13 +311,18 @@ export class WebGLRenderer implements RenderBackend {
       elevation: this._uniform(program, 'uElevation'),
       rotation: this._uniform(program, 'uRotation'),
       aspect: this._uniform(program, 'uAspect'),
-      texture: this._uniform(program, 'uTexture'),
+      texture: this._gl.getUniformLocation(program, 'uTexture'),
     };
+  }
+
+  private _createShadowCompositeProgram(): ShadowCompositeProgramState {
+    const program = this._resources.program(shadowCompositeVertexShader, shadowCompositeFragmentShader);
+    return { program, mask: this._uniform(program, 'uShadowMask') };
   }
 
   private _uniform(program: WebGLProgram, name: string): WebGLUniformLocation {
     const location = this._gl.getUniformLocation(program, name);
-    if (!location) throw new Error(`Required shader uniform is missing: ${name}`);
+    if (location === null) throw new Error(`Required shader uniform is missing: ${name}`);
     return location;
   }
 
@@ -295,7 +338,7 @@ export class WebGLRenderer implements RenderBackend {
     gl.uniform1f(program.elevation, camera.elevation);
     gl.uniform1f(program.rotation, camera.rotation * Math.PI / 180);
     gl.uniform1f(program.aspect, snapshot.tileW / snapshot.tileH);
-    gl.uniform1i(program.texture, 0);
+    if (program.texture) gl.uniform1i(program.texture, 0);
   }
 
   private _setLightUniforms(snapshot: RenderSnapshot): void {
@@ -373,21 +416,32 @@ export class WebGLRenderer implements RenderBackend {
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(this._picking.program);
     this._setTransformUniforms(this._picking, snapshot);
-    return this._drawSegments(this._picking, snapshot, true);
+    const geometry = snapshot.geometry;
+    return this._drawRange(this._picking, snapshot, true, geometry.floor) +
+      this._drawRange(this._picking, snapshot, true, geometry.opaque) +
+      this._drawRange(this._picking, snapshot, true, geometry.transparent) +
+      this._drawRange(this._picking, snapshot, true, geometry.debug);
   }
 
-  private _drawSegments(
+  private _drawRange(
     _program: ProgramState,
     snapshot: RenderSnapshot,
     picking: boolean,
+    range: RenderRange,
   ): number {
+    if (range.count <= 0) return 0;
     const gl = this._gl;
     const segments = snapshot.geometry.segments.length > 0
       ? snapshot.geometry.segments
       : [{ first: 0, count: snapshot.geometry.vertexCount, blend: 'alpha' as const }];
     let drawCalls = 0;
+    const rangeEnd = range.first + range.count;
     gl.activeTexture(gl.TEXTURE0);
     for (const segment of segments) {
+      const first = Math.max(range.first, segment.first);
+      const end = Math.min(rangeEnd, segment.first + segment.count);
+      const count = end - first;
+      if (count <= 0) continue;
       let texture = this._textures.white;
       if (segment.textureUrl) {
         const resolved = this._textures.resolve(segment.textureUrl);
@@ -396,10 +450,59 @@ export class WebGLRenderer implements RenderBackend {
       }
       gl.bindTexture(gl.TEXTURE_2D, texture);
       if (!picking) this._setBlendMode(segment.blend);
-      gl.drawArrays(gl.TRIANGLES, segment.first, segment.count);
+      gl.drawArrays(gl.TRIANGLES, first, count);
       drawCalls++;
     }
     return drawCalls;
+  }
+
+  private _renderShadowLayer(snapshot: RenderSnapshot): number {
+    const shadows = snapshot.geometry.shadows;
+    this._statsValue.shadowMaskCacheHits = 0;
+    this._statsValue.shadowMaskCacheMisses = 0;
+    if (shadows.count <= 0) return 0;
+
+    const cacheKey = computeShadowMaskCacheKey(snapshot, this.canvas.width, this.canvas.height);
+    let drawCalls = 0;
+    if (cacheKey !== this._shadowMaskCacheKey) {
+      this._renderShadowMask(snapshot);
+      this._shadowMaskCacheKey = cacheKey;
+      this._statsValue.shadowMaskCacheMisses = 1;
+      drawCalls++;
+    } else {
+      this._statsValue.shadowMaskCacheHits = 1;
+    }
+    this._compositeShadowMask();
+    return drawCalls + 1;
+  }
+
+  private _renderShadowMask(snapshot: RenderSnapshot): void {
+    const gl = this._gl;
+    const shadows = snapshot.geometry.shadows;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._shadowMaskFramebuffer);
+    gl.viewport(0, 0, this._shadowMaskWidth, this._shadowMaskHeight);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.DITHER);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
+    gl.clearColor(1, 1, 1, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(this._shadowMask.program);
+    this._setTransformUniforms(this._shadowMask, snapshot);
+    gl.drawArrays(gl.TRIANGLES, shadows.first, shadows.count);
+  }
+
+  private _compositeShadowMask(): void {
+    const gl = this._gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.useProgram(this._shadowComposite.program);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this._shadowMaskTexture);
+    gl.uniform1i(this._shadowComposite.mask, 0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
   private _setBlendMode(blend: 'alpha' | 'add' | 'multiply'): void {
@@ -436,6 +539,33 @@ export class WebGLRenderer implements RenderBackend {
     gl.bindTexture(gl.TEXTURE_2D, null);
     if (status !== gl.FRAMEBUFFER_COMPLETE) {
       throw new Error(`Picking framebuffer is incomplete: 0x${status.toString(16)}`);
+    }
+  }
+
+  private _resizeShadowMaskTarget(width: number, height: number): void {
+    const gl = this._gl;
+    this._shadowMaskWidth = width;
+    this._shadowMaskHeight = height;
+    this._shadowMaskCacheKey = null;
+    gl.bindTexture(gl.TEXTURE_2D, this._shadowMaskTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._shadowMaskFramebuffer);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      this._shadowMaskTexture,
+      0,
+    );
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    if (status !== gl.FRAMEBUFFER_COMPLETE) {
+      throw new Error(`Shadow-mask framebuffer is incomplete: 0x${status.toString(16)}`);
     }
   }
 
