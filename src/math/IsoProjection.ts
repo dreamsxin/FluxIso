@@ -31,9 +31,35 @@ export interface IsoView {
 export const DEFAULT_ISO_VIEW: IsoView = { rotation: 0, elevation: 0.5 };
 
 /**
+ * Conversion factor from screen pixels to AABB world-Z units.
+ *
+ * Convention: 1 AABB-Z unit == `tileH / 2` pixels (≈16 px for the standard
+ * tileH=32). This is the SAME unit Wall has always used (`wallHeight / 16`),
+ * so Wall's numeric `maxZ` is unchanged. All other object AABBs (Character,
+ * Crystal, Boulder, Chest, Cloud, FloatingText, ParticleSystem) now express
+ * `baseZ` / `maxZ` in this unit too, so depth-sort `overlapZ` comparisons and
+ * ShadowCaster projections are consistent across object classes.
+ *
+ * NOTE: `position.z` (the IsoObject world position) stays in SCREEN PIXELS
+ * because `project()` feeds it directly into `sy = (x+y)*tileH/2 - z`. The
+ * pixel->world-unit conversion happens only inside each `get aabb()` getter.
+ *
+ * For non-standard tileH, derive the factor as `1 / (tileH / 2)`. We hardcode
+ * `1/16` here (matching the historical convention) so object construction
+ * remains tileH-agnostic, exactly as Wall already was.
+ */
+export const Z_UNITS_PER_PX = 1 / 16;
+
+/**
  * Projects isometric world coordinates to screen coordinates.
- * Always uses standard tileW/tileH — view transforms are applied by the
- * canvas context, not here.
+ *
+ * `position.z` is in SCREEN PIXELS (not AABB world-Z units) - it is subtracted
+ * directly from `sy`. The optional `_view` is intentionally ignored: rotation
+ * and elevation are applied as canvas 2D transforms by `Camera.applyTransform`,
+ * so every `draw()` call using this function responds to view changes without
+ * per-call math. Callers that need a view-aware screen position outside the
+ * transformed canvas (e.g. light halos drawn in camera space) should use
+ * `Camera.worldToScreen(..., view)` instead.
  */
 export function project(
   x: number,

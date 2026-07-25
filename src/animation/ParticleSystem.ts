@@ -1,5 +1,5 @@
 import { IsoObject, DrawContext } from '../elements/IsoObject';
-import { project } from '../math/IsoProjection';
+import { project, Z_UNITS_PER_PX } from '../math/IsoProjection';
 import { AABB } from '../math/depthSort';
 import { SpriteSheet } from './SpriteSheet';
 
@@ -107,15 +107,18 @@ export class ParticleSystem extends IsoObject {
   }
 
   get aabb(): AABB {
+    // position.z is in screen pixels; convert to AABB world-Z units for
+    // depth-sort consistency with other object classes.
+    const baseZ = this.position.z * Z_UNITS_PER_PX;
     if (this.particles.length === 0) {
-      return { minX: this.position.x - 0.5, minY: this.position.y - 0.5, maxX: this.position.x + 0.5, maxY: this.position.y + 0.5, baseZ: this.position.z };
+      return { minX: this.position.x - 0.5, minY: this.position.y - 0.5, maxX: this.position.x + 0.5, maxY: this.position.y + 0.5, baseZ };
     }
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (const p of this.particles) {
       if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
       if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
     }
-    return { minX, minY, maxX, maxY, baseZ: this.position.z };
+    return { minX, minY, maxX, maxY, baseZ };
   }
 
   update(ts?: number): void {

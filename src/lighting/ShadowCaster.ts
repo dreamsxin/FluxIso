@@ -67,7 +67,11 @@ export class ShadowCaster {
 
       if (needsUpdate) {
         const { minX, minY, maxX, maxY, baseZ, maxZ } = obj.aabb;
-        const objTopZ = maxZ ?? (baseZ + (tileH * 1.1) / (tileH / 2));
+        // Align with depthSort's maxZ convention: an object without an
+        // explicit maxZ is treated as a 1-unit slab (baseZ + 1). Previously
+        // this used (tileH*1.1)/(tileH/2) ≈ 2.2, disagreeing with depthSort's
+        // +1 and producing inconsistent Z extents between the two systems.
+        const objTopZ = maxZ ?? (baseZ + 1);
         const cz = objTopZ - baseZ;
 
         if (cz <= 0 || baseZ >= lz) {
@@ -207,7 +211,8 @@ export class ShadowCaster {
         const shadowDy = -worldDy * shadowLen;
 
         const { minX, minY, maxX, maxY, baseZ, maxZ } = obj.aabb;
-        const objTopZ = maxZ ?? (baseZ + (tileH * 1.1) / (tileH / 2));
+        // Align with depthSort's maxZ convention (see draw() above).
+        const objTopZ = maxZ ?? (baseZ + 1);
         const objHeightWorld = objTopZ - baseZ;
 
         let footprint: [number, number][];

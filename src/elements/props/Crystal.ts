@@ -1,4 +1,4 @@
-import { project } from '../../math/IsoProjection';
+import { project, Z_UNITS_PER_PX } from '../../math/IsoProjection';
 import { AABB } from '../../math/depthSort';
 import { DrawContext } from '../IsoObject';
 import { Entity } from '../../ecs/Entity';
@@ -31,7 +31,16 @@ export class Crystal extends Entity {
   get propHeightPx(): number { return this.heightPx; }
 
   get aabb(): AABB {
-    return { minX: this.position.x - 0.4, minY: this.position.y - 0.4, maxX: this.position.x + 0.4, maxY: this.position.y + 0.4, baseZ: 0 };
+    // heightPx is the drawn spike height in screen pixels; convert to AABB
+    // world-Z units so a tall crystal sorts in front of short ground objects.
+    return {
+      minX: this.position.x - 0.4,
+      minY: this.position.y - 0.4,
+      maxX: this.position.x + 0.4,
+      maxY: this.position.y + 0.4,
+      baseZ: 0,
+      maxZ: this.heightPx * Z_UNITS_PER_PX,
+    };
   }
 
   update(ts?: number): void {

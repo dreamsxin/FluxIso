@@ -65,7 +65,16 @@ function isBehind(a: AABB, b: AABB): boolean {
     // Y-extent will have aContainsB=true, yet its center may be BEHIND the wall.
     // Far-corner comparison would give wrong results here (the far corner is
     // "forward" because the object extends past the wall). Use center-depth instead.
+    //
+    // Z-aware refinement: when their Z ranges also overlap, the TALLER object
+    // must be drawn later (in front) - otherwise a short object containing a
+    // tall object's footprint (e.g. a character straddling a tall thin wall)
+    // would incorrectly cover the wall. Only fall back to center-depth when Z
+    // heights are equal or Z does not overlap.
     if (bContainsA || aContainsB) {
+      if (overlapZ && aMaxZ !== bMaxZ) {
+        return aMaxZ <= bMaxZ;   // taller (larger maxZ) draws later -> in front
+      }
       return centerA < centerB;
     }
 
@@ -77,7 +86,11 @@ function isBehind(a: AABB, b: AABB): boolean {
     if (aFarX && aFarY) return true;
     if (!aFarX && !aFarY) return false;
     // Mixed axis result: use total far-corner depth as tiebreaker.
-    return (a.maxX + a.maxY) <= (b.maxX + b.maxY);
+    // Strict `<` (not `<=`): equal far-sums must NOT create a directed edge in
+    // either direction, otherwise both isBehind(a,b) and isBehind(b,a) return
+    // true and topoSort hits a degenerate cycle. Equal sum -> no constraint ->
+    // Kahn's center-depth tiebreaker resolves ordering instead.
+    return (a.maxX + a.maxY) < (b.maxX + b.maxY);
   }
 
   // No XY overlap: compare center depths as a tiebreaker.
@@ -122,7 +135,10 @@ export function topoSort<T extends Sortable>(objects: T[]): T[] {
   }
 
   // 2. Build graph using spatial proximity
-  const compared = new Set<number>(); // pack (i << 16 | j)
+  // Use i*n+j as the pair key. Unlike (i<<16|j) this does not overflow /
+  // collide for large object counts (n is the array length, well within
+  // Number.MAX_SAFE_INTEGER for any realistic scene).
+  const compared = new Set<number>();
 
   for (let i = 0; i < n; i++) {
     const a = objects[i].aabb;
@@ -138,9 +154,9 @@ export function topoSort<T extends Sortable>(objects: T[]): T[] {
 
         for (const j of list) {
           if (i === j) continue;
-          
+
           // Ensure we only compare each pair (i, j) once
-          const pairKey = i < j ? (i << 16) | j : (j << 16) | i;
+          const pairKey = i < j ? i * n + j : j * n + i;
           if (compared.has(pairKey)) continue;
           compared.add(pairKey);
 

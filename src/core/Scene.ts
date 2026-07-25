@@ -378,11 +378,29 @@ export class Scene {
     }
 
     // Light halos (in camera space)
+    // The ctx already has camera.applyTransform() applied (origin + zoom +
+    // elevation + rotation + camera offset), so we must compute the light's
+    // position in the SAME transformed space the objects draw into. project()
+    // alone ignores the view (rotation/elevation), which would misplace halos
+    // under non-default views. Replicate the view transform from
+    // Camera.applyTransform here, WITHOUT the camera offset / origin (the ctx
+    // already accounts for those).
+    const rot  = this.view.rotation;
+    const elev = this.view.elevation;
     for (const light of omniLights) {
-      const lp = project(light.position.x, light.position.y, 0, this.tileW, this.tileH, this.view);
-      const lx = lp.sx;
-      const ly = lp.sy - light.position.z;
-      this.drawLightHalo(ctx, lx, ly, light.color, light.intensity);
+      const lp = project(light.position.x, light.position.y, 0, this.tileW, this.tileH);
+      let hx = lp.sx;
+      let hy = lp.sy - light.position.z;
+      if (elev !== 0.5) hy *= elev / 0.5;
+      if (rot !== 0) {
+        const rad = (rot * Math.PI) / 180;
+        const c = Math.cos(rad), s = Math.sin(rad);
+        const aspect = this.tileW / this.tileH;
+        const nx = c * hx + s * aspect * hy;
+        const ny = (-s / aspect) * hx + c * hy;
+        hx = nx; hy = ny;
+      }
+      this.drawLightHalo(ctx, hx, hy, light.color, light.intensity);
     }
 
     this.camera.restoreTransform(ctx);

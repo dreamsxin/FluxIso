@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { project, unproject, depthKey } from '../math/IsoProjection';
+import { describe, it, expect, vi } from 'vitest';
+import { project, unproject, depthKey, drawIsoCube, Z_UNITS_PER_PX } from '../math/IsoProjection';
 
 const TW = 64;
 const TH = 32;
@@ -56,5 +56,43 @@ describe('depthKey', () => {
   it('z has minimal influence compared to x+y', () => {
     // z=1000 should not overtake a 1-unit x+y difference
     expect(depthKey(2, 0, 0)).toBeGreaterThan(depthKey(0, 0, 1000));
+  });
+});
+
+describe('project - view parameter', () => {
+  it('ignores the _view argument (rotation/elevation applied by Camera transform)', () => {
+    // project() intentionally does NOT apply view rotation/elevation - those
+    // are canvas 2D transforms set by Camera.applyTransform(). A caller passing
+    // a view must get the same result as one that doesn't.
+    const noView = project(3, 5, 10, 64, 32);
+    const withView = project(3, 5, 10, 64, 32, { rotation: 90, elevation: 1.0 });
+    expect(withView).toEqual(noView);
+  });
+});
+
+describe('Z_UNITS_PER_PX', () => {
+  it('equals 1/16 (tileH/2 for standard tileH=32)', () => {
+    expect(Z_UNITS_PER_PX).toBe(1 / 16);
+  });
+});
+
+describe('drawIsoCube', () => {
+  it('draws three faces without throwing', () => {
+    // Smoke test: drawIsoCube should call beginPath/moveTo/lineTo/closePath/fill
+    // for the left, right, and top faces. No canvas DOM required - pass a mock.
+    const ctx = {
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      closePath: vi.fn(),
+      fill: vi.fn(),
+      fillStyle: '',
+    } as unknown as CanvasRenderingContext2D;
+    expect(() =>
+      drawIsoCube(ctx, 100, 100, 64, 32, 1, 1, 0, 2, 2, 2, '#aaa', '#888', '#666'),
+    ).not.toThrow();
+    // 3 faces -> 3 fill() calls
+    expect(ctx.fill).toHaveBeenCalledTimes(3);
+    expect(ctx.beginPath).toHaveBeenCalledTimes(3);
   });
 });

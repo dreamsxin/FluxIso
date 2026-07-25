@@ -144,6 +144,42 @@ engine.start(
 }
 ```
 
+## Coordinate System & Z Units
+
+The engine uses a standard 2:1 isometric projection. Understanding the two
+distinct Z conventions is essential for correct depth sorting:
+
+```ts
+// project(): world (x,y,z) -> screen (sx, sy)
+sx = (x - y) * (tileW / 2)
+sy = (x + y) * (tileH / 2) - z
+```
+
+- **`position.z` is in SCREEN PIXELS.** It is subtracted directly from `sy` by
+  `project()`, so a character at `z=48` renders 48 pixels above the ground.
+  `Camera.applyTransform()` applies rotation/elevation as a canvas 2D transform;
+  `project()` itself ignores the `IsoView` argument (kept for API stability).
+  Callers needing a view-aware screen position outside the transformed canvas
+  should use `Camera.worldToScreen(..., view)`.
+
+- **AABB `baseZ` / `maxZ` are in WORLD-Z UNITS**, where
+  `1 unit == tileH / 2 pixels` (≈16 px for `tileH=32`). The conversion factor is
+  exported as `Z_UNITS_PER_PX = 1/16`. Every object's `get aabb()` getter
+  converts its pixel-based height into this unit so that `depthSort`'s
+  `overlapZ` comparisons and `ShadowCaster` projections are consistent across
+  classes (Wall, Character, Crystal, Boulder, Chest, Cloud, …).
+
+  ```ts
+  // Example: a Wall of height 80px
+  wall.aabb.maxZ === 80 * Z_UNITS_PER_PX   // = 5.0 world-Z units
+  // A Character of radius 22px (upper half above anchor)
+  char.aabb.maxZ === position.z*Z_UNITS_PER_PX + 22*Z_UNITS_PER_PX  // ≈ 1.375
+  ```
+
+  `position.z` stays in pixels for rendering; the pixel→world-unit conversion
+  happens only inside each `aabb` getter. Do not mix the two when constructing
+  custom objects—always multiply pixel heights by `Z_UNITS_PER_PX` for AABB Z.
+
 ## Architecture
 
 ```
@@ -248,7 +284,8 @@ examples/
 │   └── environment/             # LowPolyTree, DayNightCycle
 ├── 06-voxel-lake/               # Voxel wave simulation, seabed decor
 ├── 07-desert-ruins/             # Procedural terrain, interactive props, portals
-└── 08-volcano/                  # Lava terrain, particle FX, burn damage, click-to-move
+├── 08-volcano/                  # Lava terrain, particle FX, burn damage, click-to-move
+└── 09-slopes/                   # Height-map terrain, bilinear interpolation, smooth voxel hills
 
 public/
 └── scenes/
@@ -570,7 +607,10 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 | Module | Notes |
 |---|---|
 | Isometric math (project / unproject / depthKey / drawIsoCube) | |
-| Topological depth sort — 3-D AABB + containment detection + maxZ | |
+| Topological depth sort - 3-D AABB + containment detection + maxZ | |
+| Depth sort: Z-aware containment + unified Z-unit convention | `isBehind` now compares `maxZ` when one footprint contains another; all object AABBs use `Z_UNITS_PER_PX` (1 unit = tileH/2 px) |
+| Depth sort: mixed-axis cycle fix + pairKey overflow fix | Strict `<` on equal far-sums; `i*n+j` pair key (no 65536 collision) |
+| Light halo: view-aware projection under rotation/elevation | |
 | Floor: OmniLight + DirectionalLight RGB illumination | |
 | Floor: tileImage texture + AssetLoader | |
 | Floor: per-tile color cache (dirty-flag, skips recomputation on static scenes) | |
@@ -615,8 +655,8 @@ requireComponent<T>(entity: Entity, type: string): T  // throws if missing
 | Engine: PropRegistry + LightRegistry (open for extension) | |
 | Scene.toJSON(): full prop serialization (Crystal/Boulder/Chest) | |
 | Lib build: ESM + CJS dual output + .d.ts (npm run build:lib) | |
-| Unit tests: 157 tests across 20 files (Vitest 4, Node ≥ 22) | |
-| Examples: 8 progressive demos + tools gallery | |
+| Unit tests: 194 tests across 22 files (Vitest 4, Node ≥ 22) | |
+| Examples: 9 progressive demos + tools gallery | |
 
 ## Known Limitations & Roadmap (Next)
 

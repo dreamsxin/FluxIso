@@ -1,6 +1,6 @@
 import { IsoObject, DrawContext } from '../../elements/IsoObject';
 import { AABB } from '../../math/depthSort';
-import { project } from '../../math/IsoProjection';
+import { project, Z_UNITS_PER_PX } from '../../math/IsoProjection';
 
 export interface FloatingTextOptions {
   id: string;
@@ -41,10 +41,13 @@ export class FloatingText extends IsoObject {
   get aabb(): AABB {
     // Floating text doesn't usually need strict depth sorting against walls,
     // but we give it a tiny AABB at its current position.
+    // position.z is in screen pixels; convert to AABB world-Z units.
+    const baseZ = this.position.z * Z_UNITS_PER_PX;
     return {
       minX: this.position.x, minY: this.position.y,
       maxX: this.position.x, maxY: this.position.y,
-      baseZ: this.position.z,
+      baseZ,
+      maxZ: baseZ + 1,
     };
   }
 

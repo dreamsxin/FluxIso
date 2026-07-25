@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FluxIso — Examples</title>
+  <title>LuxIso — Examples</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -212,261 +212,123 @@
 <!-- ── Tools ─────────────────────────────────────────────────────────────── -->
 
 <div class="section-heading"><h2>Tools</h2></div>
-<div class="grid-tools section-gap">
-
-  <a class="card tool-card" href="/editor.html">
-    <div class="card-preview bg-scene-editor">
-      <div class="preview-dots" id="dots-scene-editor"></div>
-      <span>🛠️</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">TOOL</div>
-      <div class="card-title">Scene Editor</div>
-      <div class="card-desc">Visual editor for building isometric scenes. Place floors, walls, lights, characters and props, then export to JSON for use in your game.</div>
-      <div class="card-tags">
-        <span class="tag tool-tag">Editor</span>
-        <span class="tag tool-tag">JSON Export</span>
-        <span class="tag tool-tag">Undo / Redo</span>
-        <span class="tag tool-tag">Props</span>
-        <span class="tag tool-tag">Lighting</span>
-      </div>
-    </div>
-  </a>
-
-  <a class="card tool-card" href="/sprite-editor.html">
-    <div class="card-preview bg-sprite-editor">
-      <div class="preview-dots" id="dots-sprite-editor"></div>
-      <span>🎨</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">TOOL</div>
-      <div class="card-title">Sprite Editor</div>
-      <div class="card-desc">Configure sprite sheet animations. Define action clips, set frame size and FPS, preview all 8 directions, then export a SpriteSheet JSON config.</div>
-      <div class="card-tags">
-        <span class="tag tool-tag">Sprite Sheet</span>
-        <span class="tag tool-tag">Animation</span>
-        <span class="tag tool-tag">8-Direction</span>
-        <span class="tag tool-tag">JSON Export</span>
-      </div>
-    </div>
-  </a>
-
-</div>
+<div class="grid-tools section-gap" id="grid-tools"></div>
 
 <!-- ── Examples ──────────────────────────────────────────────────────────── -->
 
 <div class="section-heading"><h2>Examples</h2></div>
-<div class="grid section-gap">
-
-  <a class="card" href="/examples/01-minimal-scene/">
-    <div class="card-preview bg-01">
-      <div class="preview-dots" id="dots-01"></div>
-      <span>🗺️</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">01</div>
-      <div class="card-title">Minimal Scene</div>
-      <div class="card-desc">Basic isometric scene setup with floor tiles, walls, and a single light source.</div>
-      <div class="card-tags">
-        <span class="tag">Scene</span>
-        <span class="tag">Floor</span>
-        <span class="tag">Lighting</span>
-      </div>
-    </div>
-  </a>
-
-  <a class="card" href="/examples/02-character-movement/">
-    <div class="card-preview bg-02">
-      <div class="preview-dots" id="dots-02"></div>
-      <span>🎮</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">02</div>
-      <div class="card-title">Character Movement</div>
-      <div class="card-desc">WASD keyboard control, collision detection, and smooth camera follow.</div>
-      <div class="card-tags">
-        <span class="tag">Input</span>
-        <span class="tag">Collision</span>
-        <span class="tag">Camera</span>
-      </div>
-    </div>
-  </a>
-
-  <a class="card" href="/examples/03-combat-system/">
-    <div class="card-preview bg-03">
-      <div class="preview-dots" id="dots-03"></div>
-      <span>⚔️</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">03</div>
-      <div class="card-title">Combat System</div>
-      <div class="card-desc">Health components, damage events, floating text, and particle effects on hit.</div>
-      <div class="card-tags">
-        <span class="tag">ECS</span>
-        <span class="tag">Particles</span>
-        <span class="tag">Events</span>
-      </div>
-    </div>
-  </a>
-
-  <a class="card" href="/examples/04-hud-debug-inputmap/">
-    <div class="card-preview bg-04">
-      <div class="preview-dots" id="dots-04"></div>
-      <span>🖥️</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">04</div>
-      <div class="card-title">HUD · Debug · InputMap</div>
-      <div class="card-desc">Canvas-space HUD layer, debug renderer overlay, and action-based input mapping.</div>
-      <div class="card-tags">
-        <span class="tag">HUD</span>
-        <span class="tag">Debug</span>
-        <span class="tag">InputMap</span>
-      </div>
-    </div>
-  </a>
-
-  <a class="card" href="/examples/05-whisper-plains/">
-    <div class="card-preview bg-05">
-      <div class="preview-dots" id="dots-05"></div>
-      <span>🌿</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">05</div>
-      <div class="card-title">Whisper Plains</div>
-      <div class="card-desc">Full demo: day/night cycle, multi-scene teleportation, animals, voxel lake, deep sea.</div>
-      <div class="card-tags">
-        <span class="tag">Day/Night</span>
-        <span class="tag">Multi-Scene</span>
-        <span class="tag">Particles</span>
-        <span class="tag">Animals</span>
-      </div>
-    </div>
-  </a>
-
-  <a class="card" href="/examples/06-voxel-lake/">
-    <div class="card-preview bg-06">
-      <div class="preview-dots" id="dots-06"></div>
-      <span>🌊</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">06</div>
-      <div class="card-title">Voxel Lake</div>
-      <div class="card-desc">Hundreds of animated voxel cubes forming a dynamic wave simulation with seabed decor.</div>
-      <div class="card-tags">
-        <span class="tag">Voxel</span>
-        <span class="tag">Wave Sim</span>
-        <span class="tag">Procedural</span>
-      </div>
-    </div>
-  </a>
-
-  <a class="card" href="/examples/07-desert-ruins/">
-    <div class="card-preview bg-07">
-      <div class="preview-dots" id="dots-07"></div>
-      <span>🏜️</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">07</div>
-      <div class="card-title">Desert Ruins</div>
-      <div class="card-desc">沙漠遗迹：低多边形沙丘、金字塔、仙人掌、石碑交互、传送阵与宝箱机关。</div>
-      <div class="card-tags">
-        <span class="tag">Terrain</span>
-        <span class="tag">Interaction</span>
-        <span class="tag">Particles</span>
-        <span class="tag">Portal</span>
-      </div>
-    </div>
-  </a>
-
-  <a class="card" href="/examples/08-volcano/">
-    <div class="card-preview bg-08">
-      <div class="preview-dots" id="dots-08"></div>
-      <span>🌋</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">08</div>
-      <div class="card-title">Volcano Lava Zone</div>
-      <div class="card-desc">火山熔岩地带：岩层地面、火山锥、熔岩河流、烟雾粒子、裂缝喷发与灼烧伤害机制。</div>
-      <div class="card-tags">
-        <span class="tag">Terrain</span>
-        <span class="tag">Particles</span>
-        <span class="tag">Damage</span>
-        <span class="tag">Voxel</span>
-      </div>
-    </div>
-  </a>
-
-  <a class="card" href="09-slopes/">
-    <div class="card-preview bg-09">
-      <div class="preview-dots" id="dots-09"></div>
-      <span>🏔</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">09</div>
-      <div class="card-title">Slopes</div>
-      <div class="card-desc">Height-map terrain with smooth voxel hills. Character z follows terrain surface, slope affects speed, blob shadow scales with elevation.</div>
-      <div class="card-tags">
-        <span class="tag">Terrain</span>
-        <span class="tag">Height Map</span>
-        <span class="tag">Character</span>
-        <span class="tag">Physics</span>
-      </div>
-    </div>
-  </a>
-
-  <a class="card" href="/examples/09-slopes/">
-    <div class="card-preview bg-09">
-      <div class="preview-dots" id="dots-09"></div>
-      <span>⛰️</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">09</div>
-      <div class="card-title">Slopes &amp; Terrain Height</div>
-      <div class="card-desc">HeightMap with per-corner heights, sloped floor rendering with cliff faces, and character Z following terrain via bilinear interpolation.</div>
-      <div class="card-tags">
-        <span class="tag">HeightMap</span>
-        <span class="tag">Slopes</span>
-        <span class="tag">Terrain</span>
-        <span class="tag">Bilinear</span>
-      </div>
-    </div>
-  </a>
-
-</div>
+<div class="grid section-gap" id="grid-examples"></div>
 
 <!-- ── Engine Demo ────────────────────────────────────────────────────────── -->
 
 <div class="section-heading"><h2>Engine Demo</h2></div>
-<div class="grid-tools">
-
-  <a class="card" href="/">
-    <div class="card-preview bg-main">
-      <div class="preview-dots" id="dots-main"></div>
-      <span>🎯</span>
-    </div>
-    <div class="card-body">
-      <div class="card-num">MAIN</div>
-      <div class="card-title">Interactive Engine Demo</div>
-      <div class="card-desc">Full-featured demo showcasing lighting controls, A* pathfinding, minimap, camera view presets, and scene JSON loading.</div>
-      <div class="card-tags">
-        <span class="tag">Pathfinding</span>
-        <span class="tag">Minimap</span>
-        <span class="tag">IsoView</span>
-        <span class="tag">Lighting</span>
-        <span class="tag">JSON Scene</span>
-      </div>
-    </div>
-  </a>
-
-</div>
+<div class="grid-tools" id="grid-main"></div>
 
 <footer>
   <a href="https://github.com" target="_blank">LuxIso</a> &nbsp;·&nbsp; Canvas 2D Isometric Engine &nbsp;·&nbsp; TypeScript
 </footer>
 
 <script>
-  const configs = {
+  // ── Single source of truth for all gallery cards ──────────────────────────
+  // Each entry renders one card. Keeping the list data-driven prevents the
+  // duplicate-card / href-drift / missing-dots problems that arose when cards
+  // were hand-duplicated static HTML.
+  //
+  // `dotsId` keys into DOTS below for the animated floating-dot colors/count.
+  const SECTIONS = [
+    {
+      gridId: 'grid-tools',
+      tool: true,
+      cards: [
+        {
+          href: '/editor.html', bg: 'bg-scene-editor', dotsId: 'dots-scene-editor',
+          num: 'TOOL', emoji: '🛠️', title: 'Scene Editor',
+          desc: 'Visual editor for building isometric scenes. Place floors, walls, lights, characters and props, then export to JSON for use in your game.',
+          tags: ['Editor', 'JSON Export', 'Undo / Redo', 'Props', 'Lighting'],
+        },
+        {
+          href: '/sprite-editor.html', bg: 'bg-sprite-editor', dotsId: 'dots-sprite-editor',
+          num: 'TOOL', emoji: '🎨', title: 'Sprite Editor',
+          desc: 'Configure sprite sheet animations. Define action clips, set frame size and FPS, preview all 8 directions, then export a SpriteSheet JSON config.',
+          tags: ['Sprite Sheet', 'Animation', '8-Direction', 'JSON Export'],
+        },
+      ],
+    },
+    {
+      gridId: 'grid-examples',
+      tool: false,
+      cards: [
+        {
+          href: '/examples/01-minimal-scene/', bg: 'bg-01', dotsId: 'dots-01',
+          num: '01', emoji: '🗺️', title: 'Minimal Scene',
+          desc: 'Basic isometric scene setup with floor tiles, walls, and a single light source.',
+          tags: ['Scene', 'Floor', 'Lighting'],
+        },
+        {
+          href: '/examples/02-character-movement/', bg: 'bg-02', dotsId: 'dots-02',
+          num: '02', emoji: '🎮', title: 'Character Movement',
+          desc: 'WASD keyboard control, collision detection, and smooth camera follow.',
+          tags: ['Input', 'Collision', 'Camera'],
+        },
+        {
+          href: '/examples/03-combat-system/', bg: 'bg-03', dotsId: 'dots-03',
+          num: '03', emoji: '⚔️', title: 'Combat System',
+          desc: 'Health components, damage events, floating text, and particle effects on hit.',
+          tags: ['ECS', 'Particles', 'Events'],
+        },
+        {
+          href: '/examples/04-hud-debug-inputmap/', bg: 'bg-04', dotsId: 'dots-04',
+          num: '04', emoji: '🖥️', title: 'HUD · Debug · InputMap',
+          desc: 'Canvas-space HUD layer, debug renderer overlay, and action-based input mapping.',
+          tags: ['HUD', 'Debug', 'InputMap'],
+        },
+        {
+          href: '/examples/05-whisper-plains/', bg: 'bg-05', dotsId: 'dots-05',
+          num: '05', emoji: '🌿', title: 'Whisper Plains',
+          desc: 'Full demo: day/night cycle, multi-scene teleportation, animals, voxel lake, deep sea.',
+          tags: ['Day/Night', 'Multi-Scene', 'Particles', 'Animals'],
+        },
+        {
+          href: '/examples/06-voxel-lake/', bg: 'bg-06', dotsId: 'dots-06',
+          num: '06', emoji: '🌊', title: 'Voxel Lake',
+          desc: 'Hundreds of animated voxel cubes forming a dynamic wave simulation with seabed decor.',
+          tags: ['Voxel', 'Wave Sim', 'Procedural'],
+        },
+        {
+          href: '/examples/07-desert-ruins/', bg: 'bg-07', dotsId: 'dots-07',
+          num: '07', emoji: '🏜️', title: 'Desert Ruins',
+          desc: '沙漠遗迹：低多边形沙丘、金字塔、仙人掌、石碑交互、传送阵与宝箱机关。',
+          tags: ['Terrain', 'Interaction', 'Particles', 'Portal'],
+        },
+        {
+          href: '/examples/08-volcano/', bg: 'bg-08', dotsId: 'dots-08',
+          num: '08', emoji: '🌋', title: 'Volcano Lava Zone',
+          desc: '火山熔岩地带：岩层地面、火山锥、熔岩河流、烟雾粒子、裂缝喷发与灼烧伤害机制。',
+          tags: ['Terrain', 'Particles', 'Damage', 'Voxel'],
+        },
+        {
+          href: '/examples/09-slopes/', bg: 'bg-09', dotsId: 'dots-09',
+          num: '09', emoji: '🏔️', title: 'Slopes & Terrain Height',
+          desc: 'HeightMap with per-corner heights, sloped floor rendering with cliff faces, smooth voxel hills, and character Z following terrain via bilinear interpolation.',
+          tags: ['HeightMap', 'Slopes', 'Terrain', 'Bilinear'],
+        },
+      ],
+    },
+    {
+      gridId: 'grid-main',
+      tool: false,
+      cards: [
+        {
+          href: '/', bg: 'bg-main', dotsId: 'dots-main',
+          num: 'MAIN', emoji: '🎯', title: 'Interactive Engine Demo',
+          desc: 'Full-featured demo showcasing lighting controls, A* pathfinding, minimap, camera view presets, and scene JSON loading.',
+          tags: ['Pathfinding', 'Minimap', 'IsoView', 'Lighting', 'JSON Scene'],
+        },
+      ],
+    },
+  ];
+
+  const DOTS = {
     'dots-scene-editor':  { colors: ['#4455aa','#6677cc','#8899dd'], count: 8 },
     'dots-sprite-editor': { colors: ['#2255aa','#3377cc','#4499dd'], count: 8 },
     'dots-01': { colors: ['#3060a0','#2050c0','#4080d0'], count: 7 },
@@ -481,7 +343,37 @@
     'dots-main': { colors: ['#404060','#505080','#6060a0'], count: 9 },
   };
 
-  for (const [id, cfg] of Object.entries(configs)) {
+  // ── Render cards from data ────────────────────────────────────────────────
+  function renderCards(section) {
+    const grid = document.getElementById(section.gridId);
+    if (!grid) return;
+    for (const c of section.cards) {
+      const card = document.createElement('a');
+      card.className = 'card' + (section.tool ? ' tool-card' : '');
+      card.href = c.href;
+
+      const tagClass = section.tool ? 'tag tool-tag' : 'tag';
+      const tagsHtml = c.tags.map(t => `<span class="${tagClass}">${t}</span>`).join('');
+
+      card.innerHTML =
+        `<div class="card-preview ${c.bg}">
+           <div class="preview-dots" id="${c.dotsId}"></div>
+           <span>${c.emoji}</span>
+         </div>
+         <div class="card-body">
+           <div class="card-num">${c.num}</div>
+           <div class="card-title">${c.title}</div>
+           <div class="card-desc">${c.desc}</div>
+           <div class="card-tags">${tagsHtml}</div>
+         </div>`;
+      grid.appendChild(card);
+    }
+  }
+
+  for (const section of SECTIONS) renderCards(section);
+
+  // ── Animated dots (keyed by dotsId, now unique per card) ──────────────────
+  for (const [id, cfg] of Object.entries(DOTS)) {
     const container = document.getElementById(id);
     if (!container) continue;
     for (let i = 0; i < cfg.count; i++) {
