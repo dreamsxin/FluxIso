@@ -16,7 +16,7 @@ export interface CloudOptions {
   scale?: number;
   /** Base color (hex). Default '#d8e8f8'. */
   color?: string;
-  /** Random seed for shape variation (0â€?). Default 0.5. */
+  /** Random seed for shape variation (0-1). Default 0.5. */
   seed?: number;
 }
 
@@ -43,7 +43,7 @@ export class Cloud extends IsoObject {
 
   constructor(opts: CloudOptions) {
     const alt = opts.altitude ?? 6;
-    // z in screen pixels: altitude * tileH (approximate; tileH=32 â†?1 unit = 32px)
+    // z in screen pixels: altitude * tileH (approximately 32 px per unit)
     super(opts.id, opts.x, opts.y, alt * 32);
     this._speed    = opts.speed ?? 0.4;
     this._angle    = opts.angle ?? 0;
@@ -51,7 +51,7 @@ export class Cloud extends IsoObject {
     this._seed     = opts.seed  ?? 0.5;
   }
 
-  // ©¤©¤ Serialization helpers ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+  // Serialization helpers
   get speed(): number  { return this._speed; }
   get angle(): number  { return this._angle; }
   get scale(): number  { return this._scale; }
@@ -62,7 +62,7 @@ export class Cloud extends IsoObject {
     // Clouds are high in the air - their AABB baseZ reflects their altitude
     // so they sort correctly above ground objects.
     // position.z is in SCREEN PIXELS (altitude * tileH); convert to AABB
-    // world-Z units (1 unit = tileH/2 ¡Ö 16 px) for depth-sort consistency.
+    // world-Z units (1 unit = tileH/2, approximately 16 px) for depth-sort consistency.
     // A cloud's visual thickness is ~2 scale units * tileH px -> ~2*scale
     // world-Z units of body above its base.
     const r = 1.2 * this._scale;
@@ -106,7 +106,7 @@ export class Cloud extends IsoObject {
 
     const s = this._scale * (tileW / 64); // normalise to tile size
 
-    // â”€â”€ Ground shadow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Ground shadow
     // Soft ellipse projected onto the ground plane
     const { sx: gsx, sy: gsy } = project(x, y, 0, tileW, tileH);
     const gx = originX + gsx;
@@ -121,9 +121,9 @@ export class Cloud extends IsoObject {
     ctx.fill();
     ctx.restore();
 
-    // â”€â”€ Low-poly cloud body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Low-poly cloud body
     // Build a deterministic set of "puffs" from the seed value.
-    // Each puff is an irregular convex polygon (5â€? vertices).
+    // Each puff is an irregular convex polygon (5-8 vertices).
     const puffs = buildPuffs(this._seed, s);
 
     ctx.save();
@@ -159,7 +159,7 @@ export class Cloud extends IsoObject {
   }
 }
 
-// â”€â”€ Puff geometry builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Puff geometry builder
 
 interface Puff {
   verts: [number, number][];
@@ -182,7 +182,7 @@ function buildPuffs(seed: number, s: number): Puff[] {
 
   const puffs: Puff[] = [];
 
-  // 4â€? overlapping puffs arranged in a loose cluster
+  // 4-6 overlapping puffs arranged in a loose cluster
   const count = 4 + Math.floor(rng() * 3);
   for (let i = 0; i < count; i++) {
     const offX = (rng() - 0.5) * 38 * s;

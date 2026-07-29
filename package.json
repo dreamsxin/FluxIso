@@ -6,20 +6,35 @@
     "isometric",
     "game-engine",
     "canvas2d",
+    "webgl2",
     "typescript",
     "ecs",
-    "lighting"
+    "lighting",
+    "pathfinding",
+    "scene-editor"
   ],
+  "author": "dreamsxin",
   "license": "MIT",
+  "homepage": "https://github.com/dreamsxin/FluxIso#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dreamsxin/FluxIso.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dreamsxin/FluxIso/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/luxiso.cjs",
   "module": "./dist/luxiso.mjs",
   "types": "./dist/types/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/types/index.d.ts",
       "import": "./dist/luxiso.mjs",
-      "require": "./dist/luxiso.cjs",
-      "types": "./dist/types/index.d.ts"
+      "require": "./dist/luxiso.cjs"
     }
   },
   "files": [
@@ -27,8 +42,10 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "build:lib": "cross-env BUILD_MODE=lib vite build && tsc -p tsconfig.lib.json",
+    "encoding:check": "node scripts/normalize-encoding.mjs",
+    "encoding:fix": "node scripts/normalize-encoding.mjs --write",
+    "build": "npm run encoding:check && tsc && vite build",
+    "build:lib": "npm run encoding:check && cross-env BUILD_MODE=lib vite build && tsc -p tsconfig.lib.json",
     "preview": "vite preview",
     "test": "vitest --run",
     "test:watch": "vitest",
@@ -40,7 +57,7 @@
     "cross-env": "^10.1.0",
     "pngjs": "^7.0.0",
     "typescript": "^5.3.3",
-    "vite": "^5.4.19",
-    "vitest": "^4.1.2"
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   }
 }

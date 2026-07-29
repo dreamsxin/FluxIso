@@ -67,6 +67,14 @@ Application code should continue using the Canvas2D `Engine` API until the
 ## Installation
 
 ```bash
+npm install luxiso
+```
+
+## Run The Demos
+
+Clone the repository, then run:
+
+```bash
 npm install
 npm run dev        # http://localhost:5173 — interactive demo
 npm run build      # production build → dist/
@@ -96,7 +104,7 @@ npm run test:webgl # run 9 deterministic captures + context/resource lifecycle t
 ## Quick Start
 
 ```ts
-import { Engine, OmniLight, Crystal, HealthComponent, ParticleSystem, AudioManager } from './src/index';
+import { Engine, OmniLight, Crystal, HealthComponent, ParticleSystem, AudioManager } from 'luxiso';
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const engine = new Engine({ canvas });
@@ -717,7 +725,7 @@ requireComponent<T>(entity: Entity, ctor: ComponentCtor<T>): T  // throws if mis
 | EventBus event maps | Event names and payload types are coupled; custom maps supported |
 | Scene.toJSON(): runtime state + built-in prop serialization | Environment, camera, view, light IDs/options, collider, built-ins |
 | Lib build: ESM + CJS dual output + .d.ts (npm run build:lib) | |
-| Unit tests: 229 tests across 26 files (Vitest 4, Node ≥ 22) | |
+| Unit tests: 266 tests across 36 files (Vitest 4, Node ≥ 22) | |
 | Examples: 9 progressive demos + tools gallery | |
 
 ## Known Limitations & Roadmap (Next)
@@ -738,4 +746,6 @@ See [FRAMEWORK_ANALYSIS.md](FRAMEWORK_ANALYSIS.md) for a detailed comparison wit
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 dreamsxin
+
+Release maintainers should follow [RELEASING.md](RELEASING.md).
